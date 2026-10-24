@@ -1,0 +1,32 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports: ["27017:27017"]
+    volumes: ["mongo_data:/data/db"]
+
+  app:
+    build: .
+    depends_on: [mongo]
+    ports: ["3000:3000"]
+    environment:
+      DATA_SOURCE: mock
+      MONGODB_URI: mongodb://mongo:27017
+      WEB_DB_NAME: woven_essence_web
+      ERP_MONGODB_URI: ${ERP_MONGODB_URI:-${ERP_MONGO_URI:-}}
+      ERP_DB_NAME: ${ERP_DB_NAME:-grooretailerp1}
+      JWT_SECRET: change-me-in-production-please-32-chars
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+  seed:
+    build: .
+    depends_on: [mongo]
+    profiles: ["seed"]
+    environment:
+      DATA_SOURCE: mock
+      MONGODB_URI: mongodb://mongo:27017
+      WEB_DB_NAME: woven_essence_web
+    command: ["npm", "run", "seed"]
+
+volumes:
+  mongo_data:

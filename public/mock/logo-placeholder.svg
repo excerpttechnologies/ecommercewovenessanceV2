@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 112" width="360" height="112" role="img" aria-label="Woven Essence by Temple Fabrics">
+  <!-- Placeholder wordmark. Replace with the real logo via Admin → Settings → Logo. -->
+  <rect width="360" height="112" fill="none"/>
+  <g fill="none" stroke="#B8893B" stroke-width="2">
+    <path d="M18 56 l14 -22 l14 22 l-14 22 z"/>
+    <path d="M24 56 l8 -12 l8 12 l-8 12 z"/>
+  </g>
+  <text x="64" y="58" font-family="Cormorant Garamond, Georgia, serif" font-size="38" fill="#3E4A2A" letter-spacing="1">Woven Essence</text>
+  <text x="66" y="82" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#B8893B" letter-spacing="4">BY TEMPLE FABRICS</text>
+</svg>

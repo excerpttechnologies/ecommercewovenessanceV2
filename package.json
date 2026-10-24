@@ -1,0 +1,49 @@
+{
+  "name": "woven-essence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Woven Essence by Temple Fabrics — saree e-commerce storefront + admin, RetailERP-ready data layer",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "seed": "tsx scripts/seed.ts",
+    "erp:introspect": "tsx scripts/introspect-erp.ts",
+    "erp:sync-meta": "tsx scripts/sync-web-meta.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.0",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "jose": "^5.9.3",
+    "lucide-react": "^0.447.0",
+    "mongoose": "^8.7.0",
+    "next": "15.5.4",
+    "openai": "^7.25.0",
+    "qrcode.react": "^4.2.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "tailwind-merge": "^2.5.2",
+    "zod": "^3.23.8",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.7.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "dotenv": "^16.4.5",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.4",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.1"
+  }
+}

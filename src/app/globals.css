@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand tokens. Defaults mirror siteSettings.theme; <ThemeStyle /> overrides
+   them at runtime from the database so the admin panel can change the palette. */
+:root {
+  --we-ivory: #fbf7ef;
+  --we-olive: #3e4a2a;
+  --we-gold: #b8893b;
+  --we-maroon: #7a1f2b;
+  --we-ink: #2a2a26;
+  --we-muted: #6e6a60;
+  --we-line: #e6dfd0;
+  /* RGB channel triplets for Tailwind opacity modifiers (kept in sync by <ThemeStyle />) */
+  --we-ivory-rgb: 251 247 239;
+  --we-olive-rgb: 62 74 42;
+  --we-gold-rgb: 184 137 59;
+  --we-maroon-rgb: 122 31 43;
+  --we-ink-rgb: 42 42 38;
+  --we-muted-rgb: 110 106 96;
+  --we-line-rgb: 230 223 208;
+}
+
+html {
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+}
+
+body {
+  @apply bg-ivory text-ink font-body antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  @apply font-heading text-olive;
+}
+
+/* Thin gold rule used under section titles — the one recurring brand motif. */
+.we-rule {
+  position: relative;
+  padding-bottom: 0.75rem;
+}
+.we-rule::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 3rem;
+  height: 2px;
+  background: var(--we-gold);
+}
+
+/* CMS prose */
+.prose-we { @apply text-sm leading-relaxed text-ink/85; }
+.prose-we h2 { @apply mt-8 text-2xl; }
+.prose-we h3 { @apply mt-6 text-xl; }
+.prose-we p { @apply my-3; }
+.prose-we ul { @apply my-3 list-disc pl-5; }
+.prose-we ol { @apply my-3 list-decimal pl-5; }
+.prose-we a { @apply text-maroon underline underline-offset-4; }
