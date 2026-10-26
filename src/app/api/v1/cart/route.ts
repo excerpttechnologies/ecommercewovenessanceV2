@@ -1,7 +1,47 @@
+// import type { NextRequest } from "next/server";
+// import { z } from "zod";
+// import { parseBody } from "@/lib/api/body";
+// import { handler, ok } from "@/lib/api/response";
+// import { addToCart, getCartView, setCartQty } from "@/lib/cart-server";
+
+// export const dynamic = "force-dynamic";
+
+// const strip = ({ token: _t, ...rest }: Awaited<ReturnType<typeof getCartView>>) => rest;
+
+// /** GET /api/v1/cart — current guest/customer cart with live prices & totals */
+// export const GET = handler(async () => ok(strip(await getCartView())));
+
+// /** POST /api/v1/cart { sku, qty } — add */
+// export const POST = handler(async (req: NextRequest) => {
+//   const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().int().min(1).max(20).default(1) }));
+//   if (!b.ok) return b.res;
+//   return ok(strip(await addToCart(b.data.sku, b.data.qty)));
+// });
+
+// /** PATCH /api/v1/cart { sku, qty } — set quantity (0 removes) */
+// export const PATCH = handler(async (req: NextRequest) => {
+//   const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().int().min(0).max(20) }));
+//   if (!b.ok) return b.res;
+//   return ok(strip(await setCartQty(b.data.sku, b.data.qty)));
+// });
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// ============================================================================
+// FILE PATH : src/app/api/v1/cart/route.ts
+// ROUTE     : /api/v1/cart  (GET, POST, PATCH)
+// HOW TO USE: Replace the full contents of the existing file with this code.
+// CHANGE    : POST (add to bag) now requires a logged-in customer. A guest gets
+//             401 UNAUTHENTICATED, and the client hook (hooks/useCart.ts)
+//             turns that into a redirect to /login?next=<current page>.
+//             GET and PATCH are unchanged.
+// ============================================================================
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/api/body";
 import { handler, ok } from "@/lib/api/response";
+import { requireCustomer } from "@/lib/auth";
 import { addToCart, getCartView, setCartQty } from "@/lib/cart-server";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +51,9 @@ const strip = ({ token: _t, ...rest }: Awaited<ReturnType<typeof getCartView>>) 
 /** GET /api/v1/cart — current guest/customer cart with live prices & totals */
 export const GET = handler(async () => ok(strip(await getCartView())));
 
-/** POST /api/v1/cart { sku, qty } — add */
+/** POST /api/v1/cart { sku, qty } — add (login required) */
 export const POST = handler(async (req: NextRequest) => {
+  await requireCustomer(); // not logged in -> 401, client redirects to /login
   const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().int().min(1).max(20).default(1) }));
   if (!b.ok) return b.res;
   return ok(strip(await addToCart(b.data.sku, b.data.qty)));
@@ -24,3 +65,4 @@ export const PATCH = handler(async (req: NextRequest) => {
   if (!b.ok) return b.res;
   return ok(strip(await setCartQty(b.data.sku, b.data.qty)));
 });
+
