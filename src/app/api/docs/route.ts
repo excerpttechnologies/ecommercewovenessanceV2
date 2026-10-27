@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
 import { buildOpenApi } from "@/lib/openapi";
 
 export const dynamic = "force-static";
-/** GET /api/docs → OpenAPI JSON. Swagger UI at /api/docs/ui. */
+/**
+ * GET /api/docs → OpenAPI JSON. Swagger UI at /api/docs/ui.
+ * The server URL is relative ("/api/v1"), so "Try it out" calls whichever host serves the docs.
+ */
 export function GET() {
-  return NextResponse.json(buildOpenApi(env.NEXT_PUBLIC_SITE_URL), { headers: { "Cache-Control": "public, max-age=300" } });
+  return NextResponse.json(buildOpenApi(""), { headers: { "Cache-Control": "public, max-age=300" } });
 }

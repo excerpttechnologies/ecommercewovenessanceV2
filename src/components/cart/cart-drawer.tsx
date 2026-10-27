@@ -30,10 +30,11 @@ export function CartDrawer() {
         </div>
       )}
       {lines.length > 0 && (
-        <ul className="divide-y divide-line px-5">
+        // Re-keyed on open so the items slide in each time the drawer opens.
+        <ul key={open ? "open" : "closed"} className="we-stagger divide-y divide-line px-5">
           {lines.map((l) => (
             <li key={l.sku} className="flex gap-4 py-4">
-              <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="relative h-28 w-20 shrink-0 overflow-hidden rounded-sm bg-line">
+              <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-line">
                 {l.product.images[0] ? <Image src={l.product.images[0]} alt={l.product.name} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="80px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
               </Link>
               <div className="flex min-w-0 flex-1 flex-col">

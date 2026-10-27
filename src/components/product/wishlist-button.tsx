@@ -12,9 +12,9 @@ export function WishlistButton({ sku, className, label }: { sku: string; classNa
       onClick={() => toggle.mutate(sku)}
       aria-pressed={on}
       aria-label={on ? "Remove from wishlist" : "Add to wishlist"}
-      className={cn("inline-flex items-center gap-2 rounded-full bg-ivory/90 p-2 text-olive shadow-sm transition-colors hover:text-maroon", label && "rounded-sm border border-line px-4 py-2 text-xs uppercase tracking-widest", className)}
+      className={cn("inline-flex items-center gap-2 rounded-full bg-white/95 p-2 text-olive shadow-card transition-colors hover:text-maroon", label && "h-12 rounded-md border border-line px-5 text-sm font-semibold shadow-none hover:border-maroon", className)}
     >
-      <Heart className={cn("h-4 w-4", on && "fill-maroon text-maroon")} />
+      <Heart className={cn("h-[18px] w-[18px]", on && "fill-maroon text-maroon")} />
       {label && (on ? "Saved" : "Save")}
     </button>
   );

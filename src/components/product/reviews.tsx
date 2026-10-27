@@ -35,7 +35,7 @@ export function Reviews({ sku }: { sku: string }) {
         <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>Write a review</Button>
       </div>
       {open && (
-        <form className="mt-6 grid gap-4 rounded-sm border border-line bg-white/60 p-5 md:grid-cols-2" onSubmit={(e) => { e.preventDefault(); submit.mutate(); }}>
+        <form className="mt-6 grid gap-4 rounded-lg border border-line bg-white/60 p-5 md:grid-cols-2" onSubmit={(e) => { e.preventDefault(); submit.mutate(); }}>
           <Field label="Your name"><Input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} /></Field>
           <Field label="Rating">
             <div className="flex gap-1 pt-2">{[1, 2, 3, 4, 5].map((n) => <button type="button" key={n} onClick={() => setForm({ ...form, rating: n })} aria-label={`${n} stars`}><Star className={`h-6 w-6 ${n <= form.rating ? "fill-gold text-gold" : "text-line"}`} /></button>)}</div>
@@ -52,8 +52,8 @@ export function Reviews({ sku }: { sku: string }) {
       )}
       <ul className="mt-8 grid gap-6 md:grid-cols-2">
         {data?.items.map((r) => (
-          <li key={r.id} className="rounded-sm border border-line p-5">
-            <div className="flex items-center justify-between"><Stars n={r.rating} />{r.isVerifiedPurchase && <span className="text-[10px] uppercase tracking-widest text-olive">Verified purchase</span>}</div>
+          <li key={r.id} className="rounded-lg border border-line p-5">
+            <div className="flex items-center justify-between"><Stars n={r.rating} />{r.isVerifiedPurchase && <span className="text-[10px] uppercase tracking-wider text-olive">Verified purchase</span>}</div>
             {r.title && <p className="mt-2 font-medium">{r.title}</p>}
             <p className="mt-1 text-sm text-ink/80">{r.body}</p>
             <p className="mt-3 text-xs text-muted">{r.customerName}{r.createdAt ? ` · ${new Date(r.createdAt).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}` : ""}</p>

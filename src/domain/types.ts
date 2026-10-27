@@ -294,9 +294,14 @@ export interface BarcodeListParams {
   group?: string;
   business?: string;
   uomType?: string;
+  /** Storefront ordering; newest (default) keeps the stable _id order. Prices use the offer price when it is lower. */
+  sort?: BarcodeSort;
   page?: number;
   limit?: number;
 }
+
+export const BARCODE_SORTS = ["newest", "price_asc", "price_desc"] as const;
+export type BarcodeSort = (typeof BARCODE_SORTS)[number];
 
 export interface BarcodeFacets {
   status: FacetOption[];

@@ -14,7 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <AuthShell
       title="Log in to your account"
-      subtitle="Welcome back! Please enter your details."
+      subtitle="Welcome back! Please enter your details to continue."
       switchTo={{ prompt: "New to Woven Essence?", label: "Create an account", href: `/register${carry}` }}
     >
       <LoginForm next={next} />

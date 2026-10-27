@@ -183,7 +183,8 @@ function OrderManageModal({ orderNo, onClose, onManage }: { orderNo: string; onC
         </div>
         <footer className="flex justify-end gap-2 border-t border-line px-5 py-3 sm:px-6">
           <Button type="button" variant="outline" onClick={onClose}>Close</Button>
-          <Button type="button" onClick={() => { onClose(); onManage(); }}>Manage order</Button>
+          {/* <Button type="button" onClick={() => { onClose(); onManage(); }}>Manage order</Button> */}
+          <Button type="button" onClick={() => { window.location.href = `/admin/orders/${encodeURIComponent(orderNo)}`; }}>Manage order</Button>
         </footer>
       </section>
     </div>

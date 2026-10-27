@@ -12,6 +12,9 @@ const FILTER_GROUPS = [
   ["color", "By Colour"],
 ] as const;
 
+/** Columns left out of a category's mega menu (the collection page filters still offer them). */
+const HIDDEN_GROUPS: Partial<Record<StorefrontCategoryGroup, readonly string[]>> = { sarees: ["color"] };
+
 function erpCategorySlug(node: MenuNode): StorefrontCategoryGroup | null {
   const slug = node.href?.match(/^\/collections\/([^/?#]+)$/)?.[1];
   return slug && slug in ERP_CATEGORY_PRODUCT_TYPES ? (slug as StorefrontCategoryGroup) : null;
@@ -31,7 +34,7 @@ export async function withErpFilterColumns(menu: MenuNode[]): Promise<MenuNode[]
       const facets = await getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[slug]]);
       const columns: MenuNode[] = FILTER_GROUPS.flatMap(([key, label]) => {
         const options = facets[key] ?? [];
-        if (!options.length) return [];
+        if (!options.length || HIDDEN_GROUPS[slug]?.includes(key)) return [];
         return [{
           id: `${top.id}-erp-${key}`,
           label,

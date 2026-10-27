@@ -44,7 +44,7 @@ export function FacetSidebar({ facets }: { facets: ProductFacets }) {
   const body = (
     <div className={cn("space-y-1", pending && "opacity-60")}>
       {activeCount > 0 && (
-        <button onClick={() => update((p) => { [...facets.groups.map((g) => g.key), "priceMin", "priceMax", "inStock", "discountMin"].forEach((k) => p.delete(k)); })} className="mb-2 flex items-center gap-1 text-xs uppercase tracking-widest text-maroon">
+        <button onClick={() => update((p) => { [...facets.groups.map((g) => g.key), "priceMin", "priceMax", "inStock", "discountMin"].forEach((k) => p.delete(k)); })} className="mb-2 flex items-center gap-1 text-xs font-semibold text-maroon hover:underline">
           <X className="h-3 w-3" /> Clear all ({activeCount})
         </button>
       )}
@@ -59,9 +59,9 @@ export function FacetSidebar({ facets }: { facets: ProductFacets }) {
               return (
                 <li key={o.value}>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input type="checkbox" checked={on} onChange={() => toggle(g.key, o.value)} className="h-3.5 w-3.5 accent-[var(--we-olive)]" />
+                    <input type="checkbox" checked={on} onChange={() => toggle(g.key, o.value)} className="h-4 w-4 rounded accent-[var(--we-maroon)]" />
                     {g.key === "color" && <span className="h-3.5 w-3.5 rounded-full border border-line" style={{ background: o.swatch ?? o.value.toLowerCase() }} />}
-                    <span className={cn("flex-1", on && "text-olive")}>{o.label}</span>
+                    <span className={cn("flex-1 text-ink/80", on && "font-medium text-maroon")}>{o.label}</span>
                     <span className="text-[11px] text-muted">{o.count}</span>
                   </label>
                 </li>
@@ -72,7 +72,7 @@ export function FacetSidebar({ facets }: { facets: ProductFacets }) {
       ))}
       <Group title="Availability">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={sp.get("inStock") === "true"} onChange={(e) => update((p) => (e.target.checked ? p.set("inStock", "true") : p.delete("inStock")))} className="h-3.5 w-3.5 accent-[var(--we-olive)]" />
+          <input type="checkbox" checked={sp.get("inStock") === "true"} onChange={(e) => update((p) => (e.target.checked ? p.set("inStock", "true") : p.delete("inStock")))} className="h-4 w-4 rounded accent-[var(--we-maroon)]" />
           In stock only <span className="ml-auto text-[11px] text-muted">{facets.availability.inStock}</span>
         </label>
       </Group>
@@ -82,7 +82,7 @@ export function FacetSidebar({ facets }: { facets: ProductFacets }) {
             {facets.discount.map((d) => (
               <li key={d.minPercent}>
                 <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" name="discount" checked={sp.get("discountMin") === String(d.minPercent)} onChange={() => update((p) => p.set("discountMin", String(d.minPercent)))} className="h-3.5 w-3.5 accent-[var(--we-olive)]" />
+                  <input type="radio" name="discount" checked={sp.get("discountMin") === String(d.minPercent)} onChange={() => update((p) => p.set("discountMin", String(d.minPercent)))} className="h-4 w-4 rounded accent-[var(--we-maroon)]" />
                   {d.minPercent}% and above <span className="ml-auto text-[11px] text-muted">{d.count}</span>
                 </label>
               </li>
@@ -95,14 +95,14 @@ export function FacetSidebar({ facets }: { facets: ProductFacets }) {
 
   return (
     <>
-      <button onClick={() => setMobileOpen(true)} className="flex items-center gap-2 rounded-sm border border-line px-3 py-2 text-xs uppercase tracking-widest lg:hidden">
+      <button onClick={() => setMobileOpen(true)} className="flex h-10 w-fit items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-medium lg:hidden">
         <SlidersHorizontal className="h-4 w-4" /> Filters {activeCount > 0 && `(${activeCount})`}
       </button>
       <aside className="hidden w-64 shrink-0 lg:block">{body}</aside>
       <div className={cn("fixed inset-0 z-[70] lg:hidden", mobileOpen ? "pointer-events-auto" : "pointer-events-none")}>
         <div onClick={() => setMobileOpen(false)} className={cn("absolute inset-0 bg-ink/40 transition-opacity", mobileOpen ? "opacity-100" : "opacity-0")} />
-        <div className={cn("absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-ivory p-5 transition-transform", mobileOpen ? "translate-x-0" : "-translate-x-full")} style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top, 0px))" }}>
-          <div className="mb-4 flex items-center justify-between"><span className="font-heading text-2xl text-olive">Filters</span><button onClick={() => setMobileOpen(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
+        <div className={cn("absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-white p-5 transition-transform", mobileOpen ? "translate-x-0" : "-translate-x-full")} style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top, 0px))" }}>
+          <div className="mb-4 flex items-center justify-between"><span className="font-heading text-xl font-semibold text-olive">Filters</span><button onClick={() => setMobileOpen(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
           {body}
         </div>
       </div>
@@ -114,7 +114,7 @@ function Group({ title, children, defaultOpen = false }: { title: string; childr
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border-b border-line py-3">
-      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-[11px] font-medium uppercase tracking-[0.2em] text-olive">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between text-[15px] font-semibold text-olive">
         {title} <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
       </button>
       {open && <div className="mt-3">{children}</div>}
@@ -129,10 +129,10 @@ function PriceRange({ min, max, curMin, curMax, currency, onApply }: { min: numb
     <div>
       <p className="mb-2 text-xs text-muted">{formatMoney(min, currency)} – {formatMoney(max, currency)}</p>
       <div className="flex items-center gap-2">
-        <input inputMode="numeric" placeholder="Min" value={a} onChange={(e) => setA(e.target.value)} className="h-8 w-full rounded-sm border border-line bg-white px-2 text-sm" />
+        <input inputMode="numeric" placeholder="Min" value={a} onChange={(e) => setA(e.target.value)} className="h-9 w-full rounded-md border border-line bg-white px-2 text-sm focus:border-maroon focus:outline-none" />
         <span className="text-muted">–</span>
-        <input inputMode="numeric" placeholder="Max" value={b} onChange={(e) => setB(e.target.value)} className="h-8 w-full rounded-sm border border-line bg-white px-2 text-sm" />
-        <button onClick={() => onApply(a ? Number(a) : null, b ? Number(b) : null)} className="h-8 rounded-sm bg-olive px-3 text-xs uppercase tracking-widest text-ivory">Go</button>
+        <input inputMode="numeric" placeholder="Max" value={b} onChange={(e) => setB(e.target.value)} className="h-9 w-full rounded-md border border-line bg-white px-2 text-sm focus:border-maroon focus:outline-none" />
+        <button onClick={() => onApply(a ? Number(a) : null, b ? Number(b) : null)} className="h-9 rounded-md bg-maroon px-3 text-xs font-semibold text-white hover:bg-gold">Go</button>
       </div>
     </div>
   );

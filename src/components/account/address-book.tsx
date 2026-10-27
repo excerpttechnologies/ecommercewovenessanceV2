@@ -30,10 +30,10 @@ export function AddressBook({ initial }: { initial: Address[] }) {
     <div className="space-y-6">
       <ul className="grid gap-3 sm:grid-cols-2">
         {list.map((a, i) => (
-          <li key={i} className="rounded-sm border border-line bg-white/60 p-4 text-sm">
-            <p className="font-medium">{a.name} {a.isDefault && <span className="ml-2 text-[10px] uppercase tracking-widest text-gold">Default</span>}</p>
+          <li key={i} className="rounded-lg border border-line bg-white/60 p-4 text-sm">
+            <p className="font-medium">{a.name} {a.isDefault && <span className="ml-2 text-[10px] uppercase tracking-wider text-gold">Default</span>}</p>
             <p className="text-muted">{a.line1}{a.line2 ? `, ${a.line2}` : ""}<br />{a.city}, {a.state} {a.pincode}<br />{a.phone}</p>
-            <div className="mt-3 flex gap-3 text-xs uppercase tracking-widest">
+            <div className="mt-3 flex gap-3 text-xs uppercase tracking-wider">
               <button onClick={() => { setEditing(i); setDraft(a); }} className="text-olive">Edit</button>
               {!a.isDefault && <button onClick={() => save(list.map((x, j) => ({ ...x, isDefault: j === i })))} className="text-olive">Make default</button>}
               <button onClick={() => save(list.filter((_, j) => j !== i))} className="text-red-700">Delete</button>
@@ -42,7 +42,7 @@ export function AddressBook({ initial }: { initial: Address[] }) {
         ))}
         {list.length === 0 && <li className="text-sm text-muted">No saved addresses.</li>}
       </ul>
-      <form className="grid gap-3 rounded-sm border border-line bg-white/60 p-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); save(editing === null ? [...list, draft] : list.map((a, i) => (i === editing ? draft : a))); }}>
+      <form className="grid gap-3 rounded-lg border border-line bg-white/60 p-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); save(editing === null ? [...list, draft] : list.map((a, i) => (i === editing ? draft : a))); }}>
         <h3 className="text-2xl sm:col-span-2">{editing === null ? "Add address" : "Edit address"}</h3>
         <Field label="Name"><Input required value={draft.name ?? ""} onChange={f("name")} /></Field>
         <Field label="Mobile"><Input required pattern="[6-9][0-9]{9}" value={draft.phone ?? ""} onChange={f("phone")} /></Field>

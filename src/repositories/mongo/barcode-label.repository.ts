@@ -20,6 +20,30 @@ import type { BarcodeLabelRepository } from "../types";
 
 const MAX_LIMIT = 96;
 type ErpId = string | Types.ObjectId;
+
+/**
+ * Sort by the price a shopper pays: offerPrice when it is set and below retailPrice, else retailPrice.
+ * Both may be strings in RetailERP. Labels without a price go last in either direction.
+ */
+function priceSortStages(sort: "price_asc" | "price_desc"): PipelineStage[] {
+  const num = (field: string) => ({ $convert: { input: `$${field}`, to: "double", onError: null, onNull: null } });
+  const retail = num(B.retailPrice);
+  const offer = num(B.offerPrice);
+  const asc = sort === "price_asc";
+  return [
+    {
+      $addFields: {
+        __sortPrice: {
+          $ifNull: [
+            { $cond: [{ $and: [{ $gt: [offer, 0] }, { $lt: [offer, { $ifNull: [retail, Number.MAX_VALUE] }] }] }, offer, retail] },
+            asc ? Number.MAX_VALUE : -1,
+          ],
+        },
+      },
+    },
+    { $sort: { __sortPrice: asc ? 1 : -1, _id: -1 } },
+  ];
+}
 type EcommerceClassification = "weave" | "fabric" | "craft" | "occasion" | "color";
 
 const ECOMMERCE_CLASSIFICATIONS: Record<EcommerceClassification, { ids: string; text: string; nested: string }> = {
@@ -232,7 +256,8 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const [docs, total] = await Promise.all([
       M.aggregate<AnyDoc>([
         { $match: match },
-        { $sort: { _id: -1 } }, // newest first; _id is unique + indexed, so paging is stable
+        // newest first by default; _id is unique + indexed, so paging is stable
+        ...(params.sort === "price_asc" || params.sort === "price_desc" ? priceSortStages(params.sort) : [{ $sort: { _id: -1 as const } }]),
         { $skip: (page - 1) * limit },
         { $limit: limit },
         { $project: PROJECTION },

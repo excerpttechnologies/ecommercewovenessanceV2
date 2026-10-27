@@ -15,6 +15,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     <AuthShell
       title="Create your account"
       subtitle="It takes under a minute. Save favourites and track your orders."
+      intro="Sign up to explore our exquisite saree collections and enjoy a seamless shopping experience."
       switchTo={{ prompt: "Already have an account?", label: "Sign in", href: `/login${carry}` }}
     >
       <RegisterForm next={next} />

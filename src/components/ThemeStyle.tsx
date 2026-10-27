@@ -10,7 +10,10 @@ export interface ThemeTokens {
   line?: string | null;
 }
 
-export const DEFAULT_THEME: Record<keyof ThemeTokens, string> = { ivory: "#FBF7EF", olive: "#3E4A2A", gold: "#B8893B", maroon: "#7A1F2B", ink: "#2A2A26", muted: "#6E6A60", line: "#E6DFD0" };
+export const DEFAULT_THEME: Record<keyof ThemeTokens, string> = { ivory: "#FCFAF7", olive: "#1F1B24", gold: "#C2185B", maroon: "#DB1A72", ink: "#26222B", muted: "#6B6672", line: "#EEE8EC" };
+
+/** The original olive/gold palette. Settings rows still holding these seeded values get the current defaults. */
+const LEGACY_THEME: Record<keyof ThemeTokens, string> = { ivory: "#FBF7EF", olive: "#3E4A2A", gold: "#B8893B", maroon: "#7A1F2B", ink: "#2A2A26", muted: "#6E6A60", line: "#E6DFD0" };
 
 /** "#3E4A2A" → "62 74 42" (Tailwind alpha-friendly channel triplet). */
 export function hexToRgb(hex: string): string {
@@ -28,7 +31,9 @@ export function ThemeStyle({ theme }: { theme?: SiteSettings["theme"] | ThemeTok
   const t = (theme ?? {}) as ThemeTokens;
   const css = (Object.keys(DEFAULT_THEME) as (keyof ThemeTokens)[])
     .map((k) => {
-      const hex = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(t[k] ?? "") ? (t[k] as string) : DEFAULT_THEME[k];
+      const stored = t[k] ?? "";
+      const valid = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(stored) && stored.toUpperCase() !== LEGACY_THEME[k];
+      const hex = valid ? stored : DEFAULT_THEME[k];
       return `--we-${k}:${hex};--we-${k}-rgb:${hexToRgb(hex)};`;
     })
     .join("");

@@ -54,7 +54,7 @@ export function OtpLogin({ next }: { next: string }) {
       )}
       {error && <p className="text-xs text-red-700">{error}</p>}
       <Button type="submit" size="lg" className="w-full" loading={busy}>{step === "mobile" ? "Send OTP" : "Verify & continue"}</Button>
-      {step === "code" && <button type="button" onClick={() => { setStep("mobile"); setCode(""); }} className="block w-full text-center text-xs uppercase tracking-widest text-muted">Change number</button>}
+      {step === "code" && <button type="button" onClick={() => { setStep("mobile"); setCode(""); }} className="block w-full text-center text-xs uppercase tracking-wider text-muted">Change number</button>}
     </form>
   );
 }

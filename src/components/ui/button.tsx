@@ -5,17 +5,17 @@ export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "lin
 export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-maroon text-ivory hover:bg-maroon/90 shadow-sm",
-  secondary: "bg-olive text-ivory hover:bg-olive/90",
-  outline: "border border-olive/40 text-olive hover:bg-olive/5",
-  ghost: "text-olive hover:bg-olive/5",
+  primary: "bg-maroon text-white hover:bg-gold shadow-sm",
+  secondary: "bg-olive text-white hover:bg-olive/85",
+  outline: "border border-line bg-white text-olive hover:border-maroon hover:text-maroon",
+  ghost: "text-olive hover:bg-maroon/5 hover:text-maroon",
   link: "text-maroon underline-offset-4 hover:underline px-0",
   danger: "bg-red-700 text-white hover:bg-red-800",
 };
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-xs",
+  sm: "h-9 px-3.5 text-xs",
   md: "h-10 px-5 text-sm",
-  lg: "h-12 px-7 text-base",
+  lg: "h-12 px-7 text-[15px]",
   icon: "h-10 w-10 p-0",
 };
 
@@ -34,7 +34,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-sm font-medium uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-[color,background-color,border-color,transform] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-maroon/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         sizes[size],
         className,
@@ -49,7 +49,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
 
 export function buttonClass(variant: ButtonVariant = "primary", size: ButtonSize = "md", className?: string) {
   return cn(
-    "inline-flex items-center justify-center gap-2 rounded-sm font-medium uppercase tracking-[0.12em] transition-colors",
+    "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-[color,background-color,border-color,transform] active:scale-[0.97]",
     variants[variant],
     sizes[size],
     className,

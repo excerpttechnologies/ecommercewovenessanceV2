@@ -31,7 +31,7 @@ export function Drawer({ open, onClose, title, children, side = "right", classNa
       >
         <header className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="text-2xl">{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-olive/10">
+          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 hover:bg-maroon/10">
             <X className="h-5 w-5" />
           </button>
         </header>

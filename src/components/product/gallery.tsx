@@ -12,14 +12,14 @@ export function Gallery({ images, alt, badge }: { images: string[]; alt: string;
       <ul className="order-2 flex gap-2 overflow-x-auto md:order-1 md:flex-col">
         {images.map((img, idx) => (
           <li key={img + idx}>
-            <button onClick={() => setI(idx)} aria-label={`Image ${idx + 1}`} className={cn("relative h-20 w-16 shrink-0 overflow-hidden rounded-sm border bg-line", idx === i ? "border-gold" : "border-transparent")}>
+            <button onClick={() => setI(idx)} aria-label={`Image ${idx + 1}`} className={cn("relative h-20 w-16 shrink-0 overflow-hidden rounded-lg border bg-line", idx === i ? "border-gold" : "border-transparent")}>
               <Image src={img} alt="" fill unoptimized={isRemoteImageSource(img)} sizes="64px" className="object-cover" />
             </button>
           </li>
         ))}
       </ul>
       <div
-        className="relative order-1 aspect-[3/4] overflow-hidden rounded-sm bg-line md:order-2"
+        className="relative order-1 aspect-[3/4] overflow-hidden rounded-lg bg-line md:order-2"
         onMouseMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           setZoom({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
@@ -27,7 +27,7 @@ export function Gallery({ images, alt, badge }: { images: string[]; alt: string;
         onMouseLeave={() => setZoom(null)}
       >
         {src ? <Image src={src} alt={alt} fill priority unoptimized={isRemoteImageSource(src)} sizes="(min-width: 1024px) 45vw, 100vw" className="object-cover transition-transform duration-200" style={zoom ? { transform: "scale(1.8)", transformOrigin: `${zoom.x}% ${zoom.y}%` } : undefined} /> : <ComingSoonFallback />}
-        {badge && <span className="absolute left-3 top-3 rounded-sm bg-olive px-2 py-0.5 text-[10px] uppercase tracking-widest text-ivory">{badge}</span>}
+        {badge && <span className="absolute left-3 top-3 rounded-full bg-maroon px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{badge}</span>}
       </div>
     </div>
   );

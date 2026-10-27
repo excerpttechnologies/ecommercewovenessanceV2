@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Image from "next/image";
+import { CollectionBanner } from "./collection-banner";
 import type { BarcodeProduct, ProductListParams } from "@/domain/types";
 import { getMasterData } from "@/repositories";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
@@ -8,7 +8,6 @@ import { ErpImageGallery } from "@/components/home/sections";
 import { ProductGrid } from "@/components/product/product-grid";
 import { FacetSidebar } from "./facet-sidebar";
 import { Pagination, SortSelect } from "./toolbar";
-import { isRemoteImageSource } from "@/lib/utils";
 
 interface Props {
   title: string;
@@ -28,29 +27,16 @@ export async function Listing({ title, description, banner, breadcrumbs, params,
   return (
     <div className="mx-auto max-w-site px-4 py-6 sm:px-6">
       <Breadcrumbs items={breadcrumbs} />
-      {banner ? (
-        <div className="relative mt-4 aspect-[3/1] overflow-hidden rounded-sm bg-line sm:aspect-[16/4]">
-          <Image src={banner} alt={title} fill priority unoptimized={isRemoteImageSource(banner)} sizes="100vw" className="object-cover" />
-          <div className="absolute inset-0 flex flex-col justify-center bg-ink/30 px-8 text-ivory">
-            <h1 className="font-heading text-4xl text-ivory sm:text-5xl">{title}</h1>
-            {description && <p className="mt-2 max-w-lg text-sm text-ivory/85">{description}</p>}
-          </div>
-        </div>
-      ) : (
-        <div className="mt-4">
-          <h1 className="we-rule text-4xl">{title}</h1>
-          {description && <p className="mt-3 max-w-2xl text-sm text-muted">{description}</p>}
-        </div>
-      )}
+      <CollectionBanner title={title} description={description} image={banner} />
       {children}
       <ErpImageGallery title={`${title} - ERP collection`} items={erpItems} />
-      <div className="mt-8 flex gap-8">
+      <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:gap-8">
         <Suspense>
           <FacetSidebar facets={facets} />
         </Suspense>
         <div className="min-w-0 flex-1">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <p className="text-xs uppercase tracking-widest text-muted">{result.total} {result.total === 1 ? "product" : "products"}</p>
+          <div className="mb-5 flex items-center justify-between gap-4 border-b border-line pb-3">
+            <p className="text-sm text-muted"><span className="font-medium text-ink">{result.total}</span> {result.total === 1 ? "product" : "products"}</p>
             <Suspense><SortSelect /></Suspense>
           </div>
           {result.items.length ? <ProductGrid items={result.items} cols={4} priorityCount={4} /> : <Empty title="Nothing matches those filters" text="Try clearing a filter or two." />}

@@ -8,11 +8,11 @@ export function Price({ amount, mrp, className, size = "md" }: { amount: number;
   const hasDiscount = mrp != null && mrp > amount;
   return (
     <span className={cn("inline-flex flex-wrap items-baseline gap-x-2", className)}>
-      <span className={cn("font-medium text-maroon", size === "sm" && "text-sm", size === "md" && "text-base", size === "lg" && "text-2xl")}>{formatMoney(amount, currency)}</span>
+      <span className={cn("font-bold text-olive", size === "sm" && "text-[15px]", size === "md" && "text-base", size === "lg" && "text-2xl")}>{formatMoney(amount, currency)}</span>
       {hasDiscount && (
         <>
           <span className={cn("text-muted line-through", size === "lg" ? "text-base" : "text-xs")}>{formatMoney(mrp, currency)}</span>
-          <span className="text-xs font-medium text-olive">({Math.round(((mrp - amount) / mrp) * 100)}% off)</span>
+          <span className="text-xs font-semibold text-maroon">{Math.round(((mrp - amount) / mrp) * 100)}% off</span>
         </>
       )}
     </span>

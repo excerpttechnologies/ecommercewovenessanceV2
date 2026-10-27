@@ -6,7 +6,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       className={cn(
-        "h-10 w-full rounded-sm border border-line bg-white px-3 text-sm text-ink placeholder:text-muted focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold disabled:opacity-50",
+        "h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink placeholder:text-muted focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/15 disabled:opacity-50",
         className,
       )}
       {...props}
@@ -18,7 +18,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
   return (
     <textarea
       ref={ref}
-      className={cn("min-h-[100px] w-full rounded-sm border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold", className)}
+      className={cn("min-h-[100px] w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/15", className)}
       {...props}
     />
   );
@@ -28,14 +28,14 @@ export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttrib
   return (
     <select
       ref={ref}
-      className={cn("h-10 w-full rounded-sm border border-line bg-white px-3 text-sm text-ink focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold", className)}
+      className={cn("h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink focus:border-maroon focus:outline-none focus:ring-2 focus:ring-maroon/15", className)}
       {...props}
     />
   );
 });
 
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn("mb-1 block text-xs font-medium uppercase tracking-wider text-muted", className)} {...props} />;
+  return <label className={cn("mb-1.5 block text-xs font-semibold text-ink/80", className)} {...props} />;
 }
 
 export function Field({ label, children, hint, error }: { label: string; children: React.ReactNode; hint?: string; error?: string }) {

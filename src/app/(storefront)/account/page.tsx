@@ -11,13 +11,13 @@ export default async function AccountHome() {
   const [customer, orders] = await Promise.all([getCustomers().getById(s.sub), getOrders().listByCustomer(s.sub, { limit: 3 })]);
   return (
     <div className="grid gap-8 lg:grid-cols-2">
-      <section className="rounded-sm border border-line bg-white/60 p-5">
+      <section className="rounded-lg border border-line bg-white/60 p-5">
         <h2 className="text-2xl">Profile</h2>
         <ProfileForm initial={{ name: customer?.name ?? "", email: customer?.email ?? "", gstNumber: customer?.gstNumber ?? "" }} />
         {customer && customer.loyaltyPoints > 0 && <p className="mt-4 text-xs text-muted">Loyalty points: <b className="text-olive">{customer.loyaltyPoints}</b></p>}
       </section>
-      <section className="rounded-sm border border-line bg-white/60 p-5">
-        <div className="flex items-center justify-between"><h2 className="text-2xl">Recent orders</h2><Link href="/account/orders" className="text-xs uppercase tracking-widest text-maroon">All orders</Link></div>
+      <section className="rounded-lg border border-line bg-white/60 p-5">
+        <div className="flex items-center justify-between"><h2 className="text-2xl">Recent orders</h2><Link href="/account/orders" className="text-xs uppercase tracking-wider text-maroon">All orders</Link></div>
         <ul className="mt-4 divide-y divide-line text-sm">
           {orders.items.length === 0 && <li className="py-3 text-muted">No orders yet.</li>}
           {orders.items.map((o) => (

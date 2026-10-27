@@ -13,6 +13,8 @@ import { ProductRail } from "@/components/product/product-rail";
 import { Reviews } from "@/components/product/reviews";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { slugify } from "@/lib/utils";
+import { JsonLd } from "@/components/seo/json-ld";
+import { OG_DEFAULTS, absoluteUrl, breadcrumbJsonLd, publicImage } from "@/lib/seo";
 import Link from "next/link";
 
 type ProductPageProps = {
@@ -24,13 +26,18 @@ export async function generateMetadata({ params, searchParams }: ProductPageProp
   const p = await getMasterData().products.getBySlug((await params).slug);
   if (!p) {
     const query = await searchParams;
-    if (query.comingSoon === "1" && query.name) return { title: `${query.name} — Coming Soon` };
+    // Placeholder pages for products without photos stay out of search results.
+    if (query.comingSoon === "1" && query.name) return { title: `${query.name} — Coming Soon`, robots: { index: false, follow: true } };
     return {};
   }
+  const title = p.web?.seoTitle ?? p.name;
+  const description = p.web?.seoDescription ?? p.description.slice(0, 160);
+  const images = p.images.map((src) => publicImage(src)).filter((src): src is string => Boolean(src)).slice(0, 1);
   return {
-    title: p.web?.seoTitle ?? p.name,
-    description: p.web?.seoDescription ?? p.description.slice(0, 160),
-    openGraph: { images: p.images.slice(0, 1), type: "website" },
+    title,
+    description,
+    openGraph: { ...OG_DEFAULTS, url: `/products/${p.slug}`, title, description, images },
+    twitter: { card: "summary_large_image", title, description, images },
     alternates: { canonical: `/products/${p.slug}` },
   };
 }
@@ -43,11 +50,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     if (query.comingSoon !== "1" || !query.name) notFound();
     return (
       <div className="mx-auto max-w-site px-4 py-16 sm:px-6">
-        <div className="mx-auto max-w-2xl rounded-sm border border-dashed border-line px-6 py-16 text-center">
-          <p className="text-xs uppercase tracking-[0.2em] text-olive">Coming Soon</p>
+        <div className="mx-auto max-w-2xl rounded-lg border border-dashed border-line px-6 py-16 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wider text-olive">Coming Soon</p>
           <h1 className="mt-3 text-3xl">{query.name}</h1>
           <p className="mt-3 text-sm text-muted">We’re preparing this product for you. Please check back soon.</p>
-          <Link href="/collections/sarees" className="mt-6 inline-flex h-10 items-center border border-line px-5 text-xs uppercase tracking-widest hover:border-olive">
+          <Link href="/collections/sarees" className="mt-6 inline-flex h-10 items-center border border-line px-5 text-xs uppercase tracking-wider hover:border-olive">
             Browse sarees
           </Link>
         </div>
@@ -77,16 +84,19 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   ];
 
   const jsonLd = {
-    "@context": "https://schema.org",
     "@type": "Product",
+    "@id": `${absoluteUrl(`/products/${product.slug}`)}#product`,
     name: product.name,
     sku: product.sku,
-    image: product.images,
+    image: product.images.map((src) => publicImage(src)).filter(Boolean),
     description: product.description,
     brand: { "@type": "Brand", name: settings.storeName },
+    ...(product.category ? { category: product.category } : {}),
+    ...(product.color ? { color: product.color } : {}),
+    ...(product.fabric ? { material: product.fabric } : {}),
     offers: {
       "@type": "Offer",
-      url: `${env.NEXT_PUBLIC_SITE_URL}/products/${product.slug}`,
+      url: absoluteUrl(`/products/${product.slug}`),
       priceCurrency: "INR",
       price: product.pricing.sellingPrice,
       availability: product.stock.qty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
@@ -96,7 +106,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
   return (
     <div className="mx-auto max-w-site px-4 py-6 sm:px-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd
+        nodes={[
+          jsonLd,
+          breadcrumbJsonLd([...(category ? [{ name: category.name, path: `/collections/${category.slug}` }] : []), { name: product.name, path: `/products/${product.slug}` }]),
+        ]}
+      />
       <Breadcrumbs items={[...(category ? [{ label: category.name, href: `/collections/${category.slug}` }] : []), { label: product.name }]} />
       <div className="mt-6 grid gap-10 lg:grid-cols-[1.1fr_1fr]">
         <Gallery images={product.images} alt={product.name} badge={product.isNewArrival ? "New" : undefined} />
@@ -107,7 +122,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             {product.stock.status === "out_of_stock" && <Badge tone="red">Sold out</Badge>}
           </div>
           <h1 className="mt-3 text-3xl leading-tight sm:text-4xl">{product.name}</h1>
-          <p className="mt-1 text-xs uppercase tracking-widest text-muted">SKU {product.sku}</p>
+          <p className="mt-1 text-xs uppercase tracking-wider text-muted">SKU {product.sku}</p>
           <div className="mt-4">
             <Price amount={product.pricing.sellingPrice} mrp={product.pricing.mrp} size="lg" />
             <p className="mt-1 text-xs text-muted">Inclusive of {product.pricing.gstPercent}% GST · Free shipping above ₹{(settings.commerce?.freeShippingAbove ?? 4999).toLocaleString("en-IN")}</p>
@@ -117,7 +132,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <AddToCart product={product} whatsapp={settings.whatsappNumber} siteUrl={env.NEXT_PUBLIC_SITE_URL} />
           </div>
           <div className="mt-6 border-t border-line pt-5">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.2em] text-olive">Check delivery</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-olive">Check delivery</p>
             <PincodeCheck />
           </div>
           <dl className="mt-6 grid grid-cols-[minmax(0,140px)_1fr] gap-x-4 gap-y-2 border-t border-line pt-5 text-sm">
@@ -130,7 +145,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           </dl>
           {product.careInstructions && (
             <details className="mt-6 border-t border-line pt-4 text-sm">
-              <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-[0.2em] text-olive">Care instructions</summary>
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wider text-olive">Care instructions</summary>
               <p className="mt-2 text-ink/80">{product.careInstructions}</p>
             </details>
           )}

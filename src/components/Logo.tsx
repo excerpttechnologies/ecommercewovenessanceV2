@@ -14,10 +14,10 @@ interface LogoProps {
  * Uses the original Woven Essence logo from the public assets.
  */
 export function Logo({ settings, height = 56, href = "/", className }: LogoProps) {
-  const src = "/logo1.png";
+  const src = "/logo-trim.png"; // logo1.png without its transparent margin (469×285)
   const alt = `${settings.storeName ?? "Woven Essence"} by ${settings.legalName ?? "Temple Fabrics"}`;
   const inner = src ? (
-    <Image src={src} alt={alt} width={Math.round(height * 3.2)} height={height} priority unoptimized={isRemoteImageSource(src)} style={{ height, width: "auto" }} />
+    <Image src={src} alt={alt} width={Math.round(height * (469 / 285))} height={height} priority unoptimized={isRemoteImageSource(src)} style={{ height, width: "auto" }} />
   ) : (
     <span className="font-heading text-2xl tracking-wide text-olive">
       {settings.storeName}

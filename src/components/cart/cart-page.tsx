@@ -21,20 +21,20 @@ export function CartPage() {
   const t = cart.totals;
   return (
     <div className="mx-auto max-w-site px-4 py-8 sm:px-6">
-      <h1 className="we-rule text-4xl">Your bag</h1>
+      <h1 className="text-4xl font-bold">Your bag</h1>
       {cart.lines.length === 0 ? (
         <div className="mt-8"><Empty title="Your bag is empty" text="Handloom worth keeping, waiting to be found." href="/collections/sarees" cta="Shop sarees" /></div>
       ) : (
         <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_380px]">
           <ul className="divide-y divide-line">
             {cart.unavailable.length > 0 && (
-              <li className="mb-4 rounded-sm border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+              <li className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
                 {cart.unavailable.length} item(s) are no longer available and were left out: {cart.unavailable.map((u) => u.sku).join(", ")}.
               </li>
             )}
             {cart.lines.map((l) => (
               <li key={l.sku} className="flex gap-5 py-5">
-                <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-sm bg-line">
+                <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
                   {l.product.images[0] ? <Image src={l.product.images[0]} alt={l.product.name} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="112px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
                 </Link>
                 <div className="flex min-w-0 flex-1 flex-col">
@@ -51,7 +51,7 @@ export function CartPage() {
             ))}
           </ul>
 
-          <aside className="h-fit rounded-sm border border-line bg-white/60 p-6">
+          <aside className="h-fit rounded-lg border border-line bg-white/60 p-6">
             <h2 className="text-2xl">Order summary</h2>
             <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (code.trim()) coupon.mutate(code.trim().toUpperCase()); }}>
               <Input placeholder="Coupon code" value={code} onChange={(e) => setCode(e.target.value)} disabled={!!cart.couponCode} />
@@ -69,7 +69,7 @@ export function CartPage() {
             </dl>
             {t.freeShippingGap > 0 && <p className="mt-3 text-xs text-muted">Add {formatMoney(t.freeShippingGap, currency)} more for free shipping.</p>}
             <Link href="/checkout" className={buttonClass("primary", "lg", "mt-6 w-full")}>Proceed to checkout</Link>
-            <Link href="/collections/sarees" className="mt-3 block text-center text-xs uppercase tracking-widest text-muted hover:text-olive">Continue shopping</Link>
+            <Link href="/collections/sarees" className="mt-3 block text-center text-xs uppercase tracking-wider text-muted hover:text-olive">Continue shopping</Link>
           </aside>
         </div>
       )}

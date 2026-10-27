@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { getBarcodeLabels } from "@/repositories";
-import type { BarcodeProduct } from "@/domain/types";
+import type { BarcodeProduct, BarcodeSort } from "@/domain/types";
 import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
 import { env } from "@/lib/env";
 import { erpEcommerceKey, loadErpEcommerceCatalogs } from "@/lib/admin/erp-ecommerce-catalog";
@@ -11,7 +11,7 @@ import { ProductWebMetaModel } from "@/models/web/content.models";
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
 export type EcommerceClassification = "weave" | "fabric" | "craft" | "occasion" | "color";
 export type EcommerceClassificationFilters = Partial<Record<EcommerceClassification, string>>;
-export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string };
+export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string; sort?: BarcodeSort };
 
 export type StorefrontCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "simple";
 
@@ -170,7 +170,7 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
     excludedBarcodes,
     ...listFilters,
-    ...(detailView ? { barcodes: [barcode!.trim()] } : {}),
+    ...(detailView ? { barcodes: [barcode!.trim()] } : { sort: filters.sort }),
     page: detailView ? 1 : page,
     limit: detailView ? 1 : limit,
   });

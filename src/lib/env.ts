@@ -49,10 +49,35 @@ const schema = z
     RAZORPAY_KEY_SECRET: blankToUndefined(e.RAZORPAY_KEY_SECRET),
   }));
 
+/** The public site address used for canonical links, the sitemap, JSON-LD and social cards. */
+const PRODUCTION_SITE_URL = "https://www.wovenessence.in";
+
+/**
+ * NEXT_PUBLIC_SITE_URL wins; otherwise SITE_URL / PUBLIC_SITE_URL (the names the RetailERP .env uses),
+ * ignoring the template placeholder (example.com); otherwise the live domain - never localhost, which
+ * would put http://localhost:3000 into canonical tags and the sitemap of the deployed site.
+ */
+function siteUrl(): string {
+  const candidates = [process.env.NEXT_PUBLIC_SITE_URL, process.env.SITE_URL, process.env.PUBLIC_SITE_URL];
+  for (const raw of candidates) {
+    const value = raw?.trim();
+    if (!value) continue;
+    try {
+      const url = new URL(value);
+      if (/(^|\.)example\.(com|org|net)$/i.test(url.hostname)) continue;
+      return url.origin;
+    } catch {
+      continue;
+    }
+  }
+  return PRODUCTION_SITE_URL;
+}
+
 const rawEnv = {
   ...process.env,
   MONGODB_URI: process.env.MONGODB_URI ?? process.env.MONGO_URI,
   ERP_MONGODB_URI: process.env.ERP_MONGODB_URI ?? process.env.ERP_MONGO_URI,
+  NEXT_PUBLIC_SITE_URL: siteUrl(),
 };
 
 export const env = schema.parse(rawEnv);

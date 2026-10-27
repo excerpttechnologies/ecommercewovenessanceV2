@@ -5,9 +5,9 @@ export default function CollectionLoading() {
       <div aria-hidden="true" className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4">
         {Array.from({ length: 8 }, (_, index) => (
           <div key={index}>
-            <div className="aspect-[3/4] animate-pulse rounded-sm bg-line" />
-            <div className="mt-3 h-4 w-3/4 animate-pulse rounded-sm bg-line" />
-            <div className="mt-2 h-4 w-1/3 animate-pulse rounded-sm bg-line" />
+            <div className="aspect-[3/4] animate-pulse rounded-lg bg-line" />
+            <div className="mt-3 h-4 w-3/4 animate-pulse rounded-lg bg-line" />
+            <div className="mt-2 h-4 w-1/3 animate-pulse rounded-lg bg-line" />
           </div>
         ))}
       </div>

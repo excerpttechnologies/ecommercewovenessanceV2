@@ -30,7 +30,7 @@ export function TrackOrderForm({ initialOrderNo, initialPhone }: { initialOrderN
 
   return (
     <div>
-      <form onSubmit={submit} className="grid gap-4 rounded-sm border border-line bg-white/60 p-5 sm:grid-cols-2">
+      <form onSubmit={submit} className="grid gap-4 rounded-lg border border-line bg-white/60 p-5 sm:grid-cols-2">
         <Field label="Order number"><Input required value={orderNo} onChange={(event) => setOrderNo(event.target.value)} placeholder="e.g. WE-2026-0001" /></Field>
         <Field label="Checkout phone number"><Input required type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number used at checkout" /></Field>
         <div className="sm:col-span-2">

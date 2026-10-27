@@ -3,11 +3,65 @@ import type { CategoryNode } from "@/domain/types";
 import { getMasterData, getSite } from "@/repositories";
 import { collectionToListParams } from "@/repositories/web/site.repository";
 import { getSettings } from "@/lib/site-data";
-import { getErpFilterChips, getErpHomeSections } from "@/lib/barcode-image-series";
+import { ERP_CATEGORY_TITLES, getErpFilterChips, getErpHomeSections, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
 import { HeroCarousel } from "@/components/home/hero-carousel";
-import { CategoryTiles, ChipStrip, ErpProductSection, FeaturedCollections, HelpJump, InstagramStrip, LifestyleBanners, Newsletter, ProductSection, SupportPanel, Testimonials, TrustBadges } from "@/components/home/sections";
+import { CuratedCollections } from "@/components/home/curated-collections";
+import { CategoryTiles, ChipStrip, ErpProductSection, HelpJump, HomeSeoContent, InstagramStrip, LifestyleBanners, Newsletter, ProductSection, SupportPanel, Testimonials, TrustBadges } from "@/components/home/sections";
+import { JsonLd } from "@/components/seo/json-ld";
+import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_OG_IMAGE, DEFAULT_TITLE, OG_DEFAULTS, absoluteUrl, itemListJsonLd, publicImage, storeJsonLd, websiteJsonLd } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Handloom Sarees & Fabrics" };
+const CURATED_ORDER: StorefrontCategoryGroup[] = ["sarees", "fabrics", "plain-fabrics", "dupatta", "simple"];
+const CURATED_COVERS: Partial<Record<StorefrontCategoryGroup, string>> = {
+  sarees: "/curated/sarees.webp",
+  fabrics: "/curated/fabrics.webp",
+  "plain-fabrics": "/curated/plain-fabrics.webp",
+  dupatta: "/curated/dupatta.webp",
+  simple: "/curated/simple.webp",
+};
+/** Seeded hero photos that have been retired; banners still pointing at them show the new photo. */
+const HERO_IMAGE_REPLACEMENTS: Record<string, { src: string; alt: string }> = {
+  "/hero-sarees-courtyard.png": { src: "/hero-golden-heritage.webp", alt: "Woman in a teal and purple Kanchipuram silk saree in a sunlit room" },
+};
+
+/** Phone/tablet versions (subject centred, so the narrower crop keeps her in frame), keyed by desktop image. */
+const HERO_MOBILE_IMAGES: Record<string, string> = {
+  "/hero-pink-silk.png": "/hero-green-silk-mobile.webp",
+  "/hero-golden-heritage.webp": "/hero-teal-silk-mobile.webp",
+};
+
+const DEFAULT_INSTAGRAM ="https://www.instagram.com/templefabrics";
+const INSTAGRAM_FALLBACK = [1, 2, 3, 4, 5, 6].map((n) => `/instagram/tile-${n}.webp`);
+
+/** "https://www.instagram.com/templefabrics?igsh=…" → "@templefabrics" (query string and trailing slash ignored). */
+function instagramHandle(url: string): string | undefined {
+  try {
+    const name = new URL(url).pathname.split("/").filter(Boolean)[0];
+    return name ? `@${name}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Fabric pill photos for the common weaves; other fabrics get the lotus badge. */
+const FABRIC_THUMBS: [RegExp, string][] = [
+  [/banaras/i, "/thumbs/fabric-banarasi.webp"],
+  [/plain.*chanderi/i, "/thumbs/fabric-plain-chanderi.webp"],
+  [/chanderi/i, "/thumbs/fabric-chanderi.webp"],
+  [/gadwal/i, "/thumbs/fabric-gadwal.webp"],
+  [/cotton|linen|kasavu/i, "/thumbs/fabric-cotton.webp"],
+];
+const fabricThumb = (label: string) => FABRIC_THUMBS.find(([rx]) => rx.test(label))?.[1];
+
+const CURATED_TAGLINES:Partial<Record<StorefrontCategoryGroup, string>> = { sarees: "Timeless elegance for every occasion" };
+
+export const metadata: Metadata = {
+  // `absolute` skips the "| Woven Essence" template: the brand already leads this title.
+  title: { absolute: DEFAULT_TITLE },
+  description: DEFAULT_DESCRIPTION,
+  keywords: DEFAULT_KEYWORDS,
+  alternates: { canonical: "/" },
+  openGraph: { ...OG_DEFAULTS, url: "/", title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: "Woven Essence by Temple Fabrics – handloom silk sarees" }] },
+};
 
 const fallbackHeroSlides = [
   {
@@ -26,7 +80,8 @@ const fallbackHeroSlides = [
     ctaLabel: "Shop sarees",
     ctaHref: "/collections/sarees",
     desktop: "/hero-pink-silk.png",
-    alt: "Woman wearing a pink and gold silk saree",
+    mobile: "/hero-green-silk-mobile.webp",
+    alt: "Woman wearing a green silk saree with a red and gold zari border",
   },
   {
     id: "default-gold-silk",
@@ -47,48 +102,16 @@ const defaultCategories: CategoryNode[] = [
 ];
 
 const categoryImageOverrides: Record<string, string> = {
-  sarees: "/category-sarees-cream.webp",
-  fabrics: "/category-fabrics-navy.webp",
-  "plain-fabrics": "/category-plain-fabrics-blue.webp",
-  dupatta: "/category-dupatta-red-green.webp",
+  sarees: "/categories/sarees.webp",
+  fabrics: "/categories/fabrics.webp",
+  "plain-fabrics": "/categories/plain-fabrics.webp",
+  dupatta: "/categories/dupatta.webp",
 };
 
-const defaultFeaturedCollections = [
-  {
-    id: "default-yanai",
-    name: "Yanai Motif Sarees",
-    slug: "yanai-motif-sarees",
-    description: "Traditional Kanchipuram sarees with the elephant motif.",
-    image: "/curated-saree-black-floral.webp",
-  },
-  {
-    id: "default-bridal",
-    name: "Bridal Kanchipuram",
-    slug: "bridal-kanchipuram",
-    description: "Rich Kanchipuram silks for wedding celebrations.",
-    image: "/curated-saree-orange-temple.webp",
-  },
-  {
-    id: "default-banarasi",
-    name: "Festive Banarasi",
-    slug: "festive-banarasi",
-    description: "Banarasi weaves in festive colours.",
-    image: "/curated-saree-orange-classic.webp",
-  },
-  {
-    id: "default-under-5000",
-    name: "Under ₹5,000",
-    slug: "under-5000",
-    description: "Everyday handlooms under ₹5,000.",
-    image: "/curated-saree-rose.webp",
-  },
-  {
-    id: "default-saree-edit",
-    name: "The Saree Edit",
-    slug: "sarees",
-    description: "Discover handwoven sarees for every occasion.",
-    image: "/curated-saree-teal.webp",
-  },
+const extraCategoryCircles = [
+  { id: "circle-simple", name: "Simple", href: "/collections/simple", image: "/categories/simple.webp" },
+  { id: "circle-new", name: "New Arrivals", href: "/collections/sarees?sort=newest", image: "/categories/new-arrivals.webp" },
+  { id: "circle-best", name: "Best Sellers", href: "/collections/sarees", image: "/categories/best-sellers.webp" },
 ];
 
 /** Home page is assembled from admin-orderable homepage sections. */
@@ -112,15 +135,17 @@ export default async function Home() {
     .filter((banner) => banner.image?.desktop?.trim())
     .map((banner) => {
       const image = banner.image;
+      const replacement = HERO_IMAGE_REPLACEMENTS[image?.desktop ?? ""];
+      const desktop = replacement?.src ?? image?.desktop ?? "";
       return {
         id: String(banner._id),
         title: banner.title,
         subtitle: banner.subtitle,
         ctaLabel: banner.ctaLabel,
         ctaHref: banner.ctaHref,
-        desktop: image?.desktop ?? "",
-        mobile: image?.mobile,
-        alt: image?.alt,
+        desktop,
+        mobile: HERO_MOBILE_IMAGES[desktop] ?? (replacement ? undefined : image?.mobile),
+        alt: replacement?.alt ?? image?.alt,
         align: banner.align,
       };
     });
@@ -140,41 +165,49 @@ export default async function Home() {
         case "trust":
           return <TrustBadges key={s.key} badges={settings.trustBadges ?? []} />;
         case "categories": {
-          // The ERP category pages, never the demo category tree.
+          // The ERP category pages, never the demo category tree, plus quick links into them.
+          const festive = (await getErpFilterChips("occasion").catch(() => [])).find((chip) => /festive/i.test(chip.label));
           return (
             <CategoryTiles
               key={s.key}
-              categories={defaultCategories.map((category) => ({
-                ...category,
-                image: categoryImageOverrides[category.slug] ?? category.image,
-              }))}
+              categories={[
+                ...defaultCategories.map((category) => ({
+                  id: category.id,
+                  name: category.name,
+                  href: `/collections/${category.slug}`,
+                  image: categoryImageOverrides[category.slug] ?? category.image,
+                })),
+                ...extraCategoryCircles,
+                { id: "circle-festive", name: "Festive Collection", href: festive?.href ?? "/collections/sarees", image: "/categories/festive.webp" },
+              ]}
               title={s.title}
               subtitle={s.subtitle}
             />
           );
         }
         case "featuredCollections": {
-          // Only ERP categories that have published products; the curated images are kept.
-          const erpSections = await getErpHomeSections(limit);
-          if (!erpSections.length) return null;
-          return (
-            <FeaturedCollections
-              key={s.key}
-              collections={erpSections.slice(0, 5).map((section, index) => ({
-                id: `erp-${section.group}`,
-                name: section.title,
-                slug: section.group,
-                description: `${section.total} ${section.total === 1 ? "piece" : "pieces"} available`,
-                image: defaultFeaturedCollections[index].image,
-              }))}
-              title={s.title}
-              subtitle={s.subtitle}
-            />
-          );
+          // ERP categories with published products, with live piece counts.
+          // If RetailERP cannot be read, every category is shown with its cover only.
+          const erpSections = await getErpHomeSections(limit).catch(() => []);
+          const tiles = (erpSections.length ? erpSections.map((section) => section.group) : CURATED_ORDER)
+            .filter((group) => CURATED_COVERS[group])
+            .sort((a, b) => CURATED_ORDER.indexOf(a) - CURATED_ORDER.indexOf(b))
+            .map((group) => {
+              const section = erpSections.find((x) => x.group === group);
+              return {
+                slug: group,
+                title: ERP_CATEGORY_TITLES[group],
+                tagline: CURATED_TAGLINES[group],
+                count: section?.total,
+                image: CURATED_COVERS[group]!,
+              };
+            });
+          return <CuratedCollections key={s.key} tiles={tiles} title={s.title} subtitle={s.subtitle} />;
         }
         case "newArrivals": {
           // Newest published ERP products, one row per storefront category.
-          const erpSections = await getErpHomeSections(limit);
+          // Rounded up to a multiple of five so desktop rows (five cards) come out full.
+          const erpSections = await getErpHomeSections(Math.ceil(limit / 5) * 5);
           return (
             <div key={s.key}>
               {erpSections.map((section, index) => (
@@ -200,20 +233,21 @@ export default async function Home() {
           return <ProductSection key={s.key + col.slug} title={s.title ?? col.name} subtitle={s.subtitle ?? col.description} href={`/collections/${col.slug}`} items={r.items} />;
         }
         case "occasions": {
-          const chips = await getErpFilterChips("occasion");
+          const chips = await getErpFilterChips("occasion").catch(() => []);
           return <ChipStrip key={s.key} title={s.title ?? "Shop by occasion"} subtitle={s.subtitle} items={chips.slice(0, 8)} />;
         }
         case "fabrics": {
-          const chips = await getErpFilterChips("fabric");
-          return <ChipStrip key={s.key} title={s.title ?? "Shop by fabric"} subtitle={s.subtitle} items={chips.slice(0, 12)} />;
+          const chips = await getErpFilterChips("fabric").catch(() => []);
+          return <ChipStrip key={s.key} title={s.title ?? "Shop by fabric"} subtitle={s.subtitle} items={chips.slice(0, 12).map((chip) => ({ ...chip, image: fabricThumb(chip.label) }))} />;
         }
         case "lifestyle":
           return <LifestyleBanners key={s.key} banners={await site.banners("lifestyle")} />;
         case "testimonials":
-          return <Testimonials key={s.key} items={await site.testimonials()} title={s.title} />;
+          return <Testimonials key={s.key} items={await site.testimonials()} title={s.title} subtitle={s.subtitle} />;
         case "instagram": {
-          const images = (await getErpHomeSections(limit)).flatMap((section) => section.items.flatMap((item) => (item.image ? [item.image] : []))).slice(0, 6);
-          return <InstagramStrip key={s.key} handle={settings.social?.instagram ? "@" + settings.social.instagram.split("/").filter(Boolean).pop() : undefined} images={images} />;
+          const erpImages = (await getErpHomeSections(limit).catch(() => [])).flatMap((section) => section.items.flatMap((item) => (item.image ? [item.image] : []))).slice(0, 12);
+          const instagram = settings.social?.instagram || DEFAULT_INSTAGRAM;
+          return <InstagramStrip key={s.key} handle={instagramHandle(instagram)} href={instagram} images={erpImages.length >= 6 ? erpImages : INSTAGRAM_FALLBACK} />;
         }
         case "newsletter":
           return <Newsletter key={s.key} title={s.title} subtitle={s.subtitle} />;
@@ -227,8 +261,30 @@ export default async function Home() {
 
   return (
     <>
+      <JsonLd
+        nodes={[
+          storeJsonLd(settings),
+          websiteJsonLd(),
+          {
+            "@type": "WebPage",
+            "@id": `${absoluteUrl("/")}#webpage`,
+            url: absoluteUrl("/"),
+            name: DEFAULT_TITLE,
+            description: settings.seo?.defaultDescription || DEFAULT_DESCRIPTION,
+            inLanguage: "en-IN",
+            isPartOf: { "@id": `${absoluteUrl("/")}#website` },
+            about: { "@id": `${absoluteUrl("/")}#store` },
+            primaryImageOfPage: absoluteUrl(DEFAULT_OG_IMAGE),
+            mainEntity: {
+              ...itemListJsonLd(CURATED_ORDER.map((group) => ({ name: ERP_CATEGORY_TITLES[group], path: `/collections/${group}`, image: publicImage(CURATED_COVERS[group]) }))),
+              name: "Shop by collection",
+            },
+          },
+        ]}
+      />
       {!homepageSections.some((section) => section.key === "hero") && hero}
       {rendered}
+      <HomeSeoContent settings={settings} />
       {!supportSection && <SupportPanel title="How can we help?" contact={homeContact} settings={settings} whatsappNumber={settings.whatsappNumber} />}
       <HelpJump />
     </>
