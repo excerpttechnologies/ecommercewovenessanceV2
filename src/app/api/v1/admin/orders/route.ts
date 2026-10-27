@@ -115,7 +115,8 @@ export const GET = handler(async (req: NextRequest) => {
 
   // Show website orders on page 1, newest first
   const items = (page === 1 ? [...webFiltered, ...result.items] : result.items) as typeof result.items;
-  items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  //items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  items.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
 
   // Counts including website orders
   const counts: Record<string, number> = { ...statusCounts };
