@@ -105,6 +105,8 @@ export const GET = handler(async (req: NextRequest) => {
     if (status && o.orderStatus !== status) return false;
     if (pendingOnly && o.paymentStatus !== "Pending") return false;
     if (q && !String(o.orderNo).toLowerCase().includes(q)) return false;
+    // const t = new Date(o.createdAt).getTime();
+    if (!o.createdAt) return false;
     const t = new Date(o.createdAt).getTime();
     if (from && t < from.getTime()) return false;
     if (to && t > to.getTime()) return false;
