@@ -1273,7 +1273,15 @@ function iconBtn(extra?: string) {
 }
 
 function Count({ n }: { n: number }) {
-  return <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-maroon px-1 text-[10px] font-semibold text-white ring-2 ring-white"><span key={n} className="we-pop">{n}</span></span>;
+  // Render only after mount so server and browser HTML match (fixes the hydration error).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return (
+    <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-maroon px-1 text-[10px] font-semibold text-white ring-2 ring-white">
+      <span key={n} className="we-pop">{n}</span>
+    </span>
+  );
 }
 
 function MobileItem({ item, current, depth = 0 }: { item: MenuNode; current?: boolean; depth?: number }) {
