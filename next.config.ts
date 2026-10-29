@@ -27,6 +27,8 @@ function erpImagePatterns(): RemotePattern[] {
 }
 
 const nextConfig: NextConfig = {
+  // Optional separate output folder (e.g. a preview build next to a running `next dev`, which owns .next).
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   outputFileTracingRoot: process.cwd(),
   serverExternalPackages: ["mongoose"],
   images: {

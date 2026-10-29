@@ -578,6 +578,8 @@ export interface BarcodeProduct {
     productType?: string;
     description?: string;
     attributes?: Partial<Record<"weave" | "fabric" | "craft" | "occasion" | "color", string>>;
+    /** ISO time the ERP ecommerceproduct was created (launch badge). */
+    launchedAt?: string;
   };
   group?: string;
   groupId?: string;

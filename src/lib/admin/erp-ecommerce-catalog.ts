@@ -1,6 +1,7 @@
-import { Types, type Connection } from "mongoose";
+import { type Connection } from "mongoose";
 import { toObjectIdOrString } from "@/lib/db";
 import { ERP_BARCODE_COLLECTIONS } from "@/lib/erp-mapping";
+import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
 
 export interface ErpEcommerceCatalog {
   id: string;
@@ -79,7 +80,7 @@ function classificationNames(value: unknown, names: ReadonlyMap<string, string>)
   const values = Array.isArray(value) ? value : value == null ? [] : [value];
   const resolved = values
     .map((item) => String(item))
-    .map((id) => names.get(id) ?? id)
+    .map((id) => classificationLabel(id, names))
     .filter(Boolean);
   return resolved.length ? resolved.join(", ") : undefined;
 }
@@ -169,15 +170,8 @@ export async function loadErpEcommerceCatalogs(
     ["byWeave", "byFabric", "byCraft", "byOccasion", "byColour"]
       .flatMap((field) => Array.isArray(row[field]) ? row[field].map(String) : []),
   ))];
-  const optionObjectIds = optionIds
-    .filter((id) => Types.ObjectId.isValid(id))
-    .map((id) => new Types.ObjectId(id));
-  const options = optionObjectIds.length
-    ? await connection.db.collection(ERP_BARCODE_COLLECTIONS.productClassificationOptions)
-      .find({ _id: { $in: optionObjectIds } }, { projection: { _id: 1, name: 1 } })
-      .toArray()
-    : [];
-  const names = new Map(options.map((option) => [String(option._id), String(option.name)]));
+  // names from the ERP's byweave / byfabric / ... collections (29-10-2026)
+  const names = await loadClassificationNames(connection, optionIds);
   const catalogs = new Map<string, ErpEcommerceCatalog>();
   for (const row of records) {
     const key = erpEcommerceKey(String(row.itemId ?? ""), String(row.businessId ?? ""));

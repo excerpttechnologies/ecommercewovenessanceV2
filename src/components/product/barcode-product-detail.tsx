@@ -154,7 +154,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
         <div className="min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <span className="inline-block rounded-full bg-maroon/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-maroon">Barcode {item.barcode}</span>
+              <span className="inline-block rounded-full bg-maroon/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-maroon">Code {item.barcode}</span>
               <h1 className="mt-3 font-display text-3xl font-semibold leading-tight sm:text-4xl">{name}</h1>
               {subtitle && <p className="mt-1 text-base text-muted">{sentence(subtitle)}</p>}
             </div>

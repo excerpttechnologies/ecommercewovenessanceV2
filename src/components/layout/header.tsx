@@ -43,7 +43,7 @@ export async function Header({ messages = [] }: { messages?: string[] }) {
       stores={stores.map((s) => ({ id: s.id, name: s.name, city: s.city }))}
       currencies={settings.supportedCurrencies ?? ["INR"]}
       tagline={settings.tagline ?? ""}
-      logo={<Logo settings={settings} height={72} className="block" />}
+      logo={<Logo settings={settings} height={72} className="block ml-3 sm:ml-6" />}
       whatsapp={settings.whatsappNumber ?? ""}
     />
     </Suspense>

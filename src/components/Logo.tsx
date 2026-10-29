@@ -13,8 +13,7 @@ interface LogoProps {
 /**
  * Uses the original Woven Essence logo from the public assets.
  */
-
-export function Logo({ settings, height = 80, href = "/", className }: LogoProps) {
+export function Logo({ settings, height = 56, href = "/", className }: LogoProps) {
   const src = "/logo-trim.png"; // logo1.png without its transparent margin (469×285)
   const alt = `${settings.storeName ?? "Woven Essence"} by ${settings.legalName ?? "Temple Fabrics"}`;
   const inner = src ? (

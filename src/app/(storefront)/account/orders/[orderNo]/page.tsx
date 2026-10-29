@@ -353,8 +353,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNo:
                   <Link href="/contact" className={btnOutline}><Undo2 className="h-4 w-4" /> Return or replace items</Link>
                 )}
                 <Link href="/contact" className={btnOutline}><LifeBuoy className="h-4 w-4" /> Get help</Link>
-                {/* <GiftReceiptButton orderNo={order.orderNo} items={order.items.map((i) => i.name)} /> */}
-                <GiftReceiptButton orderNo={order.orderNo} items={order.items.map((i) => i.name ?? "")} />
+                <GiftReceiptButton orderNo={order.orderNo} items={order.items.map((i) => i.name || i.sku)} />
               </div>
             </li>
           ))}

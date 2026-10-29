@@ -182,8 +182,23 @@ export const ERP_BARCODE_COLLECTIONS = {
   businesses: "business", // barcodeLabel.businessId -> business._id (hex string)
   suppliers: "supplier",
   ecommerceProducts: "ecommerceproduct",
-  productClassificationOptions: "productclassificationoption",
 } as const;
+
+/** The ERP's weave / fabric / craft / occasion / colour name collections (29-10-2026, replaces productclassificationoption). */
+export const ERP_CLASSIFICATION_COLLECTIONS = ["byweave", "byfabric", "bycraft", "byoccasion", "bycolour"] as const;
+
+/**
+ * Stands in for a product type in the storefront's "best-buy" group: it matches every published
+ * ecommerceproduct with the ERP's Best Buy tick (isBestBuy), whatever its product type (29-10-2026).
+ */
+export const ERP_BEST_BUY_PRODUCT_TYPE = "__best_buy__";
+
+/**
+ * Stands in for a product type in the storefront's "new-arrivals" group: every published
+ * ecommerceproduct added in the last NEW_ARRIVAL_HOURS, whatever its product type (29-10-2026).
+ */
+export const ERP_NEW_ARRIVAL_PRODUCT_TYPE = "__new_arrival__";
+export const NEW_ARRIVAL_HOURS = 48;
 
 export const BARCODE_LABEL_FIELDS = {
   id: "_id",

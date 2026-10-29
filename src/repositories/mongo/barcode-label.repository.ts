@@ -617,12 +617,16 @@ import {
   BARCODE_SEARCH_FIELDS,
   BUSINESS_FIELDS,
   ERP_BARCODE_COLLECTIONS,
+  ERP_BEST_BUY_PRODUCT_TYPE,
+  ERP_NEW_ARRIVAL_PRODUCT_TYPE,
+  NEW_ARRIVAL_HOURS,
   PRODUCT_GROUP_FIELDS,
   SUPPLIER_FIELDS,
   mapBarcodeLabel,
 } from "@/lib/erp-mapping";
 import { barcodeImageUrl } from "@/lib/erp-images";
 import { escapeRegex } from "@/lib/utils";
+import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
 import { BarcodeLabelModel } from "@/models/erp/barcode-label.model";
 import type { AnyDoc } from "@/models/_util";
 import type { BarcodeFacets, BarcodeListParams, BarcodeProduct, FacetOption, Paginated } from "@/domain/types";
@@ -690,6 +694,12 @@ function ecommerceClassificationValues(product: AnyDoc, field: EcommerceClassifi
 
 /** Live on the storefront: the ERP's "Is Published" tick alone decides (Is Active / Active Status are not used). */
 function activeEcommerceMatch(productTypes: string[]): Record<string, unknown> {
+  // the Best Buy section: published products with the ERP's Best Buy tick, any product type
+  if (productTypes.includes(ERP_BEST_BUY_PRODUCT_TYPE)) return { isBestBuy: true, isPublished: true };
+  // the New Arrivals section: published products added in the last 48 hours, any product type
+  if (productTypes.includes(ERP_NEW_ARRIVAL_PRODUCT_TYPE)) {
+    return { isPublished: true, createdAt: { $gte: new Date(Date.now() - NEW_ARRIVAL_HOURS * 3_600_000) } };
+  }
   return {
     productType: { $in: productTypes },
     isPublished: true,
@@ -791,16 +801,8 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const ids = [...new Set(Object.keys(ECOMMERCE_CLASSIFICATIONS).flatMap((field) =>
       products.flatMap((product) => ecommerceClassificationValues(product, field as EcommerceClassification)),
     ))];
-    const objectIds = ids.filter(Types.ObjectId.isValid).map((id) => new Types.ObjectId(id));
-    if (!objectIds.length) return new Map<string, string>();
-    const options = await connection.db!.collection<{ _id: ErpId; name?: unknown }>(ERP_BARCODE_COLLECTIONS.productClassificationOptions)
-      .find({ _id: { $in: objectIds } }, { projection: { _id: 1, name: 1 } })
-      .toArray();
-    return new Map(options.flatMap((option) =>
-      typeof option.name === "string" && option.name.trim()
-        ? [[String(option._id), option.name.trim()] as const]
-        : [],
-    ));
+    // names from the ERP's byweave / byfabric / ... collections (29-10-2026)
+    return loadClassificationNames(connection, ids);
   }
 
   private match(params: BarcodeListParams): FilterQuery<AnyDoc> {
@@ -964,7 +966,7 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
         selectedClassifications.every(([field, selected]) => {
           const expected = selected.trim().toLocaleLowerCase();
           return ecommerceClassificationValues(product, field).some((value) =>
-            (names.get(value) ?? value).toLocaleLowerCase() === expected,
+            classificationLabel(value, names)?.toLocaleLowerCase() === expected,
           );
         }),
       );
@@ -1081,7 +1083,9 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     for (const field of Object.keys(ECOMMERCE_CLASSIFICATIONS) as EcommerceClassification[]) {
       const counts = new Map<string, number>();
       for (const product of products) {
-        const values = new Set(ecommerceClassificationValues(product, field).map((value) => names.get(value) ?? value));
+        // an id with no name (deleted in the ERP) is not offered as a filter
+        const values = new Set(ecommerceClassificationValues(product, field)
+          .flatMap((value) => classificationLabel(value, names) ?? []));
         for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
       }
       facets[field] = [...counts]
