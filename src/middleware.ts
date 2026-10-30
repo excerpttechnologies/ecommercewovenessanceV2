@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, verifySession, type AdminSession, type CustomerSession } from "@/lib/auth-core";
 
 /** The ERP storefront category pages (see ERP_CATEGORY_TITLES). */
-const ERP_COLLECTION_PATH = /^\/collections\/(sarees|fabrics|plain-fabrics|dupatta|simple)\/?$/;
+const ERP_COLLECTION_PATH = /^\/collections\/(sarees|fabrics|plain-fabrics|dupatta)\/?$/;
 
 /**
  * - Protects /admin/* (except /admin/login) with the admin JWT cookie.

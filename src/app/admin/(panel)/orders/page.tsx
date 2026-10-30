@@ -9,7 +9,7 @@ import { formatINR } from "@/lib/utils";
 import { PageHeader, Pager, Table } from "@/components/admin/table";
 import { orderTone } from "@/components/account/order-status";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 type OrderDetail = Order & { customer: Customer | null; staffLinks?: Record<string, string> };
@@ -28,6 +28,20 @@ const ORDER_FILTERS: OrderFilter[] = [
   { label: "Returned", status: "Returned", countKey: "Returned" },
 ];
 
+const SHIPPING_FILTERS = [
+  { value: "not_created", label: "Not shipped" },
+  { value: "created", label: "Shipment created" },
+  { value: "awb_assigned", label: "AWB assigned" },
+  { value: "pickup_scheduled", label: "Pickup scheduled" },
+  { value: "in_transit", label: "In transit" },
+  { value: "out_for_delivery", label: "Out for delivery" },
+  { value: "delivered", label: "Delivered" },
+  { value: "undelivered", label: "NDR / undelivered" },
+  { value: "rto_initiated", label: "RTO" },
+  { value: "returned", label: "Returned" },
+  { value: "failed", label: "Shipment failed" },
+];
+
 export default function OrdersPage() {
   return <Suspense><OrdersInner /></Suspense>;
 }
@@ -40,7 +54,8 @@ function OrdersInner() {
   const [manageOrderNo, setManageOrderNo] = useState<string | null>(null);
   const status = sp.get("status") ?? "";
   const paymentStatus = sp.get("paymentStatus") ?? "";
-  const qs = new URLSearchParams({ q, page: String(page), ...(status ? { status } : {}), ...(paymentStatus ? { paymentStatus } : {}) }).toString();
+  const shippingStatus = sp.get("shippingStatus") ?? "";
+  const qs = new URLSearchParams({ q, page: String(page), ...(status ? { status } : {}), ...(paymentStatus ? { paymentStatus } : {}), ...(shippingStatus ? { shippingStatus } : {}) }).toString();
   const list = useQuery({ queryKey: ["admin", "orders", qs], queryFn: () => api<Order[]>(`/api/v1/admin/orders?${qs}`) });
   const meta = list.data?.meta as { pages?: number; total?: number; counts?: Record<string, number> } | undefined;
   const activeFilter = ORDER_FILTERS.find((filter) => filter.status === status && filter.paymentStatus === paymentStatus) ?? ORDER_FILTERS[0];
@@ -77,8 +92,23 @@ function OrdersInner() {
           })}
         </div>
       </nav>
-      <div className="mb-3 flex gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <Input placeholder="Order no / phone / name…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="max-w-xs" />
+        <Select
+          aria-label="Filter by shipping status"
+          value={shippingStatus}
+          onChange={(event) => {
+            const params = new URLSearchParams(sp.toString());
+            if (event.target.value) params.set("shippingStatus", event.target.value);
+            else params.delete("shippingStatus");
+            router.push(`/admin/orders${params.size ? `?${params.toString()}` : ""}`);
+            setPage(1);
+          }}
+          className="w-auto max-w-[14rem]"
+        >
+          <option value="">Shipping: all</option>
+          {SHIPPING_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </Select>
       </div>
       <Table<Order & { _id: string }>
         rows={(list.data?.data ?? []).map((o) => ({ ...o, _id: o.id }))}
@@ -95,12 +125,12 @@ function OrdersInner() {
         ]}
       />
       <Pager page={page} pages={meta?.pages ?? 1} onChange={setPage} />
-      {manageOrderNo && <OrderManageModal orderNo={manageOrderNo} onClose={() => setManageOrderNo(null)} onManage={() => router.push(`/admin/orders/${encodeURIComponent(manageOrderNo)}`)} />}
+      {manageOrderNo && <OrderManageModal orderNo={manageOrderNo} onClose={() => setManageOrderNo(null)} />}
     </div>
   );
 }
 
-function OrderManageModal({ orderNo, onClose, onManage }: { orderNo: string; onClose: () => void; onManage: () => void }) {
+function OrderManageModal({ orderNo, onClose }: { orderNo: string; onClose: () => void }) {
   const detail = useQuery({
     queryKey: ["admin", "order", orderNo],
     queryFn: async () => (await api<OrderDetail>(`/api/v1/admin/orders/${encodeURIComponent(orderNo)}`)).data,
@@ -183,7 +213,6 @@ function OrderManageModal({ orderNo, onClose, onManage }: { orderNo: string; onC
         </div>
         <footer className="flex justify-end gap-2 border-t border-line px-5 py-3 sm:px-6">
           <Button type="button" variant="outline" onClick={onClose}>Close</Button>
-          {/* <Button type="button" onClick={() => { onClose(); onManage(); }}>Manage order</Button> */}
           <Button type="button" onClick={() => { window.location.href = `/admin/orders/${encodeURIComponent(orderNo)}`; }}>Manage order</Button>
         </footer>
       </section>

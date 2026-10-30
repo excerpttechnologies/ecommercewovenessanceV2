@@ -48,7 +48,7 @@
 import type { NextRequest } from "next/server";
 import { fail, handler, ok } from "@/lib/api/response";
 import { requireAdmin } from "@/lib/auth";
-import type { OrderStatus } from "@/domain/types";
+import type { OrderStatus, ShippingStatus } from "@/domain/types";
 import { getErpOrders } from "@/repositories";
 import { getWebConnection } from "@/lib/db";
 import { mapOrder } from "@/lib/erp-mapping";
@@ -66,6 +66,8 @@ export const GET = handler(async (req: NextRequest) => {
     return fail("VALIDATION_ERROR", "Invalid order status filter", 400);
   }
   const status = statusValue as OrderStatus | null;
+  const shippingStatusValue = sp.get("shippingStatus");
+  const shippingStatus = shippingStatusValue ? (shippingStatusValue as ShippingStatus) : null;
   const page = Number(sp.get("page") ?? 1);
   const limit = Number(sp.get("limit") ?? 25);
   const q = (sp.get("q") ?? "").trim().toLowerCase();
@@ -103,6 +105,7 @@ export const GET = handler(async (req: NextRequest) => {
 
   const webFiltered = webAllNew.filter((o) => {
     if (status && o.orderStatus !== status) return false;
+    if (shippingStatus && (o.shipping?.status ?? "") !== shippingStatus) return false;
     if (pendingOnly && o.paymentStatus !== "Pending") return false;
     if (q && !String(o.orderNo).toLowerCase().includes(q)) return false;
     // const t = new Date(o.createdAt).getTime();

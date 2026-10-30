@@ -76,16 +76,6 @@ export const CATEGORY_SEO: Record<StorefrontCategoryGroup, { title: string; desc
     ],
     keywords: ["dupattas online", "silk dupatta", "Banarasi dupatta", "wedding dupatta", "organza dupatta"],
   },
-  simple: {
-    title: "Everyday Sarees & Fabrics – Simple Collection",
-    description: "Easy everyday sarees and fabrics at friendly prices – the Simple collection from Woven Essence by Temple Fabrics, Bengaluru.",
-    intro: "Easy, everyday pieces in comfortable fabrics and friendly prices.",
-    about: [
-      "The Simple collection gathers easy everyday pieces from Temple Fabrics, Jayanagar – comfortable fabrics and uncomplicated designs for regular wear.",
-      "Use the filters to browse by fabric and colour, and open any piece for its details and price.",
-    ],
-    keywords: ["everyday sarees", "daily wear sarees", "simple sarees", "fabrics online"],
-  },
   "best-buy": {
     title: "Best Buy – Handpicked Sarees, Fabrics & Dupattas",
     description: "Our best buys – handpicked sarees, fabrics and dupattas at the best value, from Woven Essence by Temple Fabrics, Bengaluru.",

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { OrderTimeline, orderTone } from "@/components/account/order-status";
+import { OrderTracking } from "@/components/account/order-tracking";
 
 export function TrackOrderForm({ initialOrderNo, initialPhone }: { initialOrderNo: string; initialPhone: string }) {
   const [orderNo, setOrderNo] = useState(initialOrderNo);
@@ -18,9 +19,11 @@ export function TrackOrderForm({ initialOrderNo, initialPhone }: { initialOrderN
     },
   });
 
+  const lookupOrder = lookup.mutate;
+
   useEffect(() => {
-    if (initialOrderNo && initialPhone) lookup.mutate({ orderNo: initialOrderNo, phone: initialPhone });
-  }, [initialOrderNo, initialPhone, lookup.mutate]);
+    if (initialOrderNo && initialPhone) lookupOrder({ orderNo: initialOrderNo, phone: initialPhone });
+  }, [initialOrderNo, initialPhone, lookupOrder]);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -51,6 +54,7 @@ export function TrackOrderForm({ initialOrderNo, initialPhone }: { initialOrderN
           <p><span className="text-muted">Delivering to:</span> {order.shippingAddress.city}</p>
           {order.awbNo && <p><span className="text-muted">Tracking / AWB:</span> {order.awbNo}</p>}
         </div>
+        <OrderTracking orderNo={order.orderNo} phone={phone} />
         <p className="mt-4 text-xs text-muted">{order.items.length} item(s) in this order.</p>
       </section>}
     </div>

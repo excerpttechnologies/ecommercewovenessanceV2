@@ -629,7 +629,7 @@ import { escapeRegex } from "@/lib/utils";
 import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
 import { BarcodeLabelModel } from "@/models/erp/barcode-label.model";
 import type { AnyDoc } from "@/models/_util";
-import type { BarcodeFacets, BarcodeListParams, BarcodeProduct, FacetOption, Paginated } from "@/domain/types";
+import type { BarcodeFacets, BarcodeListParams, BarcodeProduct, BarcodeSort, FacetOption, Paginated } from "@/domain/types";
 import type { BarcodeLabelRepository } from "../types";
 
 const MAX_LIMIT = 96;
@@ -692,13 +692,34 @@ function ecommerceClassificationValues(product: AnyDoc, field: EcommerceClassifi
   ])];
 }
 
+/**
+ * The last `hours` hours as a match condition. `createdAt` may be stored as a Date or an ISO string
+ * (ISO strings compare lexicographically), so both forms are offered and the window is recomputed on
+ * every request — products drop out of a time-limited section as soon as they age past it.
+ */
+function createdAtWindow(hours: number): Record<string, unknown>[] {
+  const now = new Date();
+  const from = new Date(now.getTime() - hours * 3_600_000);
+  return [
+    { createdAt: { $gte: from, $lte: now } },
+    { createdAt: { $gte: from.toISOString(), $lte: now.toISOString() } },
+  ];
+}
+
+/** Listing order: price sorts use the shopper price, name sorts alphabetically on the label text, newest is the default. */
+function sortStages(sort?: BarcodeSort): PipelineStage[] {
+  if (sort === "price_asc" || sort === "price_desc") return priceSortStages(sort);
+  if (sort === "name_asc") return [{ $sort: { [B.description]: 1 as const, _id: -1 as const } }];
+  return [{ $sort: { _id: -1 as const } }];
+}
+
 /** Live on the storefront: the ERP's "Is Published" tick alone decides (Is Active / Active Status are not used). */
 function activeEcommerceMatch(productTypes: string[]): Record<string, unknown> {
   // the Best Buy section: published products with the ERP's Best Buy tick, any product type
   if (productTypes.includes(ERP_BEST_BUY_PRODUCT_TYPE)) return { isBestBuy: true, isPublished: true };
   // the New Arrivals section: published products added in the last 48 hours, any product type
   if (productTypes.includes(ERP_NEW_ARRIVAL_PRODUCT_TYPE)) {
-    return { isPublished: true, createdAt: { $gte: new Date(Date.now() - NEW_ARRIVAL_HOURS * 3_600_000) } };
+    return { isPublished: true, $or: createdAtWindow(NEW_ARRIVAL_HOURS) };
   }
   return {
     productType: { $in: productTypes },
@@ -882,7 +903,7 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       M.aggregate<AnyDoc>([
         { $match: match },
         // newest first by default; _id is unique + indexed, so paging is stable
-        ...(params.sort === "price_asc" || params.sort === "price_desc" ? priceSortStages(params.sort) : [{ $sort: { _id: -1 as const } }]),
+        ...sortStages(params.sort),
         { $skip: (page - 1) * limit },
         { $limit: limit },
         { $project: PROJECTION },

@@ -43,10 +43,14 @@ type Row = BarcodeProduct & {
     isFeatured?: boolean;
     isActive?: boolean;
     salesCount?: number;
+    weightKg?: number;
+    lengthCm?: number;
+    breadthCm?: number;
+    heightCm?: number;
   } | null;
 };
 type Filters = { status: string; group: string; business: string; uomType: string };
-type ProductEditValues = { productName: string; itemName: string; isActive: boolean; isFeatured: boolean; productType: string; weaveDescription: string; fabricDescription: string; craftDescription: string; occasionDescription: string; colorDescription: string; printDescription: string; ecommOffPercent: string; price: string; quantity: string; status: string; slug: string; seoTitle: string; seoDescription: string };
+type ProductEditValues = { productName: string; itemName: string; isActive: boolean; isFeatured: boolean; productType: string; weaveDescription: string; fabricDescription: string; craftDescription: string; occasionDescription: string; colorDescription: string; printDescription: string; ecommOffPercent: string; price: string; quantity: string; status: string; slug: string; seoTitle: string; seoDescription: string; weightKg: string; lengthCm: string; breadthCm: string; heightCm: string };
 
 const NO_FILTERS: Filters = { status: "", group: "", business: "", uomType: "" };
 const PRODUCT_TYPES = ["SAREES", "FABRICS", "PLAIN FABRICS", "DUPATTA", "NEW ARRIVALS"] as const;
@@ -97,6 +101,11 @@ export default function ProductsPage() {
   const [slug, setSlug] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
+  // Shiprocket package overrides (kg / cm). Stored on productWebMeta, never on ERP data.
+  const [weightKg, setWeightKg] = useState("");
+  const [lengthCm, setLengthCm] = useState("");
+  const [breadthCm, setBreadthCm] = useState("");
+  const [heightCm, setHeightCm] = useState("");
   const [erpFetchToast, setErpFetchToast] = useState(false);
   const [initialEditValues, setInitialEditValues] = useState<ProductEditValues>({
     productName: "",
@@ -117,6 +126,10 @@ export default function ProductsPage() {
     slug: "",
     seoTitle: "",
     seoDescription: "",
+    weightKg: "",
+    lengthCm: "",
+    breadthCm: "",
+    heightCm: "",
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -202,6 +215,10 @@ export default function ProductsPage() {
         ...(slug !== initialEditValues.slug ? { slug: slug.trim() } : {}),
         ...(seoTitle !== initialEditValues.seoTitle ? { seoTitle: seoTitle.trim() } : {}),
         ...(seoDescription !== initialEditValues.seoDescription ? { seoDescription: seoDescription.trim() } : {}),
+        ...(weightKg !== initialEditValues.weightKg ? { weightKg: weightKg.trim() ? Number(weightKg) : null } : {}),
+        ...(lengthCm !== initialEditValues.lengthCm ? { lengthCm: lengthCm.trim() ? Number(lengthCm) : null } : {}),
+        ...(breadthCm !== initialEditValues.breadthCm ? { breadthCm: breadthCm.trim() ? Number(breadthCm) : null } : {}),
+        ...(heightCm !== initialEditValues.heightCm ? { heightCm: heightCm.trim() ? Number(heightCm) : null } : {}),
       },
     }),
     onSuccess: () => {
@@ -284,6 +301,10 @@ export default function ProductsPage() {
                   slug: r.web?.slug ?? r.erpEcommerce?.slug ?? r.slug,
                   seoTitle: r.web?.seoTitle ?? r.erpEcommerce?.seo.title ?? "",
                   seoDescription: r.web?.seoDescription ?? r.erpEcommerce?.seo.description ?? "",
+                  weightKg: String(r.web?.weightKg ?? ""),
+                  lengthCm: String(r.web?.lengthCm ?? ""),
+                  breadthCm: String(r.web?.breadthCm ?? ""),
+                  heightCm: String(r.web?.heightCm ?? ""),
                 };
                 setInitialEditValues(values);
                 setProductName(values.productName);
@@ -305,6 +326,10 @@ export default function ProductsPage() {
                 setSlug(values.slug);
                 setSeoTitle(values.seoTitle);
                 setSeoDescription(values.seoDescription);
+                setWeightKg(values.weightKg);
+                setLengthCm(values.lengthCm);
+                setBreadthCm(values.breadthCm);
+                setHeightCm(values.heightCm);
               }}>Edit</Button> },
             ]}
           />
@@ -416,6 +441,24 @@ export default function ProductsPage() {
             <Field label="SEO description">
               <Textarea maxLength={240} value={seoDescription} onChange={(event) => setSeoDescription(event.target.value)} />
             </Field>
+            <div className="rounded-sm border border-line bg-ivory/50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Shipping package (used for live rates)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Weight (kg)">
+                  <Input type="number" min="0.001" step="0.01" inputMode="decimal" value={weightKg} onChange={(event) => setWeightKg(event.target.value)} placeholder="0.7" />
+                </Field>
+                <Field label="Length (cm)">
+                  <Input type="number" min="1" step="1" inputMode="numeric" value={lengthCm} onChange={(event) => setLengthCm(event.target.value)} placeholder="30" />
+                </Field>
+                <Field label="Breadth (cm)">
+                  <Input type="number" min="1" step="1" inputMode="numeric" value={breadthCm} onChange={(event) => setBreadthCm(event.target.value)} placeholder="25" />
+                </Field>
+                <Field label="Height (cm)">
+                  <Input type="number" min="1" step="1" inputMode="numeric" value={heightCm} onChange={(event) => setHeightCm(event.target.value)} placeholder="5" />
+                </Field>
+              </div>
+              <p className="mt-2 text-[11px] text-muted">Leave blank to use the ERP dimensions or the store default package.</p>
+            </div>
             {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
             <Button type="submit" loading={save.isPending}>Save changes</Button>
           </form>

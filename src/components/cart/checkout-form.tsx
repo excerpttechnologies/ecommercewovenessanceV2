@@ -629,7 +629,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Address } from "@/domain/types";
 import { api, ApiError } from "@/hooks/api";
 import { useCart } from "@/hooks/useCart";
@@ -648,6 +648,23 @@ interface Props {
   razorpayConfigured: boolean;
 }
 
+/** Server-computed shipping quote (see /api/v1/shipping/quote). */
+interface ShippingQuote {
+  serviceable: boolean;
+  provider: "shiprocket" | "flat";
+  fallback: boolean;
+  reason?: string;
+  codAvailable: boolean;
+  shippingCharge: number;
+  baseShippingCharge: number;
+  freeShippingApplied: boolean;
+  freeShippingThreshold: number;
+  etaDays?: number;
+  estimatedDelivery?: string;
+  couriers: { id: number | string; name: string; rate: number; cod: boolean; etaDays?: number }[];
+  selectedCourier?: { id: number | string; name: string; rate: number; cod: boolean; etaDays?: number };
+}
+
 export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayConfigured }: Props) {
   const { cart, refresh } = useCart();
   const currency = useUi((s) => s.currency);
@@ -660,6 +677,43 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingPayment, setPendingPayment] = useState<{ orderId: string; paymentId: string; signature: string } | null>(null);
+  const [quote, setQuote] = useState<ShippingQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const cartFingerprint = cart ? `${cart.lines.map((line) => `${line.sku}x${line.qty}`).join(",")}|${cart.totals.couponDiscount}` : "";
+
+  // Live Shiprocket quote for the entered pincode. Recalculates when the pincode,
+  // payment mode or the cart changes. The server recomputes the same quote again
+  // when the order is placed, so this is display-only.
+  useEffect(() => {
+    if (!/^[1-9]\d{5}$/.test(addr.pincode)) {
+      setQuote(null);
+      setQuoteError(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setQuoteLoading(true);
+      setQuoteError(null);
+      try {
+        const res = await fetch(`/api/v1/shipping/quote?pin=${addr.pincode}&paymentMode=${mode}`, { signal: controller.signal });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || json.ok === false) throw new Error(json?.error?.message ?? "Could not check delivery for this pincode");
+        setQuote(json.data as ShippingQuote);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setQuote(null);
+        setQuoteError((err as Error).message);
+      } finally {
+        setQuoteLoading(false);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [addr.pincode, mode, cartFingerprint]);
+
   const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = k === "pincode"
       ? e.target.value.replace(/\D/g, "").slice(0, 6)
@@ -713,6 +767,9 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
   if (!cart) return <p className="mt-8 text-sm text-muted">Loading…</p>;
   if (!cart.lines.length) return <p className="mt-8 text-sm text-muted">Your bag is empty. <Link href="/collections/sarees" className="text-maroon underline">Shop sarees</Link></p>;
   const t = cart.totals;
+  const displayShipping = quote ? quote.shippingCharge : t.shippingCharge;
+  const displayTotal = quote ? Math.round((t.subTotal - t.couponDiscount + displayShipping) * 100) / 100 : t.netAmount;
+  const blockedByQuote = !!quote && (!quote.serviceable || (mode === "COD" && !quote.codAvailable));
 
   return (
     <form onSubmit={submit} className="mt-8 grid gap-10 lg:grid-cols-[1fr_400px]">
@@ -788,11 +845,35 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
         <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatMoney(t.subTotal, currency)}</dd></div>
           {t.couponDiscount > 0 && <div className="flex justify-between text-olive"><dt>Coupon {cart.couponCode}</dt><dd>− {formatMoney(t.couponDiscount, currency)}</dd></div>}
-          <div className="flex justify-between"><dt>Shipping</dt><dd>{t.shippingCharge ? formatMoney(t.shippingCharge, currency) : "Free"}</dd></div>
-          <div className="flex justify-between border-t border-line pt-3 text-base font-medium"><dt>Total</dt><dd>{formatMoney(t.netAmount, currency)}</dd></div>
+          <div className="flex justify-between">
+            <dt>Shipping</dt>
+            <dd>{quoteLoading ? "Checking…" : displayShipping > 0 ? formatMoney(displayShipping, currency) : "Free"}</dd>
+          </div>
+          {quote && (
+            <div className="rounded-sm bg-ivory/70 px-3 py-2 text-[11px] leading-relaxed text-muted">
+              {!quote.serviceable ? (
+                <span className="font-semibold text-red-700">Delivery is unavailable to {addr.pincode}. Try another address.</span>
+              ) : (
+                <>
+                  <span className="block font-semibold text-ink">
+                    {quote.selectedCourier?.name ?? (quote.provider === "shiprocket" ? "Courier" : "Standard delivery")}
+                    {quote.etaDays ? ` · ${quote.etaDays} day${quote.etaDays === 1 ? "" : "s"}` : quote.estimatedDelivery ? ` · ${quote.estimatedDelivery}` : ""}
+                  </span>
+                  <span className="block">
+                    {mode === "COD" ? (quote.codAvailable ? "Cash on delivery available" : "Cash on delivery is not available here") : "Prepaid order"}
+                    {quote.freeShippingApplied ? " · Free shipping applied" : ""}
+                  </span>
+                  {quote.fallback && <span className="block">Live courier rates are unavailable, so our standard rate applies.</span>}
+                  {quote.couriers.length > 1 && <span className="block">Computed from {quote.couriers.length} available courier services.</span>}
+                </>
+              )}
+            </div>
+          )}
+          <div className="flex justify-between border-t border-line pt-3 text-base font-medium"><dt>Total</dt><dd>{formatMoney(displayTotal, currency)}</dd></div>
         </dl>
+        {quoteError && <p role="alert" className="mt-3 text-xs text-amber-700">{quoteError} You can still place the order; our team will confirm shipping.</p>}
         {error && <p className="mt-4 rounded-sm bg-red-50 p-2 text-xs text-red-800">{error}</p>}
-        <Button type="submit" size="lg" className="mt-6 w-full" loading={busy} disabled={!codEnabled && !razorpayEnabled}>
+        <Button type="submit" size="lg" className="mt-6 w-full" loading={busy} disabled={(!codEnabled && !razorpayEnabled) || blockedByQuote}>
           {pendingPayment ? "Confirm paid order" : mode === "COD" ? "Place order" : `Pay ${formatMoney(t.netAmount, "INR")}`}
         </Button>
         <p className="mt-3 text-center text-[11px] text-muted">Orders are billed in INR. By placing an order you agree to our policies.</p>

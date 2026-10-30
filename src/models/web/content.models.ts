@@ -1,4 +1,5 @@
 import { Schema, type Connection, type InferSchemaType } from "mongoose";
+import { SHIPPING_DEFAULTS } from "@/lib/shipping-settings";
 import { getModel } from "../_util";
 
 const ClassificationOptionSchema = new Schema(
@@ -56,6 +57,38 @@ export const SiteSettingsSchema = new Schema(
       codEnabled: { type: Boolean, default: true },
       razorpayEnabled: { type: Boolean, default: true },
       serviceablePincodePrefixes: { type: [String], default: [] }, // [] = all India
+    },
+    /** Shiprocket + package defaults (migration-safe defaults come from normalizeShippingSettings). */
+    shipping: {
+      enabled: { type: Boolean, default: SHIPPING_DEFAULTS.enabled },
+      fallbackToFlatRate: { type: Boolean, default: SHIPPING_DEFAULTS.fallbackToFlatRate },
+      pickupLocation: { type: String, default: SHIPPING_DEFAULTS.pickupLocation },
+      pickupName: { type: String, default: SHIPPING_DEFAULTS.pickupName },
+      pickupPhone: { type: String, default: SHIPPING_DEFAULTS.pickupPhone },
+      pickupEmail: { type: String, default: SHIPPING_DEFAULTS.pickupEmail },
+      pickupAddress: { type: String, default: SHIPPING_DEFAULTS.pickupAddress },
+      pickupAddress2: { type: String, default: SHIPPING_DEFAULTS.pickupAddress2 },
+      pickupCity: { type: String, default: SHIPPING_DEFAULTS.pickupCity },
+      pickupState: { type: String, default: SHIPPING_DEFAULTS.pickupState },
+      pickupPincode: { type: String, default: SHIPPING_DEFAULTS.pickupPincode },
+      returnName: { type: String, default: SHIPPING_DEFAULTS.returnName },
+      returnPhone: { type: String, default: SHIPPING_DEFAULTS.returnPhone },
+      returnEmail: { type: String, default: SHIPPING_DEFAULTS.returnEmail },
+      returnAddress: { type: String, default: SHIPPING_DEFAULTS.returnAddress },
+      returnAddress2: { type: String, default: SHIPPING_DEFAULTS.returnAddress2 },
+      returnCity: { type: String, default: SHIPPING_DEFAULTS.returnCity },
+      returnState: { type: String, default: SHIPPING_DEFAULTS.returnState },
+      returnPincode: { type: String, default: SHIPPING_DEFAULTS.returnPincode },
+      defaultWeightKg: { type: Number, default: SHIPPING_DEFAULTS.defaultWeightKg },
+      defaultLengthCm: { type: Number, default: SHIPPING_DEFAULTS.defaultLengthCm },
+      defaultBreadthCm: { type: Number, default: SHIPPING_DEFAULTS.defaultBreadthCm },
+      defaultHeightCm: { type: Number, default: SHIPPING_DEFAULTS.defaultHeightCm },
+      rateMarkupPercent: { type: Number, default: SHIPPING_DEFAULTS.rateMarkupPercent },
+      codExtraCharge: { type: Number, default: SHIPPING_DEFAULTS.codExtraCharge },
+      trackingCacheMinutes: { type: Number, default: SHIPPING_DEFAULTS.trackingCacheMinutes },
+      autoCreateShipments: { type: Boolean, default: SHIPPING_DEFAULTS.autoCreateShipments },
+      autoAssignAwb: { type: Boolean, default: SHIPPING_DEFAULTS.autoAssignAwb },
+      autoRequestPickup: { type: Boolean, default: SHIPPING_DEFAULTS.autoRequestPickup },
     },
     trustBadges: [{ title: String, text: String, icon: String }],
     classificationOptions: { type: [ClassificationOptionSchema], default: [] },
@@ -232,6 +265,11 @@ export const ProductWebMetaSchema = new Schema(
     viewCount: { type: Number, default: 0 },
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
+    // Shipping overrides (kg/cm). Used by Shiprocket package calculation.
+    weightKg: { type: Number, min: 0.001 },
+    lengthCm: { type: Number, min: 1 },
+    breadthCm: { type: Number, min: 1 },
+    heightCm: { type: Number, min: 1 },
   },
   { collection: "productWebMeta", timestamps: true },
 );

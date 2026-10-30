@@ -129,6 +129,7 @@ import { clearCart, getCartToken, getCartView } from "@/lib/cart-server";
 // [CHG-03..06] getWebConnection + CouponModel imports removed: coupon counting now lives in recordCouponUse().
 import { abandonPendingOrder, finalizePaidOrder, findOrderByGatewayId, recordCouponUse, setOrderCartToken } from "@/lib/order-payments";
 import { createGatewayOrder, isRazorpayConfigured, verifyRazorpayPayment, type GatewayOrder } from "@/lib/payments";
+import { buildOrderShippingSnapshot, chargedShipping, quoteForItems } from "@/lib/shiprocket";
 import { getCustomers, getOrders, getSite } from "@/repositories";
 
 export const dynamic = "force-dynamic";
@@ -212,6 +213,25 @@ export const POST = handler(async (req: NextRequest) => {
     return fail("ONLINE_PAYMENT_UNAVAILABLE", "Online payment is not configured yet. Please choose cash on delivery or contact support.", 503);
   }
 
+  // [SHIPROCKET] Shipping is quoted on the SERVER for this address, payment mode and
+  // package. Amounts sent by the browser are never trusted; the client quote is only
+  // used for display and is re-validated here before the order is written.
+  const payableSubtotal = Math.max(0, Math.round((cart.totals.subTotal - cart.totals.couponDiscount) * 100) / 100);
+  const quote = await quoteForItems({
+    items: cart.lines.map((line) => ({ sku: line.sku, qty: line.qty })),
+    deliveryPincode: b.data.address.pincode,
+    paymentMode: b.data.paymentMode === "COD" ? "COD" : "PREPAID",
+    payableSubtotal,
+  });
+  if (!quote.serviceable) {
+    return fail("PINCODE_UNSERVICEABLE", "Delivery is not available to this pincode right now. Please try another address or contact us.", 422, { reason: quote.reason });
+  }
+  if (b.data.paymentMode === "COD" && !quote.codAvailable) {
+    return fail("COD_UNAVAILABLE", "Cash on delivery is not available for this pincode. Please pay online.", 422);
+  }
+  const shippingCharge = chargedShipping(quote);
+  const netAmount = Math.round((payableSubtotal + shippingCharge) * 100) / 100;
+
   // [CHG-05] REMOVED the old "create gateway order and return" and "verify against the cart" blocks.
   // They are replaced by the confirm branch above and the order-first creation below.
 
@@ -228,7 +248,7 @@ export const POST = handler(async (req: NextRequest) => {
   // paymentStatus=Pending / orderStatus=Placed WITH paymentGatewayOrderId. Amount comes from the server-priced cart only.
   const online = b.data.paymentMode === "RAZORPAY";
   let gateway: GatewayOrder | undefined;
-  if (online) gateway = await createGatewayOrder(cart.totals.netAmount, token.slice(0, 12));
+  if (online) gateway = await createGatewayOrder(netAmount, token.slice(0, 12));
 
   const order = await getOrders().create({
     customerId: cust.id,
@@ -241,8 +261,9 @@ export const POST = handler(async (req: NextRequest) => {
     subTotal: cart.totals.subTotal,
     discountTotal: cart.totals.couponDiscount,
     gstTotal: cart.totals.gstTotal,
-    shippingCharge: cart.totals.shippingCharge,
-    netAmount: cart.totals.netAmount,
+    shippingCharge,
+    netAmount,
+    shipping: buildOrderShippingSnapshot(quote),
     paymentMode: b.data.paymentMode,
     paymentStatus: "Pending", // [CHG-05] was "Paid" for online; now set to Paid by finalizePaidOrder() after verification
     orderStatus: "Placed",    // [CHG-05] was "Confirmed" for online; finalizePaidOrder() sets Confirmed

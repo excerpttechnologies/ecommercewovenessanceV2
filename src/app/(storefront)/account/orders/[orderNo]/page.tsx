@@ -177,6 +177,8 @@ const fmtDate = (d?: string | Date | null, withTime = false) =>
 
 const btnPrimary = "flex w-full items-center justify-center gap-2 rounded-full bg-maroon px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90";
 const btnOutline = "flex w-full items-center justify-center gap-2 rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-maroon hover:text-maroon";
+import { OrderTracking } from "@/components/account/order-tracking";
+
 const chip = "inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-4 py-2 text-xs font-semibold text-ink transition hover:border-maroon hover:text-maroon";
 
 export default async function OrderPage({ params }: { params: Promise<{ orderNo: string }> }) {
@@ -340,6 +342,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNo:
                     {order.awbNo && <span>AWB: <b className="text-ink">{order.awbNo}</b></span>}
                   </p>
                 )}
+                {!isCancelled && <OrderTracking orderNo={order.orderNo} phone={a.phone} />}
               </div>
 
               {/* Actions */}

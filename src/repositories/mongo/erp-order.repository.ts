@@ -158,6 +158,13 @@ export function mapErpOrder(rawValue: unknown): Order {
     orderStatus: mapErpOrderStatus(raw.status),
     shippingAddress: mapAddress(raw.shippingAddress, raw),
     awbNo: text(raw.awbNo),
+    // RetailERP orders carry no fulfilment snapshot; expose a read-only minimal one.
+    shipping: {
+      status: text(raw.awbNo) ? "awb_assigned" : "not_created",
+      awbNo: text(raw.awbNo),
+      trackingEvents: [],
+      events: [],
+    },
     storeId: text(raw.storeId),
     couponCode: text(record(raw.coupon).code),
     statusHistory: timeline.map((entryValue) => {

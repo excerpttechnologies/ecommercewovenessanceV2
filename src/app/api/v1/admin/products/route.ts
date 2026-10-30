@@ -90,6 +90,10 @@ export const GET = handler(async (req: NextRequest) => {
         isFeatured: m.isFeatured,
         isActive: m.isActive,
         salesCount: m.salesCount,
+        weightKg: m.weightKg,
+        lengthCm: m.lengthCm,
+        breadthCm: m.breadthCm,
+        heightCm: m.heightCm,
       });
     }
   } catch (e) {
@@ -137,8 +141,12 @@ export const PATCH = handler(async (req: NextRequest) => {
     isActive: z.boolean().optional(),
     extraImages: z.array(z.string()).optional(),
     webTags: z.array(z.string()).optional(),
-  }).refine(({ slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags }) =>
-    [slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags].some((value) => value !== undefined)));
+    weightKg: z.number().finite().min(0.001).max(1000).nullable().optional(),
+    lengthCm: z.number().finite().min(1).max(300).nullable().optional(),
+    breadthCm: z.number().finite().min(1).max(300).nullable().optional(),
+    heightCm: z.number().finite().min(1).max(300).nullable().optional(),
+  }).refine(({ slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags, weightKg, lengthCm, breadthCm, heightCm }) =>
+    [slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags, weightKg, lengthCm, breadthCm, heightCm].some((value) => value !== undefined)));
   if (!b.ok) return b.res;
   const { sku, ...patch } = b.data;
   let product;
@@ -153,7 +161,7 @@ export const PATCH = handler(async (req: NextRequest) => {
   const before = await M.findOne({ sku }).lean();
   const set: Record<string, unknown> = {};
   const unset: Record<string, 1> = {};
-  for (const key of ["productName", "itemName", "barcodeName", "productType", "itemType", "weaveDescription", "fabricDescription", "craftDescription", "occasionDescription", "colorDescription", "groupNameOverride", "supplierCodeOverride", "supplierNameOverride", "printDescriptionOverride", "ecommOffPercent", "barcodePriceOverride", "barcodeQtyOverride", "barcodeStatusOverride"] as const) {
+  for (const key of ["productName", "itemName", "barcodeName", "productType", "itemType", "weaveDescription", "fabricDescription", "craftDescription", "occasionDescription", "colorDescription", "groupNameOverride", "supplierCodeOverride", "supplierNameOverride", "printDescriptionOverride", "ecommOffPercent", "barcodePriceOverride", "barcodeQtyOverride", "barcodeStatusOverride", "weightKg", "lengthCm", "breadthCm", "heightCm"] as const) {
     const value = patch[key];
     if (value === undefined) continue;
     if (value !== null && value !== "") set[key] = value;

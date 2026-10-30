@@ -4,8 +4,9 @@ import { toObjectIdOrString } from "@/lib/db";
 import { escapeRegex } from "@/lib/utils";
 import { OrderModel } from "@/models/erp/order.model";
 import { CounterModel } from "@/models/web/commerce.models";
+import { shippingForNewOrder } from "@/lib/order-shipping";
 import type { AnyDoc } from "@/models/_util";
-import type { Order, OrderStatus, Paginated } from "@/domain/types";
+import type { Order, OrderShipping, OrderStatus, Paginated, ShippingStatus } from "@/domain/types";
 import type { CreateOrderInput, OrderRepository } from "../types";
 
 /** Website-owned orders stored with RetailERP field names (see erp-mapping.ts). */
@@ -61,6 +62,7 @@ export class MongoOrderRepository implements OrderRepository {
       ...doc,
       ...(input.paymentGatewayOrderId ? { paymentGatewayOrderId: input.paymentGatewayOrderId } : {}),
       ...(input.paymentTransactionId ? { paymentTransactionId: input.paymentTransactionId } : {}),
+      shipping: shippingForNewOrder(input.shipping),
       statusHistory: [{
         status: initialStatus,
         by: "system",
@@ -80,9 +82,10 @@ export class MongoOrderRepository implements OrderRepository {
     return this.paginate({ [O.customerId]: toObjectIdOrString(customerId) }, params);
   }
 
-  async list(params: { status?: OrderStatus; paymentStatus?: Order["paymentStatus"]; q?: string; from?: Date; to?: Date; page?: number; limit?: number }) {
+  async list(params: { status?: OrderStatus; paymentStatus?: Order["paymentStatus"]; shippingStatus?: ShippingStatus; q?: string; from?: Date; to?: Date; page?: number; limit?: number }) {
     const match: AnyDoc = {};
     if (params.status) match[O.orderStatus] = params.status;
+    if (params.shippingStatus) match["shipping.status"] = params.shippingStatus;
     if (params.paymentStatus) {
       match[O.paymentStatus] = params.paymentStatus;
       if (params.paymentStatus === "Pending") match[O.orderStatus] = { $nin: ["Cancelled", "Returned"] };
@@ -120,7 +123,29 @@ export class MongoOrderRepository implements OrderRepository {
 
   async setAwb(orderNo: string, awbNo: string): Promise<Order | null> {
     const doc = await (await this.M())
-      .findOneAndUpdate({ [O.orderNo]: orderNo }, { $set: { [O.awbNo]: awbNo } }, { new: true })
+      .findOneAndUpdate(
+        { [O.orderNo]: orderNo },
+        { $set: { [O.awbNo]: awbNo, "shipping.awbNo": awbNo } },
+        { new: true },
+      )
+      .lean<AnyDoc>();
+    return doc ? mapOrder(doc) : null;
+  }
+
+  async setShipping(orderNo: string, patch: Partial<OrderShipping>): Promise<Order | null> {
+    const set: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) continue;
+      set[`shipping.${key}`] = value;
+    }
+    if (!Object.keys(set).length) return this.getByOrderNo(orderNo);
+    set["shipping.updatedAt"] = patch.updatedAt ?? new Date().toISOString();
+    if (patch.awbNo !== undefined) set[O.awbNo] = patch.awbNo;
+    if (patch.courierName !== undefined) set.courierName = patch.courierName;
+    if (patch.shiprocketOrderId !== undefined) set.shiprocketOrderId = patch.shiprocketOrderId;
+    if (patch.shiprocketShipmentId !== undefined) set.shiprocketShipmentId = patch.shiprocketShipmentId;
+    const doc = await (await this.M())
+      .findOneAndUpdate({ [O.orderNo]: orderNo }, { $set: set }, { new: true })
       .lean<AnyDoc>();
     return doc ? mapOrder(doc) : null;
   }

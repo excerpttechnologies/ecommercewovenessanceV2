@@ -275,6 +275,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { CollectionBanner } from "@/components/listing/collection-banner";
 import { BarcodeSortSelect, ViewToggle } from "@/components/listing/barcode-toolbar";
 import { BARCODE_SORTS } from "@/domain/types";
+import { Sparkles } from "lucide-react";
 import { JsonLd } from "@/components/seo/json-ld";
 import { barcodeProductPath } from "@/lib/paths";
 import { CATEGORY_SEO, DEFAULT_OG_IMAGE, OG_DEFAULTS, absoluteUrl, barcodeProductFacts, breadcrumbJsonLd, itemListJsonLd, publicImage } from "@/lib/seo";
@@ -302,7 +303,7 @@ const ERP_GROUP_BANNERS: Partial<Record<StorefrontCategoryGroup, string>> = {
 };
 
 function erpGroupForSlug(slug: string): StorefrontCategoryGroup | null {
-  if (slug === "sarees" || slug === "fabrics" || slug === "plain-fabrics" || slug === "dupatta" || slug === "simple" || slug === "best-buy" || slug === "new-arrivals") return slug;
+  if (slug === "sarees" || slug === "fabrics" || slug === "plain-fabrics" || slug === "dupatta" || slug === "best-buy" || slug === "new-arrivals") return slug;
   return null;
 }
 
@@ -315,8 +316,39 @@ async function resolve(slug: string) {
     return { kind: "category" as const, category, parent, base: { category: slug } as ProductListParams };
   }
   const collection = await getSite().collectionBySlug(slug);
-  if (collection) return { kind: "collection" as const, collection, base: collectionToListParams(collection) };
+  if (collection)  return { kind: "collection" as const, collection, base: collectionToListParams(collection) };
   return null;
+}
+
+/**
+ * Nothing matched. New Arrivals explains the 48-hour window and points at the wider saree collection;
+ * other categories keep the plain "no products" note.
+ */
+function EmptyResult({ newArrivals, filtered }: { newArrivals: boolean; filtered: boolean }) {
+  if (!newArrivals) return <p className="py-12 text-center text-sm text-muted">No products match these filters.</p>;
+  return (
+    <div className="rounded-2xl border border-line bg-white px-6 py-14 text-center sm:px-10 sm:py-16">
+      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fbf7f2] text-brass">
+        <Sparkles className="h-6 w-6" />
+      </span>
+      <h2 className="mt-5 font-display text-2xl font-semibold sm:text-3xl">
+        {filtered ? "No Products Match These Filters" : "No New Arrivals Right Now"}
+      </h2>
+      <p className="mx-auto mt-2 max-w-md font-display text-base text-ink/75">
+        {filtered ? "Try another search or clear the filters to see every piece added in the last 48 hours." : "Stay tuned! Fresh sarees are arriving soon."}
+      </p>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        {filtered && (
+          <Link href="/collections/new-arrivals" className="inline-flex h-11 items-center rounded-full border border-line px-6 text-sm font-semibold text-olive hover:border-maroon hover:text-maroon">
+            Clear filters
+          </Link>
+        )}
+        <Link href="/collections/sarees" className="inline-flex h-11 items-center rounded-full bg-maroon px-6 text-sm font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] hover:bg-gold">
+          Explore all sarees
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 /** URL keys that narrow or reorder a listing; such views point their canonical at the plain collection. */
@@ -327,6 +359,9 @@ function pageNumber(sp: SP): number {
   const n = raw && /^\d+$/.test(raw) ? Number(raw) : 1;
   return Number.isSafeInteger(n) ? Math.max(1, n) : 1;
 }
+
+/** URL keys that change which products show (sort and view do not). */
+const FILTER_ONLY_KEYS = ["q", "group", "business", "status", "uomType", "subgroup", "weave", "fabric", "craft", "occasion", "color", "priceMin", "priceMax", "inStock", "discountMin"];
 
 /**
  * Canonical + robots for a listing URL: page 2+ is its own canonical page; filtered, sorted or searched
@@ -464,7 +499,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
             {result.items.length ? (
               <BarcodeProductGrid items={result.items} collectionSlug={slug} layout={layout} />
             ) : (
-              <p className="py-12 text-center text-sm text-muted">No products match these filters.</p>
+              <EmptyResult newArrivals={slug === "new-arrivals"} filtered={FILTER_ONLY_KEYS.some((k) => firstParam(sp[k]))} />
             )}
             <Suspense><Pagination page={result.page} pages={result.pages} /></Suspense>
             </div>

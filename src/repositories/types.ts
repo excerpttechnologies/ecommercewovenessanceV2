@@ -11,8 +11,10 @@ import type {
   FilterKey,
   Order,
   OrderItem,
+  OrderShipping,
   OrderStatus,
   Paginated,
+  ShippingStatus,
   PaymentMode,
   Product,
   ProductCard,
@@ -112,6 +114,8 @@ export interface CreateOrderInput {
   shippingAddress: Address;
   storeId?: string;
   couponCode?: string;
+  /** Server-computed Shiprocket quote/fulfilment snapshot. */
+  shipping?: Partial<OrderShipping>;
 }
 
 export interface OrderRepository {
@@ -121,6 +125,7 @@ export interface OrderRepository {
   list(params: {
     status?: OrderStatus;
     paymentStatus?: Order["paymentStatus"];
+    shippingStatus?: ShippingStatus;
     q?: string;
     from?: Date;
     to?: Date;
@@ -129,4 +134,6 @@ export interface OrderRepository {
   }): Promise<Paginated<Order>>;
   updateStatus(orderNo: string, status: OrderStatus, note?: string, by?: string): Promise<Order | null>;
   setAwb(orderNo: string, awbNo: string): Promise<Order | null>;
+  /** Update nested shipping fields without replacing unrelated fulfilment data. */
+  setShipping(orderNo: string, patch: Partial<OrderShipping>): Promise<Order | null>;
 }

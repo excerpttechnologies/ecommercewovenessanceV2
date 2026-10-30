@@ -100,7 +100,6 @@ export const DEFAULT_MENU: MenuNode[] = [
       ], "/collections/dupatta"),
     ],
   },
-  { id: "default-simple", label: "SIMPLE", kind: "top", href: "/collections/simple", children: [] },
   { id: "default-new-arrivals", label: "NEW ARRIVALS", kind: "top", href: "/collections/sarees?sort=newest", badge: "New", children: [] },
   { id: "default-best-buy", label: "BEST BUY", kind: "top", href: "/collections/best-buy", children: [] },
 ];

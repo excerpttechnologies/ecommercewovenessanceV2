@@ -10,13 +10,12 @@ import { CategoryTiles, ChipStrip, ErpProductSection, HelpJump, HomeSeoContent, 
 import { JsonLd } from "@/components/seo/json-ld";
 import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_OG_IMAGE, DEFAULT_TITLE, OG_DEFAULTS, absoluteUrl, itemListJsonLd, publicImage, storeJsonLd, websiteJsonLd } from "@/lib/seo";
 
-const CURATED_ORDER: StorefrontCategoryGroup[] = ["sarees", "fabrics", "plain-fabrics", "dupatta", "simple"];
+const CURATED_ORDER: StorefrontCategoryGroup[] = ["sarees", "fabrics", "plain-fabrics", "dupatta"];
 const CURATED_COVERS: Partial<Record<StorefrontCategoryGroup, string>> = {
   sarees: "/curated/sarees.webp",
   fabrics: "/curated/fabrics.webp",
   "plain-fabrics": "/curated/plain-fabrics.webp",
   dupatta: "/curated/dupatta.webp",
-  simple: "/curated/simple.webp",
 };
 /** Seeded hero photos that have been retired; banners still pointing at them show the new photo. */
 const HERO_IMAGE_REPLACEMENTS: Record<string, { src: string; alt: string }> = {
@@ -109,7 +108,6 @@ const categoryImageOverrides: Record<string, string> = {
 };
 
 const extraCategoryCircles = [
-  { id: "circle-simple", name: "Simple", href: "/collections/simple", image: "/categories/simple.webp" },
   { id: "circle-new", name: "New Arrivals", href: "/collections/sarees?sort=newest", image: "/categories/new-arrivals.webp" },
   { id: "circle-best", name: "Best Sellers", href: "/collections/sarees", image: "/categories/best-sellers.webp" },
 ];

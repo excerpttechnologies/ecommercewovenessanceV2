@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BARCODE_SORTS, type BarcodeSort } from "@/domain/types";
 import { cn } from "@/lib/utils";
 
-const SORT_LABELS: Record<BarcodeSort, string> = { newest: "Newest", price_asc: "Price: Low to High", price_desc: "Price: High to Low" };
+const SORT_LABELS: Record<BarcodeSort, string> = { newest: "Newest", price_asc: "Price: Low to High", price_desc: "Price: High to Low", name_asc: "Name: A to Z" };
 
 function useParamSetter() {
   const sp = useSearchParams();

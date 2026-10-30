@@ -1,4 +1,5 @@
 "use client";
+import { PincodeCheck } from "@/components/product/pincode-check";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -277,6 +278,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
               )}
               {tab === "shipping" && (
                 <div className="space-y-2">
+                  <PincodeCheck sku={item.barcode} price={item.offerPrice ?? item.price} className="mb-3 rounded-xl border border-line bg-ivory/60 p-4" />
                   <p className="flex gap-2"><Truck className="mt-1 h-4 w-4 shrink-0 text-maroon" />Shipped from Bengaluru to addresses across India{freeShippingAbove ? `; free on orders above ₹${freeShippingAbove.toLocaleString("en-IN")}` : ""}.</p>
                   <p className="flex gap-2"><RotateCcw className="mt-1 h-4 w-4 shrink-0 text-maroon" />See our <Link href="/pages/returns" className="text-maroon underline underline-offset-2">returns</Link> and <Link href="/pages/shipping-policy" className="text-maroon underline underline-offset-2">shipping</Link> policies, or <Link href="/contact" className="text-maroon underline underline-offset-2">contact us</Link> with any question.</p>
                 </div>

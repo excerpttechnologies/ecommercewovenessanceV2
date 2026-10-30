@@ -97,5 +97,15 @@ export const PATCH = handler(async (req: NextRequest, ctx: Ctx) => {
       $push: { statusHistory: { status, note: "Updated by admin", by: session.email ?? "admin", at: now } },
     },
   );
+
+  // [SHIPROCKET] COD orders ship only after acceptance (Confirmed), never before.
+  if (status === "Confirmed" && doc.paymentMode === "COD") {
+    try {
+      const { autoShipmentsEnabled, scheduleShipment } = await import("@/lib/shiprocket/auto");
+      if (await autoShipmentsEnabled()) await scheduleShipment(orderNo, { trigger: "cod_acceptance" });
+    } catch (error) {
+      console.warn("[shiprocket] could not schedule COD shipment", error instanceof Error ? error.message : error);
+    }
+  }
   return ok({ orderNo, orderStatus: status });
 });

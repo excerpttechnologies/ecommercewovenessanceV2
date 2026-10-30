@@ -281,14 +281,13 @@ export type EcommerceClassificationFilters = Partial<Record<EcommerceClassificat
 // NEW (price filter): priceMin / priceMax added to the end of this type.
 export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string; sort?: BarcodeSort; priceMin?: number; priceMax?: number };
 
-export type StorefrontCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "simple" | "best-buy" | "new-arrivals";
+export type StorefrontCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
 
 export const ERP_CATEGORY_TITLES: Record<StorefrontCategoryGroup, string> = {
   sarees: "Sarees",
   fabrics: "Fabrics",
   "plain-fabrics": "Plain Fabrics",
   dupatta: "Dupatta",
-  simple: "Simple",
   "best-buy": "Best Buy",
   "new-arrivals": "New Arrivals",
 };
@@ -299,8 +298,6 @@ export const ERP_CATEGORY_PRODUCT_TYPES: Record<StorefrontCategoryGroup, readonl
   fabrics: ["FABRICS"],
   "plain-fabrics": ["PLAIN FABRICS"],
   dupatta: ["DUPATTA"],
-  // The ERP product-eccom form saves an item's Item Type ("Simple") when no product type matches.
-  simple: ["Simple", "SIMPLE"],
   // Products with the ERP's Best Buy tick, of any product type (29-10-2026).
   "best-buy": [ERP_BEST_BUY_PRODUCT_TYPE],
   // Published products added in the last 48 hours, of any product type (29-10-2026).

@@ -461,6 +461,93 @@ export type OrderStatus =
 export type PaymentMode = "COD" | "RAZORPAY" | "UPI" | "CARD";
 export type PaymentStatus = "Pending" | "Paid" | "Failed" | "Refunded";
 
+/** Shiprocket fulfilment state stored on the existing order document. */
+export type ShippingStatus =
+  | "not_configured"
+  | "not_created"
+  | "creating"
+  | "created"
+  | "awb_assigned"
+  | "pickup_scheduled"
+  | "in_transit"
+  | "out_for_delivery"
+  | "delivered"
+  | "cancelled"
+  | "undelivered"
+  | "rto_initiated"
+  | "rto_in_transit"
+  | "rto_out_for_delivery"
+  | "rto_delivered"
+  | "return_created"
+  | "return_in_transit"
+  | "returned"
+  | "failed";
+
+export interface ShippingTrackingEvent {
+  status: string;
+  statusCode?: string;
+  activity?: string;
+  location?: string;
+  date?: string;
+  awb?: string;
+}
+
+export interface ShippingPackage {
+  weight: number;
+  length: number;
+  breadth: number;
+  height: number;
+}
+
+export interface ShippingCourier {
+  id: number | string;
+  name: string;
+  rate: number;
+  cod: boolean;
+  etaDays?: number;
+  estimatedDelivery?: string;
+  rating?: number;
+}
+
+export interface OrderShipping {
+  status: ShippingStatus;
+  provider?: "shiprocket" | "flat";
+  quotedCharge?: number;
+  baseCharge?: number;
+  codAvailable?: boolean;
+  courierId?: number | string;
+  courierName?: string;
+  etaDays?: number;
+  estimatedDelivery?: string;
+  trackingUrl?: string;
+  trackingStatus?: string;
+  trackingUpdatedAt?: string;
+  trackingEvents: ShippingTrackingEvent[];
+  couriers?: ShippingCourier[];
+  package?: ShippingPackage;
+  shiprocketOrderId?: number;
+  shiprocketShipmentId?: number;
+  awbNo?: string;
+  pickupRequested?: boolean;
+  pickupScheduledDate?: string;
+  labelUrl?: string;
+  manifestUrl?: string;
+  invoiceUrl?: string;
+  lastError?: { code: string; message: string; at: string };
+  returnOrderId?: number;
+  returnShipmentId?: number;
+  returnAwb?: string;
+  returnStatus?: string;
+  returnRequestedAt?: string;
+  returnDeliveredAt?: string;
+  rtoInitiatedAt?: string;
+  rtoDeliveredAt?: string;
+  cancelledAt?: string;
+  /** Capped, de-duplicated Shiprocket event keys (webhook idempotency). */
+  events: string[];
+  updatedAt?: string;
+}
+
 export interface OrderItem {
   productId?: ID;
   sku: string;
@@ -488,6 +575,11 @@ export interface Order {
   orderStatus: OrderStatus;
   shippingAddress: Address;
   awbNo?: string;
+  courierName?: string;
+  shiprocketOrderId?: number;
+  shiprocketShipmentId?: number;
+  /** Shiprocket/fulfilment data stored alongside the existing order fields. */
+  shipping: OrderShipping;
   storeId?: ID;
   couponCode?: string;
   /** Website-only fulfilment trail (not part of RetailERP). */
@@ -636,7 +728,7 @@ export interface BarcodeListParams {
   limit?: number;
 }
 
-export const BARCODE_SORTS = ["newest", "price_asc", "price_desc"] as const;
+export const BARCODE_SORTS = ["newest", "price_asc", "price_desc", "name_asc"] as const;
 export type BarcodeSort = (typeof BARCODE_SORTS)[number];
 
 export interface BarcodeFacets {

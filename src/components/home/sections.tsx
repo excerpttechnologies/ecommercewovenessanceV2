@@ -277,7 +277,6 @@ const SEO_THUMBS: Partial<Record<keyof typeof CATEGORY_SEO, string>> = {
   fabrics: "/curated/fabrics.webp",
   "plain-fabrics": "/curated/plain-fabrics.webp",
   dupatta: "/curated/dupatta.webp",
-  simple: "/curated/simple.webp",
 };
 
 function InfoIcon({ Icon }: { Icon: React.ComponentType<{ className?: string }> }) {

@@ -22,6 +22,7 @@
  */
 
 import { getPath, setPath, slugify } from "./utils";
+import { normalizeOrderShipping } from "./order-shipping";
 import type {
   Address,
   BarcodeProduct,
@@ -644,6 +645,38 @@ export function mapOrderItem(raw: any): OrderItem {
 export function mapOrder(raw: any): Order {
   const g = (k: OrderFieldKey) => getPath(raw, ORDER_FIELDS[k]);
   const items = g("items");
+  const orderStatus = (toStr(g("orderStatus")) ?? "Placed") as Order["orderStatus"];
+  const awbNo = toStr(g("awbNo"));
+  const courierName = toStr(raw?.courierName);
+  const shiprocketOrderId = raw?.shiprocketOrderId == null ? undefined : toNum(raw.shiprocketOrderId);
+  const shiprocketShipmentId = raw?.shiprocketShipmentId == null ? undefined : toNum(raw.shiprocketShipmentId);
+  const storedShipping = raw?.shipping && typeof raw.shipping === "object" ? raw.shipping : {};
+  const legacyStatus =
+    orderStatus === "Delivered"
+      ? "delivered"
+      : orderStatus === "Returned"
+        ? "returned"
+        : orderStatus === "Cancelled"
+          ? "cancelled"
+          : orderStatus === "Out for delivery"
+            ? "out_for_delivery"
+            : orderStatus === "Shipped"
+              ? "in_transit"
+              : orderStatus === "Packed"
+                ? "pickup_scheduled"
+                : awbNo
+                  ? "awb_assigned"
+                  : shiprocketShipmentId
+                    ? "created"
+                    : undefined;
+  const shipping = normalizeOrderShipping({
+    ...storedShipping,
+    status: storedShipping.status ?? legacyStatus,
+    shiprocketOrderId: storedShipping.shiprocketOrderId ?? shiprocketOrderId,
+    shiprocketShipmentId: storedShipping.shiprocketShipmentId ?? shiprocketShipmentId,
+    awbNo: storedShipping.awbNo ?? awbNo,
+    courierName: storedShipping.courierName ?? courierName,
+  });
   return {
     id: toId(g("id")),
     orderNo: toStr(g("orderNo")) ?? "",
@@ -656,9 +689,13 @@ export function mapOrder(raw: any): Order {
     netAmount: toNum(g("netAmount")),
     paymentMode: (toStr(g("paymentMode")) ?? "COD") as Order["paymentMode"],
     paymentStatus: (toStr(g("paymentStatus")) ?? "Pending") as Order["paymentStatus"],
-    orderStatus: (toStr(g("orderStatus")) ?? "Placed") as Order["orderStatus"],
+    orderStatus,
     shippingAddress: mapAddress(g("shippingAddress") ?? {}),
-    awbNo: toStr(g("awbNo")),
+    awbNo,
+    courierName,
+    shiprocketOrderId,
+    shiprocketShipmentId,
+    shipping,
     storeId: toStr(g("storeId")),
     couponCode: toStr(g("couponCode")),
     statusHistory: Array.isArray(raw?.statusHistory) ? raw.statusHistory.map((h: any) => ({ status: h.status, note: h.note, by: h.by, at: toISO(h.at) })) : undefined,
