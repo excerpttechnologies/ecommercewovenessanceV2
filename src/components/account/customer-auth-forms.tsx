@@ -5,8 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/hooks/api";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { ArrowRight, Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Mail, MessageCircle, Phone, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { OtpLogin } from "@/components/account/otp-login";
 
 const field = "h-12 rounded-lg pl-11";
 
@@ -57,12 +58,27 @@ export function LoginForm({ next }: { next: string }) {
   const { busy, error, submit } = useAuthSubmit(next);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"password" | "whatsapp">("password");
+
+  if (mode === "whatsapp") {
+    return <OtpLogin next={next} onBack={() => setMode("password")} />;
+  }
+
   return (
     <form className="mt-7 space-y-5" onSubmit={(e) => { e.preventDefault(); submit("/api/v1/auth/login", { email, password }); }}>
       <Field label="Email address"><IconInput icon={Mail} type="email" required autoComplete="email" placeholder="Enter your email address" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
       <Field label="Password"><PasswordInput required autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
       {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>}
       <Button type="submit" size="lg" className={submitClass} loading={busy}>Log in {!busy && <ArrowRight className="h-4 w-4" />}</Button>
+
+      <div className="relative py-1 text-center">
+        <span aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-line" />
+        <span className="relative bg-white px-3 text-[10px] uppercase tracking-widest text-muted">or</span>
+      </div>
+
+      <Button type="button" variant="outline" size="lg" className="h-12 w-full rounded-full text-[15px]" onClick={() => setMode("whatsapp")}>
+        <MessageCircle className="h-4 w-4" /> Login with WhatsApp OTP
+      </Button>
     </form>
   );
 }

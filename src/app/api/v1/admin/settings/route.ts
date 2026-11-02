@@ -8,6 +8,7 @@ import { getWebConnection } from "@/lib/db";
 import { env } from "@/lib/env";
 import { SiteSettingsModel } from "@/models/web/content.models";
 import { getSite } from "@/repositories";
+import { getWhatsAppAdminStatus } from "@/lib/whatsapp/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export const GET = handler(async () => {
   return ok({
     ...settings,
     erp: { ...settings.erp, dataSource: env.DATA_SOURCE, dbName: env.ERP_DB_NAME },
+    whatsapp: await getWhatsAppAdminStatus(),
   });
 });
 

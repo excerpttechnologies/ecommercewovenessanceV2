@@ -93,6 +93,18 @@ type Detail = Order & {
   isWebsite?: boolean;
   shiprocketShipmentId?: number | string | null;
   courierName?: string | null;
+  whatsappNotification?: {
+    status: "PENDING" | "SENT" | "FAILED" | "SKIPPED";
+    mobileMasked: string | null;
+    templateName: string | null;
+    providerMessageId: string | null;
+    attempts: number;
+    sentAt: string | null;
+    lastAttemptAt: string | null;
+    failureReason: string | null;
+    retryable: boolean;
+    canRetry: boolean;
+  } | null;
 };
 
 const btn = "w-full rounded-sm border border-line px-3 py-2 text-xs uppercase tracking-widest hover:bg-ivory disabled:opacity-50";
@@ -114,6 +126,13 @@ const SHIPPING_TONE: Record<string, BadgeTone> = {
   failed: "red",
   cancelled: "red",
   undelivered: "red",
+};
+
+const WHATSAPP_TONE: Record<string, BadgeTone> = {
+  SENT: "green",
+  PENDING: "amber",
+  FAILED: "red",
+  SKIPPED: "muted",
 };
 
 export default function OrderDetail() {
@@ -206,6 +225,51 @@ export default function OrderDetail() {
             <p>{a.line1}{a.line2 ? `, ${a.line2}` : ""}<br />{a.city}, {a.state} {a.pincode}<br />{a.phone}</p>
             {o.awbNo && <p className="mt-3 text-xs">AWB: <b>{o.awbNo}</b>{o.courierName ? ` · ${o.courierName}` : ""}</p>}
           </div>
+
+          {o.isWebsite && (
+            <div className="space-y-2 rounded-sm border border-line p-4 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-widest text-muted">WhatsApp notification</p>
+                <Badge tone={WHATSAPP_TONE[o.whatsappNotification?.status ?? "SKIPPED"] ?? "muted"}>
+                  {o.whatsappNotification?.status ?? "Not sent"}
+                </Badge>
+              </div>
+              {o.whatsappNotification ? (
+                <dl className="space-y-1 text-xs text-ink/80">
+                  {o.whatsappNotification.mobileMasked && (
+                    <div className="flex justify-between gap-3"><dt className="text-muted">Number</dt><dd className="text-right font-mono">{o.whatsappNotification.mobileMasked}</dd></div>
+                  )}
+                  {o.whatsappNotification.templateName && (
+                    <div className="flex justify-between gap-3"><dt className="text-muted">Template</dt><dd className="text-right font-mono">{o.whatsappNotification.templateName}</dd></div>
+                  )}
+                  {o.whatsappNotification.sentAt && (
+                    <div className="flex justify-between gap-3"><dt className="text-muted">Sent</dt><dd className="text-right">{new Date(o.whatsappNotification.sentAt).toLocaleString("en-IN")}</dd></div>
+                  )}
+                  {!o.whatsappNotification.sentAt && o.whatsappNotification.lastAttemptAt && (
+                    <div className="flex justify-between gap-3"><dt className="text-muted">Last attempt</dt><dd className="text-right">{new Date(o.whatsappNotification.lastAttemptAt).toLocaleString("en-IN")}</dd></div>
+                  )}
+                  {o.whatsappNotification.providerMessageId && (
+                    <div className="flex justify-between gap-3"><dt className="text-muted">Message ID</dt><dd className="max-w-[190px] break-all text-right font-mono">{o.whatsappNotification.providerMessageId}</dd></div>
+                  )}
+                  <div className="flex justify-between gap-3"><dt className="text-muted">Attempts</dt><dd className="text-right">{o.whatsappNotification.attempts}</dd></div>
+                  {o.whatsappNotification.failureReason && (
+                    <p role="alert" className="rounded-sm bg-red-50 p-2 text-red-800">{o.whatsappNotification.failureReason}</p>
+                  )}
+                </dl>
+              ) : (
+                <p className="text-xs text-muted">
+                  {o.paymentStatus === "Paid"
+                    ? "A payment confirmation is sent automatically. If it is missing, send it below."
+                    : "The confirmation is sent only after the payment is verified and the order is marked Paid."}
+                </p>
+              )}
+              {o.paymentStatus === "Paid" && (!o.whatsappNotification || o.whatsappNotification.canRetry) && (
+                <button className={btn} disabled={busy} onClick={() => act("whatsapp", "WhatsApp payment confirmation sent")}>
+                  {o.whatsappNotification ? "Retry WhatsApp message" : "Send WhatsApp confirmation"}
+                </button>
+              )}
+            </div>
+          )}
 
           {o.isWebsite ? (
             <>

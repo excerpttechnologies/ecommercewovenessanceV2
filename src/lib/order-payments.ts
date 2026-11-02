@@ -65,6 +65,16 @@ export async function recordCouponUse(code?: string | null) {
   await CouponModel(await getWebConnection()).updateOne({ code }, { $inc: { usedCount: 1 } });
 }
 
+/** Queue the idempotent WhatsApp payment confirmation (never blocks payment processing). */
+async function queuePaymentNotification(orderNo: string) {
+  try {
+    const { queueOrderPaymentSuccessMessage } = await import("@/lib/whatsapp/notifications");
+    await queueOrderPaymentSuccessMessage(orderNo);
+  } catch (error) {
+    console.warn("[whatsapp] could not queue payment notification", error instanceof Error ? error.message : error);
+  }
+}
+
 /**
  * Pending/Failed -> Paid + Confirmed, exactly once. Returns `changed: false`
  * when the order was already paid (repeat call / webhook retry).
@@ -90,7 +100,11 @@ export async function finalizePaidOrder(
 
   if (!updated) {
     const existing = await findOrderByGatewayId(gatewayOrderId);
-    return existing?.paymentStatus === "Paid" ? { orderNo: existing.orderNo, changed: false } : null;
+    if (existing?.paymentStatus !== "Paid") return null;
+    // Repeated webhook/confirm calls are a safe retry trigger: the notification
+    // claim still guarantees at most one delivered message per order.
+    await queuePaymentNotification(existing.orderNo);
+    return { orderNo: existing.orderNo, changed: false };
   }
 
   // Only the call that actually flipped the order gets here.
@@ -99,6 +113,12 @@ export async function finalizePaidOrder(
   // [SHIPROCKET] Prepaid orders create their shipment only after a verified payment.
   // Scheduled after the response so checkout never waits on the courier API.
   await schedulePaidShipment(String(updated.orderNo));
+
+  // [WHATSAPP] Payment-success message is queued only from this function, i.e.
+  // only after the server verified the payment and marked the order Paid. It is
+  // idempotent, so the browser confirm step and a webhook retry cannot duplicate it.
+  await queuePaymentNotification(String(updated.orderNo));
+
   return { orderNo: String(updated.orderNo), changed: true };
 }
 

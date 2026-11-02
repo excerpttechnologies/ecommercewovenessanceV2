@@ -97,18 +97,66 @@ export const EnquiryModel = (c: Connection) => {
   return getModel<EnquiryDoc>(c, "Enquiry", EnquirySchema);
 };
 
-/* ---------------- OTP codes for mobile login ---------------- */
+/* ---------------- OTP codes for WhatsApp login ---------------- */
+// One row per login attempt. Only the HMAC of the code is stored; the TTL index
+// removes the row shortly after expiry, so codes never accumulate.
 export const OtpSchema = new Schema(
   {
-    mobile: { type: String, required: true, index: true },
+    mobile: { type: String, required: true, index: true }, // value stored on the customer record
+    countryCode: { type: String, default: "91" },
+    e164: { type: String, index: true },
     codeHash: { type: String, required: true },
     attempts: { type: Number, default: 0 },
+    maxAttempts: { type: Number, default: 5 },
     expiresAt: { type: Date, required: true, index: { expires: 0 } },
+    lastSentAt: Date,
+    sendCount: { type: Number, default: 0 },
+    windowStartedAt: Date,
+    requestIp: String,
+    deliveryStatus: { type: String, enum: ["PENDING", "SENT", "FAILED"], default: "PENDING" },
+    providerMessageId: String,
+    providerError: String,
+    consumedAt: Date,
   },
-  { collection: "otpCodes" },
+  { collection: "otpCodes", timestamps: true },
 );
 export type OtpDoc = InferSchemaType<typeof OtpSchema>;
 export const OtpModel = (c: Connection) => getModel<OtpDoc>(c, "Otp", OtpSchema);
+
+/* ---------------- WhatsApp notification audit / idempotency ---------------- */
+export const WHATSAPP_NOTIFICATION_STATUSES = ["PENDING", "SENT", "FAILED", "SKIPPED"] as const;
+export type WhatsAppNotificationStatus = (typeof WHATSAPP_NOTIFICATION_STATUSES)[number];
+
+export const WhatsAppNotificationSchema = new Schema(
+  {
+    /** "otp" = login code delivery, "order_paid" = payment success message. */
+    type: { type: String, enum: ["otp", "order_paid"], required: true, index: true },
+    /** Unique claim key: order_paid:<orderNo> (or a per-send key for OTP). */
+    dedupeKey: { type: String, required: true, unique: true },
+    orderNo: { type: String, index: true },
+    customerId: { type: String, index: true },
+    mobile: String, // E.164 digits; masked in the admin UI
+    templateName: String,
+    messageType: String,
+    status: { type: String, enum: [...WHATSAPP_NOTIFICATION_STATUSES], default: "PENDING", index: true },
+    providerMessageId: String,
+    attempts: { type: Number, default: 0 },
+    claimedAt: Date,
+    lastAttemptAt: Date,
+    sentAt: Date,
+    failureReason: String,
+    retryable: { type: Boolean, default: false },
+    /** Only set on OTP audit rows, which expire after a day. Order rows keep their history. */
+    expiresAt: Date,
+    metadata: Schema.Types.Mixed,
+  },
+  { collection: "whatsappNotifications", timestamps: true },
+);
+WhatsAppNotificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export type WhatsAppNotificationDoc = InferSchemaType<typeof WhatsAppNotificationSchema>;
+export const WhatsAppNotificationModel = (c: Connection) =>
+  getModel<WhatsAppNotificationDoc>(c, "WhatsAppNotification", WhatsAppNotificationSchema);
 
 /* ---------------- Customer email + password logins ---------------- */
 // Kept apart from the ERP-shaped customer record so password hashes never travel with it,

@@ -33,6 +33,7 @@ import { getWebConnection } from "@/lib/db";
 import { mapOrder } from "@/lib/erp-mapping";
 import { OrderModel } from "@/models/erp/order.model";
 import type { AnyDoc } from "@/models/_util";
+import { getOrderWhatsAppNotification } from "@/lib/whatsapp/notifications";
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ orderNo: string }> };
@@ -52,7 +53,7 @@ export const GET = handler(async (_req: NextRequest, ctx: Ctx) => {
 
   // 1. Try the ERP first
   const erp = await getErpOrders().getByOrderNo(orderNo);
-  if (erp) return ok({ ...erp, customer: null, allowedTransitions: [], isWebsite: false });
+  if (erp) return ok({ ...erp, customer: null, allowedTransitions: [], isWebsite: false, whatsappNotification: null });
 
   // 2. Website database
   const M = OrderModel(await getWebConnection());
@@ -67,6 +68,7 @@ export const GET = handler(async (_req: NextRequest, ctx: Ctx) => {
     customer: null,
     allowedTransitions: NEXT[order.orderStatus] ?? [],
     isWebsite: true,
+    whatsappNotification: await getOrderWhatsAppNotification(orderNo),
   });
 });
 

@@ -24,7 +24,7 @@ import type { AnyDoc } from "@/models/_util";
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ orderNo: string }> };
 
-const ACTIONS = ["create", "awb", "pickup", "label", "manifest", "tracking", "cancel", "return", "couriers"] as const;
+const ACTIONS = ["create", "awb", "pickup", "label", "manifest", "tracking", "cancel", "return", "couriers", "whatsapp"] as const;
 type Action = (typeof ACTIONS)[number];
 
 /**
@@ -81,6 +81,26 @@ export const POST = handler(async (req: NextRequest, ctx: Ctx) => {
     });
     if (result.skipped) return fail("NOT_SHIPPABLE", `Shipment not created: ${result.reason ?? "not eligible"}.`, 409);
     return ok({ ...result });
+  }
+
+  // WhatsApp payment confirmation retry. Idempotent: a SENT order is never
+  // resent, even when an admin clicks the button twice.
+  if (action === "whatsapp") {
+    if (order.paymentStatus !== "Paid") {
+      return fail("ORDER_NOT_PAID", "Only paid orders can receive the WhatsApp payment confirmation.", 409);
+    }
+    const { sendOrderPaymentSuccessMessage } = await import("@/lib/whatsapp/notifications");
+    const result = await sendOrderPaymentSuccessMessage(orderNo, { force: true });
+    if (result.status === "FAILED") {
+      return fail("WHATSAPP_FAILED", `WhatsApp delivery failed: ${result.reason}`, 502);
+    }
+    if (result.status === "IN_PROGRESS") {
+      return fail("WHATSAPP_IN_PROGRESS", "A WhatsApp delivery attempt is already in progress. Refresh in a moment.", 409);
+    }
+    if (result.status === "SKIPPED") {
+      return fail("WHATSAPP_SKIPPED", "The order is not ready for a WhatsApp notification.", 409);
+    }
+    return ok({ whatsapp: result });
   }
 
   // Everything else needs Shiprocket and an existing shipment.

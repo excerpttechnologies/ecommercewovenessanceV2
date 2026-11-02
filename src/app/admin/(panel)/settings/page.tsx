@@ -5,6 +5,7 @@ import { useState } from "react";
 import { api } from "@/hooks/api";
 import { PageHeader } from "@/components/admin/table";
 import { SpecForm, type FieldSpec } from "@/components/admin/form";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/drawer";
 import type { ErpSettingsSnapshot } from "@/lib/admin/erp-settings";
@@ -97,6 +98,7 @@ const TABS: { key: string; label: string; fields: FieldSpec[] }[] = [
       { name: "trustBadges", label: "Trust badges (JSON)", type: "json", hint: '[{"title":"Handloom certified","text":"…","icon":"award|truck|shield|return|star"}]' },
     ],
   },
+  { key: "whatsapp", label: "WhatsApp", fields: [] },
 ];
 
 export default function SettingsPage() {
@@ -139,7 +141,11 @@ export default function SettingsPage() {
         {TABS.map((t) => <button key={t.key} onClick={() => { setTab(t.key); setMsg(null); }} className={`px-4 py-2 text-xs uppercase tracking-widest ${tab === t.key ? "border-b-2 border-olive text-olive" : "text-muted"}`}>{t.label}</button>)}
       </div>
       <div className="max-w-3xl">
-        <SpecForm key={tab + JSON.stringify(data.updatedAt)} mode="edit" fields={fields} initial={data} onSubmit={(v) => save.mutate(v)} busy={save.isPending} error={null} />
+        {tab === "whatsapp" ? (
+          <WhatsAppPanel data={data.whatsapp} onRefresh={() => qc.invalidateQueries({ queryKey: ["admin", "settings"] })} />
+        ) : (
+          <SpecForm key={tab + JSON.stringify(data.updatedAt)} mode="edit" fields={fields} initial={data} onSubmit={(v) => save.mutate(v)} busy={save.isPending} error={null} />
+        )}
         {msg && <p className="mt-3 text-xs text-olive">{msg}</p>}
       </div>
       <Drawer open={!!erp} onClose={() => setErp(null)} title="Connection test">
@@ -150,7 +156,94 @@ export default function SettingsPage() {
 }
 
 
-/** Only send the fields on the active tab (nested groups deep-merge server-side). */
+/** Read-only WhatsApp status. Credentials stay in the server environment. */
+function WhatsAppPanel({ data, onRefresh }: { data: any; onRefresh: () => void }) {
+  const config = data?.config;
+  const orderCounts = data?.orderCounts ?? {};
+  const otpCounts = data?.otpCounts ?? {};
+  const statusTone = (status: string) => status === "SENT" ? "green" : status === "FAILED" ? "red" : status === "PENDING" ? "amber" : "muted";
+  const ready = (value: boolean) => <Badge tone={value ? "green" : "red"}>{value ? "Ready" : "Not configured"}</Badge>;
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-sm border border-line p-4 text-sm">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-widest text-muted">WhatsApp Cloud API</p>
+          <Button variant="outline" size="sm" onClick={onRefresh}>Refresh status</Button>
+        </div>
+        <dl className="grid gap-2 text-xs sm:grid-cols-2">
+          <div className="flex items-center justify-between gap-3 rounded-sm bg-ivory px-3 py-2"><dt>API credentials</dt><dd>{ready(Boolean(config?.credentials))}</dd></div>
+          <div className="flex items-center justify-between gap-3 rounded-sm bg-ivory px-3 py-2"><dt>OTP template</dt><dd>{ready(Boolean(config?.otpReady))}</dd></div>
+          <div className="flex items-center justify-between gap-3 rounded-sm bg-ivory px-3 py-2"><dt>Order template</dt><dd>{ready(Boolean(config?.orderReady))}</dd></div>
+          <div className="flex items-center justify-between gap-3 rounded-sm bg-ivory px-3 py-2"><dt>Global switch</dt><dd><Badge tone={config?.enabled ? "green" : "muted"}>{config?.enabled ? "Enabled" : "Disabled"}</Badge></dd></div>
+        </dl>
+        <dl className="mt-3 space-y-1 text-xs text-ink/80">
+          <div className="flex justify-between gap-3"><dt className="text-muted">API version</dt><dd className="font-mono">{config?.apiVersion ?? "—"}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted">OTP template / language</dt><dd className="font-mono">{config?.otpTemplate ?? "—"} · {config?.otpTemplateLang ?? "—"}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted">Order template / language</dt><dd className="font-mono">{config?.orderTemplate ?? "—"} · {config?.orderTemplateLang ?? "—"}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted">Order template parameters</dt><dd className="max-w-[60%] break-words text-right font-mono">{(config?.orderTemplateParams ?? []).join(", ") || "—"}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted">OTP validity / resend cooldown</dt><dd>{config?.otpTtlSec ?? "—"}s / {config?.otpResendCooldownSec ?? "—"}s</dd></div>
+        </dl>
+        <p className="mt-3 rounded-sm bg-amber-50 p-2 text-xs text-amber-900">
+          Credentials and template names are server environment variables and are never shown here. Templates must be approved in Meta WhatsApp Manager before messages can be delivered.
+        </p>
+      </div>
+
+      <div className="rounded-sm border border-line p-4 text-sm">
+        <p className="mb-3 text-[10px] uppercase tracking-widest text-muted">Delivery status</p>
+        <div className="grid gap-2 text-xs sm:grid-cols-2">
+          <div className="rounded-sm bg-ivory px-3 py-2">
+            <p className="mb-1 font-medium">Order payment messages</p>
+            <p className="text-muted">Sent {orderCounts.SENT ?? 0} · Failed {orderCounts.FAILED ?? 0} · Pending {orderCounts.PENDING ?? 0}</p>
+          </div>
+          <div className="rounded-sm bg-ivory px-3 py-2">
+            <p className="mb-1 font-medium">Login OTP messages (24h)</p>
+            <p className="text-muted">Sent {otpCounts.SENT ?? 0} · Failed {otpCounts.FAILED ?? 0} · Pending {otpCounts.PENDING ?? 0}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-sm border border-line p-4 text-sm">
+        <p className="mb-3 text-[10px] uppercase tracking-widest text-muted">Recent order notifications</p>
+        {data?.recentOrders?.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-left text-[10px] uppercase tracking-widest text-muted"><tr><th className="py-1">Order</th><th>Status</th><th>Number</th><th>Sent</th><th>Reason</th></tr></thead>
+              <tbody className="divide-y divide-line">
+                {data.recentOrders.map((row: any) => (
+                  <tr key={row.id ?? row.providerMessageId}>
+                    <td className="py-2 font-mono">{row.orderNo ?? "—"}</td>
+                    <td><Badge tone={statusTone(row.status)}>{row.status}</Badge></td>
+                    <td className="font-mono">{row.mobileMasked ?? "—"}</td>
+                    <td>{row.sentAt ? new Date(row.sentAt).toLocaleString("en-IN") : "—"}</td>
+                    <td className="max-w-[220px] break-words text-red-700">{row.failureReason ?? ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-xs text-muted">No order notifications yet.</p>}
+      </div>
+
+      <div className="rounded-sm border border-line p-4 text-sm">
+        <p className="mb-3 text-[10px] uppercase tracking-widest text-muted">Recent OTP deliveries</p>
+        {data?.recentOtp?.length ? (
+          <ul className="space-y-2 text-xs">
+            {data.recentOtp.map((row: any) => (
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2 last:border-0 last:pb-0">
+                <span className="font-mono">{row.mobileMasked ?? "—"}</span>
+                <span className="flex items-center gap-2"><Badge tone={statusTone(row.status)}>{row.status}</Badge><span className="text-muted">{row.sentAt ? new Date(row.sentAt).toLocaleString("en-IN") : "—"}</span></span>
+                {row.failureReason && <span className="w-full text-red-700">{row.failureReason}</span>}
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-xs text-muted">No OTP deliveries recorded yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+
 function pick(v: any, fields: FieldSpec[]) {
   const out: any = {};
   for (const f of fields) {
