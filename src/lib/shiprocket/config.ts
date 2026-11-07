@@ -28,7 +28,7 @@ export function shiprocketEnvConfigured(): boolean {
   return Boolean(
     process.env.SHIPROCKET_EMAIL?.trim() &&
       process.env.SHIPROCKET_PASSWORD?.trim() &&
-      (process.env.SHIPROCKET_PICKUP_LOCATION?.trim() || true),
+      process.env.SHIPROCKET_PICKUP_LOCATION?.trim(),
   );
 }
 

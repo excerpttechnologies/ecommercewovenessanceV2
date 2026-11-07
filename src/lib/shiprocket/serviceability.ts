@@ -29,6 +29,13 @@ interface RawCourier {
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const logText = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/[A-Za-z0-9_-]{40,}/g, "[redacted]")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/"/g, "'")
+    .slice(0, 300);
 const positive = (value: unknown): number | undefined => {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -170,12 +177,21 @@ export async function quoteShipping(
 
   const fallbackAllowed = context.shipping.fallbackToFlatRate;
   if (!context.shipping.enabled) {
+    console.warn(
+      `[shiprocket] operation=shiprocket_fallback reason=shiprocket_disabled ` +
+        `delivery=${input.deliveryPincode} fallbackToFlatRate=${fallbackAllowed}`,
+    );
     return flatQuote(context, input.deliveryPincode, pkg, "shiprocket_disabled");
   }
   if (!context.config || !canQueryServiceability(context.config)) {
-    if (fallbackAllowed) return flatQuote(context, input.deliveryPincode, pkg, "shiprocket_not_configured");
+    const reason = !context.config ? "shiprocket_not_configured" : "shiprocket_pickup_pincode_missing";
+    console.warn(
+      `[shiprocket] operation=shiprocket_fallback reason=${reason} ` +
+        `delivery=${input.deliveryPincode} fallbackToFlatRate=${fallbackAllowed}`,
+    );
+    if (fallbackAllowed) return flatQuote(context, input.deliveryPincode, pkg, reason);
     return {
-      ...flatQuote(context, input.deliveryPincode, pkg, "shiprocket_not_configured"),
+      ...flatQuote(context, input.deliveryPincode, pkg, reason),
       serviceable: false,
       codAvailable: false,
       shippingCharge: 0,
@@ -183,6 +199,7 @@ export async function quoteShipping(
     };
   }
 
+  const started = Date.now();
   try {
     const couriers = await fetchServiceability(context, {
       pickupPincode: context.config.pickupPincode,
@@ -190,7 +207,13 @@ export async function quoteShipping(
       weightKg: pkg.weight,
       cod,
     });
+    const durationMs = Date.now() - started;
     if (!couriers.length) {
+      console.warn(
+        `[shiprocket] operation=shiprocket_serviceability pickup=${context.config.pickupPincode} ` +
+          `delivery=${input.deliveryPincode} weight=${pkg.weight.toFixed(2)} cod=${cod} status=200 ` +
+          `couriers=0 durationMs=${durationMs} fallback=false reason=no_courier_service`,
+      );
       const quote: ShippingQuote = {
         serviceable: false,
         provider: "shiprocket",
@@ -217,6 +240,12 @@ export async function quoteShipping(
     const markupAmount = selected.rate * (markup / 100);
     const codExtra = cod ? context.shipping.codExtraCharge : 0;
     const shippingCharge = r2(selected.rate + markupAmount + codExtra);
+    console.info(
+      `[shiprocket] operation=shiprocket_serviceability pickup=${context.config.pickupPincode} ` +
+        `delivery=${input.deliveryPincode} weight=${pkg.weight.toFixed(2)} cod=${cod} status=200 ` +
+        `couriers=${couriers.length} lowestRate=${couriers[0]?.rate ?? "n/a"} ` +
+        `durationMs=${durationMs} fallback=false`,
+    );
     const quote: ShippingQuote = {
       serviceable: true,
       provider: "shiprocket",
@@ -238,10 +267,16 @@ export async function quoteShipping(
     return quote;
   } catch (error) {
     const safe = safeError(error);
-    console.warn(`[shiprocket] serviceability unavailable: ${safe.code}`);
-    if (fallbackAllowed) return flatQuote(context, input.deliveryPincode, pkg, safe.code.toLowerCase());
+    const reason = safe.code.toLowerCase();
+    console.warn(
+      `[shiprocket] operation=shiprocket_serviceability pickup=${context.config.pickupPincode} ` +
+        `delivery=${input.deliveryPincode} weight=${pkg.weight.toFixed(2)} cod=${cod} ` +
+        `status=${safe.upstreamStatus ?? safe.status} couriers=0 durationMs=${Date.now() - started} ` +
+        `fallbackToFlatRate=${fallbackAllowed} reason=${reason} message="${logText(safe.message)}"`,
+    );
+    if (fallbackAllowed) return flatQuote(context, input.deliveryPincode, pkg, reason);
     return {
-      ...flatQuote(context, input.deliveryPincode, pkg, safe.code.toLowerCase()),
+      ...flatQuote(context, input.deliveryPincode, pkg, reason),
       serviceable: false,
       codAvailable: false,
       shippingCharge: 0,

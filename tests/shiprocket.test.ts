@@ -11,6 +11,7 @@ import { buildOrderPayload } from "@/lib/shiprocket/shipments";
 import { buildReturnPayload } from "@/lib/shiprocket/returns";
 import { applyFreeShipping, chargedShipping } from "@/lib/shiprocket/checkout";
 import { quoteShipping, clearQuoteCache } from "@/lib/shiprocket/serviceability";
+import { resetShiprocketClientState } from "@/lib/shiprocket/client";
 import { normalizeOrderShipping, shippingForNewOrder } from "@/lib/order-shipping";
 import { mapOrder } from "@/lib/erp-mapping";
 import { parseWebhookPayload, verifyWebhookToken } from "@/lib/shiprocket/webhook";
@@ -79,11 +80,14 @@ function stubFetch(couriers: unknown[], fail = false) {
 
 beforeEach(() => {
   clearQuoteCache();
+  resetShiprocketClientState();
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   clearQuoteCache();
+  resetShiprocketClientState();
+  vi.restoreAllMocks();
 });
 
 describe("package calculation", () => {
@@ -214,6 +218,174 @@ describe("serviceability and rates", () => {
     expect(checkoutQuote.shippingCharge).toBe(0);
     expect(checkoutQuote.baseShippingCharge).toBe(100);
     expect(chargedShipping(checkoutQuote)).toBe(0);
+  });
+});
+
+describe("authentication, token cache and circuit breaker", () => {
+  const courier = {
+    courier_company_id: 1,
+    courier_name: "Test Express",
+    freight_charge: 100,
+    cod: 1,
+    estimated_delivery_days: "3",
+  };
+
+  it("reuses a cached token across quotes", async () => {
+    const fetchMock = stubFetch([courier]);
+    const loginCalls = () =>
+      fetchMock.mock.calls.filter(([input]) => String(input).includes("/auth/login")).length;
+
+    const first = await quoteShipping(makeContext(), {
+      deliveryPincode: "400010",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+    const second = await quoteShipping(makeContext(), {
+      deliveryPincode: "400011",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+
+    expect(first.provider).toBe("shiprocket");
+    expect(second.provider).toBe("shiprocket");
+    expect(loginCalls()).toBe(1);
+  });
+
+  it("shares one login between concurrent quotes", async () => {
+    let resolveLogin: (response: Response) => void = () => {};
+    const loginGate = new Promise<Response>((resolve) => {
+      resolveLogin = resolve;
+    });
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/auth/login")) return loginGate;
+      return new Response(JSON.stringify({ data: { available_courier_companies: [courier] } }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const loginCalls = () =>
+      fetchMock.mock.calls.filter(([input]) => String(input).includes("/auth/login")).length;
+
+    const first = quoteShipping(makeContext(), {
+      deliveryPincode: "400012",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+    const second = quoteShipping(makeContext(), {
+      deliveryPincode: "400013",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+
+    await vi.waitFor(() => expect(loginCalls()).toBe(1));
+    resolveLogin(new Response(JSON.stringify({ token: "concurrent-token" }), { status: 200 }));
+
+    const [a, b] = await Promise.all([first, second]);
+    expect(a.provider).toBe("shiprocket");
+    expect(b.provider).toBe("shiprocket");
+    expect(loginCalls()).toBe(1);
+  });
+
+  it("refreshes the token once when serviceability returns 401", async () => {
+    let loginCalls = 0;
+    let serviceabilityCalls = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/auth/login")) {
+        loginCalls += 1;
+        return new Response(JSON.stringify({ token: `token-${loginCalls}` }), { status: 200 });
+      }
+      serviceabilityCalls += 1;
+      if (serviceabilityCalls === 1) {
+        return new Response(JSON.stringify({ message: "expired" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({ data: { available_courier_companies: [courier] } }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const quote = await quoteShipping(makeContext(), {
+      deliveryPincode: "400014",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+
+    expect(quote.provider).toBe("shiprocket");
+    expect(quote.fallback).toBe(false);
+    expect(loginCalls).toBe(2);
+    expect(serviceabilityCalls).toBe(2);
+  });
+
+  it("does not retry a blocked login and skips login while the circuit is open", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("/auth/login")) {
+        return new Response(
+          JSON.stringify({ message: "User blocked due to too many failed login attempts." }),
+          { status: 403 },
+        );
+      }
+      return new Response(JSON.stringify({ data: { available_courier_companies: [courier] } }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const loginCalls = () =>
+      fetchMock.mock.calls.filter(([input]) => String(input).includes("/auth/login")).length;
+    const serviceabilityCalls = () =>
+      fetchMock.mock.calls.filter(([input]) => String(input).includes("/courier/serviceability")).length;
+    const context = makeContext(makeConfig({ maxRetries: 2 }));
+
+    const first = await quoteShipping(context, {
+      deliveryPincode: "400015",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+    expect(first.fallback).toBe(true);
+    expect(first.reason).toBe("shiprocket_auth_blocked");
+    expect(loginCalls()).toBe(1);
+    expect(serviceabilityCalls()).toBe(0);
+
+    const second = await quoteShipping(context, {
+      deliveryPincode: "400016",
+      package: packageBox,
+      paymentMode: "PREPAID",
+    });
+    expect(second.fallback).toBe(true);
+    expect(second.reason).toBe("shiprocket_auth_cooldown");
+    expect(loginCalls()).toBe(1);
+    expect(serviceabilityCalls()).toBe(0);
+  });
+
+  it("allows a controlled login after the 10-minute cooldown", async () => {
+    let loginCalls = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).includes("/auth/login")) {
+        loginCalls += 1;
+        if (loginCalls === 1) {
+          return new Response(JSON.stringify({ message: "Invalid email or password" }), { status: 401 });
+        }
+        return new Response(JSON.stringify({ token: "token-after-cooldown" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: { available_courier_companies: [courier] } }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    try {
+      const first = await quoteShipping(makeContext(), {
+        deliveryPincode: "400017",
+        package: packageBox,
+        paymentMode: "PREPAID",
+      });
+      expect(first.reason).toBe("shiprocket_auth_failed");
+
+      now.mockReturnValue(1_000_000 + 10 * 60 * 1000 + 1);
+      const second = await quoteShipping(makeContext(), {
+        deliveryPincode: "400018",
+        package: packageBox,
+        paymentMode: "PREPAID",
+      });
+      expect(second.provider).toBe("shiprocket");
+      expect(second.fallback).toBe(false);
+      expect(loginCalls).toBe(2);
+    } finally {
+      now.mockRestore();
+    }
   });
 });
 
