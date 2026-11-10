@@ -32,9 +32,9 @@ const TABS: { key: string; label: string; fields: FieldSpec[] }[] = [
   {
     key: "contact", label: "Contact & social",
     fields: [
-      { name: "whatsappNumber", label: "WhatsApp number (digits, with country code)", type: "text", placeholder: "919876543210" },
-      { name: "contact.phone", label: "Phone", type: "text" },
-      { name: "contact.email", label: "Email", type: "text" },
+      { name: "whatsappNumber", label: "WhatsApp number (digits, with country code)", type: "text", placeholder: "919876543210", hint: "Used by the Customer Care tab WhatsApp button. Leave the placeholder value to hide the button." },
+      { name: "contact.phone", label: "Phone", type: "text", hint: "Shown as a clickable call link in the Customer Care tab." },
+      { name: "contact.email", label: "Email", type: "text", hint: "Shown as a mail link in the Customer Care tab and returns copy." },
       { name: "contact.hours", label: "Hours", type: "text" },
       { name: "contact.address", label: "Address", type: "textarea" },
       { name: "social.instagram", label: "Instagram URL", type: "text" },
@@ -50,6 +50,8 @@ const TABS: { key: string; label: string; fields: FieldSpec[] }[] = [
       { name: "commerce.shippingCharge", label: "Shipping charge ₹", type: "number" },
       { name: "commerce.lowStockThreshold", label: "Low-stock threshold", type: "number" },
       { name: "commerce.codEnabled", label: "Cash on delivery", type: "boolean" },
+      { name: "commerce.processingDays", label: "Order processing (business days)", type: "number" },
+      { name: "commerce.returnWindowDays", label: "Return window (days)", type: "number" },
       { name: "commerce.razorpayEnabled", label: "Online payments (Razorpay)", type: "boolean", hint: "Requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the server environment. Payments cannot be simulated." },
       { name: "commerce.serviceablePincodePrefixes", label: "Serviceable pincode prefixes", type: "tags", hint: "Blank = all India. e.g. 56, 57, 60" },
       { name: "supportedCurrencies", label: "Display currencies", type: "tags", hint: "INR, USD, GBP, AED, EUR (display only; orders bill in INR)" },

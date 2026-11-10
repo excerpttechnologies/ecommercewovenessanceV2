@@ -56,6 +56,10 @@ export const SiteSettingsSchema = new Schema(
       shippingCharge: { type: Number, default: 149 },
       codEnabled: { type: Boolean, default: true },
       razorpayEnabled: { type: Boolean, default: true },
+      /** Business days we take to pack an order (shown in the Shipping And Returns tab). */
+      processingDays: { type: Number, default: 2 },
+      /** Return window in days (shown in the Shipping And Returns tab). */
+      returnWindowDays: { type: Number, default: 7 },
       serviceablePincodePrefixes: { type: [String], default: [] }, // [] = all India
     },
     /** Shiprocket + package defaults (migration-safe defaults come from normalizeShippingSettings). */
@@ -265,6 +269,9 @@ export const ProductWebMetaSchema = new Schema(
     viewCount: { type: Number, default: 0 },
     ratingAvg: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
+    /** Verified Silk Mark status for this product; never inferred from the fabric name. */
+    silkMarkCertified: { type: Boolean, default: false },
+    silkMarkNumber: String,
     // Shipping overrides (kg/cm). Used by Shiprocket package calculation.
     weightKg: { type: Number, min: 0.001 },
     lengthCm: { type: Number, min: 1 },

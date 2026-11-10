@@ -390,6 +390,9 @@ export interface Product {
     priceOverride?: number;
     isFeatured?: boolean;
     salesCount?: number;
+    /** Only true when the product is verified as Silk Mark certified. */
+    silkMarkCertified?: boolean;
+    silkMarkNumber?: string;
   };
 }
 
@@ -460,6 +463,43 @@ export type OrderStatus =
   | "Returned";
 export type PaymentMode = "COD" | "RAZORPAY" | "UPI" | "CARD";
 export type PaymentStatus = "Pending" | "Paid" | "Failed" | "Refunded";
+
+/** Where a website order stands in the stock pipeline (recorded in the website DB). */
+export type InventoryProcessingStatus = "Pending" | "Reserved" | "Deducted" | "Restored" | "Failed";
+
+/** One physical ERP barcode label consumed by an order line. */
+export interface OrderInventoryAllocation {
+  barcodeLabelId: string;
+  barcode: string;
+  itemCode?: string;
+  companyId?: string;
+  uom?: string;
+  qty: number;
+  /** ERP units the label held when it was allocated. */
+  onHand?: number;
+  /** Units left on that label once every line of the order was allocated. */
+  availableStockAfter?: number;
+}
+
+export interface OrderInventoryLine {
+  index: number;
+  sku: string;
+  name?: string;
+  qty: number;
+  availableStockAfter?: number | null;
+  allocations: OrderInventoryAllocation[];
+}
+
+export interface OrderInventory {
+  status: InventoryProcessingStatus;
+  trigger?: string;
+  attempts?: number;
+  processedAt?: string;
+  restoredAt?: string;
+  restoredBy?: string;
+  lastError?: string;
+  lines?: OrderInventoryLine[];
+}
 
 /** Shiprocket fulfilment state stored on the existing order document. */
 export type ShippingStatus =
@@ -578,6 +618,8 @@ export interface Order {
   courierName?: string;
   shiprocketOrderId?: number;
   shiprocketShipmentId?: number;
+  /** Website-side stock processing state (see lib/inventory/order-inventory.ts). */
+  inventory?: OrderInventory;
   /** Shiprocket/fulfilment data stored alongside the existing order fields. */
   shipping: OrderShipping;
   storeId?: ID;
@@ -715,6 +757,8 @@ export interface BarcodeListParams {
   availableOnly?: boolean;
   /** Public category listings retain IN_STOCK labels with zero quantity as unavailable products. */
   inStockStatusOnly?: boolean;
+  /** Resolve images from this barcodeLabel's own image fields before the barcode fallback. */
+  resolveImages?: boolean;
   status?: string;
   group?: string;
   business?: string;

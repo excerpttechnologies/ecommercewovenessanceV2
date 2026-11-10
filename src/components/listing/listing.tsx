@@ -23,7 +23,8 @@ interface Props {
 /** Shared listing shell used by category, curated collection, new-arrivals and search pages. */
 export async function Listing({ title, description, banner, breadcrumbs, params, erpItems = [], children }: Props) {
   const master = getMasterData();
-  const [result, facets] = await Promise.all([master.products.list(params), master.products.facets(params)]);
+  const availableParams = { ...params, inStock: true };
+  const [result, facets] = await Promise.all([master.products.list(availableParams), master.products.facets(availableParams)]);
   return (
     <div className="mx-auto max-w-site px-4 py-6 sm:px-6">
       <Breadcrumbs items={breadcrumbs} />

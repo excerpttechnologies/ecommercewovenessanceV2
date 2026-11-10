@@ -938,7 +938,7 @@
 
 
 "use client";
-import { BadgeCheck, Banknote, ChevronDown, Headphones, IndianRupee, Heart, MapPin, Menu, Package, Search, ShoppingCart, Truck, X } from "lucide-react";
+import { BadgeCheck, Banknote, ChevronDown, Headphones, IndianRupee, Heart, MapPin, Menu, Package, Plus, Search, ShoppingCart, Truck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -953,6 +953,7 @@ import { AnnouncementBar, type AnnouncementItem } from "./announcement-bar";
 import { SearchOverlay } from "./search-overlay";
 import { MegaMenu } from "./mega-menu";
 import { AccountMenu } from "./account-menu";
+import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS } from "@/lib/add-on-categories";
 
 interface Props {
   menu: MenuNode[];
@@ -986,8 +987,34 @@ function activeItemId(items: MenuNode[], pathname: string, search: URLSearchPara
   return best?.id ?? null;
 }
 
+const ADD_ON_MENU_ID = "storefront-add-on";
+
+function withAddOnMenu(items: MenuNode[]): MenuNode[] {
+  const menu = items.filter((item) =>
+    item.id !== ADD_ON_MENU_ID
+    && item.label.trim().toLowerCase().replace(/\s+/g, " ") !== "add on"
+    && item.href !== "/collections/add-on",
+  );
+  const addOn: MenuNode = {
+    id: ADD_ON_MENU_ID,
+    label: "ADD ON",
+    kind: "top",
+    href: "/collections/inskirt",
+    children: ADD_ON_CATEGORY_SLUGS.map((slug) => ({
+      id: `${ADD_ON_MENU_ID}-${slug}`,
+      label: ADD_ON_CATEGORIES[slug].name,
+      kind: "link",
+      href: `/collections/${slug}`,
+      children: [],
+    })),
+  };
+  const dupattaIndex = menu.findIndex((item) => item.href?.split("?")[0] === "/collections/dupatta" || /dupatta/i.test(item.label));
+  const insertAt = dupattaIndex < 0 ? menu.length : dupattaIndex + 1;
+  return [...menu.slice(0, insertAt), addOn, ...menu.slice(insertAt)];
+}
+
 export function HeaderClient({ menu, messages, stores, currencies, logo }: Props) {
-  const navItems = menu.length ? menu : DEFAULT_MENU;
+  const navItems = withAddOnMenu(menu.length ? menu : DEFAULT_MENU);
   const hasHome = navItems.some((item) => item.href === "/");
   const { cart } = useCart();
   const { skus } = useWishlist();
@@ -1038,7 +1065,10 @@ export function HeaderClient({ menu, messages, stores, currencies, logo }: Props
   const count = cart?.totals.itemCount ?? 0;
   const currencyOptions = currencies.filter((c) => CURRENCIES[c]);
   const linkClass = "hover:text-maroon";
-  const currentId = activeItemId(navItems, pathname, searchParams);
+  const addOnSlug = pathname.match(/^\/collections\/([^/]+)/)?.[1];
+  const currentId = ADD_ON_CATEGORY_SLUGS.some((slug) => slug === addOnSlug)
+    ? ADD_ON_MENU_ID
+    : activeItemId(navItems, pathname, searchParams);
   const close = () => setActive(null);
   const isTouch = () => lastPointer.current === "touch" || lastPointer.current === "pen";
 
@@ -1180,6 +1210,11 @@ export function HeaderClient({ menu, messages, stores, currencies, logo }: Props
                     current={currentId === item.id}
                     open={active === item.id}
                     onClick={(e) => {
+                      if (item.id === ADD_ON_MENU_ID) {
+                        e.preventDefault();
+                        setActive(item.id);
+                        return;
+                      }
                       // First tap on a touch screen opens the dropdown instead of navigating.
                       if (hasChildren && isTouch() && active !== item.id) {
                         e.preventDefault();
@@ -1257,6 +1292,7 @@ function NavLink({ id, href, label, badge, hasChildren, current, open, onClick }
         open && "bg-maroon/[0.08]",
       )}
     >
+      {id === ADD_ON_MENU_ID && <Plus className="h-4 w-4" aria-hidden="true" />}
       {displayLabel(label)}
       {badge && <span className="ml-1.5 rounded-full bg-maroon px-2 py-0.5 text-[10px] font-semibold text-white">{badge}</span>}
       {hasChildren && <ChevronDown className={cn("h-3.5 w-3.5 text-olive/50 transition-transform", open && "rotate-180 text-maroon")} />}
@@ -1287,14 +1323,20 @@ function Count({ n }: { n: number }) {
 function MobileItem({ item, current, depth = 0 }: { item: MenuNode; current?: boolean; depth?: number }) {
   const [open, setOpen] = useState(false);
   const hasKids = item.children.length > 0;
+  const pathname = usePathname();
+  const selected = item.href?.split("?")[0] === pathname;
   const labelClass = cn(
     "block flex-1 py-3 text-left",
-    depth === 0 ? cn("text-[15px] font-medium", current ? "text-maroon" : "text-olive") : depth === 1 ? "text-xs font-semibold uppercase tracking-wider text-gold" : "text-sm text-ink",
+    depth === 0 ? cn("text-[15px] font-medium", current ? "text-maroon" : "text-olive") : cn(depth === 1 ? "text-xs font-semibold uppercase tracking-wider" : "text-sm", selected ? "text-maroon" : depth === 1 ? "text-gold" : "text-ink"),
   );
   return (
     <div className={cn(depth === 0 && "border-b border-line")}>
       <div className="flex items-center justify-between">
-        {item.href ? (
+        {item.id === ADD_ON_MENU_ID ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={cn(labelClass, "flex items-center gap-2")}>
+            <Plus className="h-4 w-4" aria-hidden="true" /> {displayLabel(item.label)}
+          </button>
+        ) : item.href ? (
           <Link href={item.href} className={labelClass}>{depth === 0 ? displayLabel(item.label) : item.label}</Link>
         ) : (
           // Group headings ("By Weave") have no page of their own: tapping them expands the group.

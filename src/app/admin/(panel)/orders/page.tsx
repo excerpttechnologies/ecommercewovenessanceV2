@@ -8,7 +8,7 @@ import { api } from "@/hooks/api";
 import { formatINR } from "@/lib/utils";
 import { PageHeader, Pager, Table } from "@/components/admin/table";
 import { orderTone } from "@/components/account/order-status";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -27,6 +27,14 @@ const ORDER_FILTERS: OrderFilter[] = [
   { label: "Cancelled", status: "Cancelled", countKey: "Cancelled" },
   { label: "Returned", status: "Returned", countKey: "Returned" },
 ];
+
+const STOCK_TONE: Record<string, BadgeTone> = {
+  Pending: "muted",
+  Reserved: "amber",
+  Deducted: "green",
+  Restored: "blue",
+  Failed: "red",
+};
 
 const SHIPPING_FILTERS = [
   { value: "not_created", label: "Not shipped" },
@@ -110,6 +118,11 @@ function OrdersInner() {
           {SHIPPING_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </Select>
       </div>
+      {list.isError && (
+        <p role="alert" className="mb-3 rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          Could not load orders: {(list.error as Error).message}
+        </p>
+      )}
       <Table<Order & { _id: string }>
         rows={(list.data?.data ?? []).map((o) => ({ ...o, _id: o.id }))}
         loading={list.isLoading}
@@ -121,6 +134,7 @@ function OrdersInner() {
           { key: "netAmount", label: "Total", render: (o) => formatINR(o.netAmount) },
           { key: "paymentMode", label: "Payment", render: (o) => <>{o.paymentMode}<span className="block text-xs text-muted">{o.paymentStatus}</span></> },
           { key: "orderStatus", label: "Status", render: (o) => <Badge tone={orderTone(o.orderStatus)}>{o.orderStatus}</Badge> },
+          { key: "inventory", label: "Stock", render: (o) => <Badge tone={STOCK_TONE[o.inventory?.status ?? "Pending"] ?? "muted"}>{o.inventory?.status ?? "Pending"}</Badge> },
           { key: "manage", label: "", render: (o) => <Button type="button" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); setManageOrderNo(o.orderNo); }}>Manage</Button> },
         ]}
       />

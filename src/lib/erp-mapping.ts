@@ -37,6 +37,7 @@ import type {
   SortKey,
   StockStatus,
   Store,
+  OrderInventory,
 } from "@/domain/types";
 
 /* ---------------------------------------------------------------------------
@@ -651,6 +652,19 @@ export function mapOrder(raw: any): Order {
   const shiprocketOrderId = raw?.shiprocketOrderId == null ? undefined : toNum(raw.shiprocketOrderId);
   const shiprocketShipmentId = raw?.shiprocketShipmentId == null ? undefined : toNum(raw.shiprocketShipmentId);
   const storedShipping = raw?.shipping && typeof raw.shipping === "object" ? raw.shipping : {};
+  const inventoryRaw = raw?.inventory && typeof raw.inventory === "object" ? raw.inventory : null;
+  const inventory: OrderInventory | undefined = inventoryRaw
+    ? {
+        status: (toStr(inventoryRaw.status) ?? "Pending") as OrderInventory["status"],
+        trigger: toStr(inventoryRaw.trigger),
+        attempts: inventoryRaw.attempts == null ? undefined : toNum(inventoryRaw.attempts),
+        processedAt: toISO(inventoryRaw.processedAt),
+        restoredAt: toISO(inventoryRaw.restoredAt),
+        restoredBy: toStr(inventoryRaw.restoredBy),
+        lastError: toStr(inventoryRaw.lastError),
+        lines: Array.isArray(inventoryRaw.lines) ? (inventoryRaw.lines as OrderInventory["lines"]) : [],
+      }
+    : undefined;
   const legacyStatus =
     orderStatus === "Delivered"
       ? "delivered"
@@ -699,6 +713,7 @@ export function mapOrder(raw: any): Order {
     storeId: toStr(g("storeId")),
     couponCode: toStr(g("couponCode")),
     statusHistory: Array.isArray(raw?.statusHistory) ? raw.statusHistory.map((h: any) => ({ status: h.status, note: h.note, by: h.by, at: toISO(h.at) })) : undefined,
+    ...(inventory ? { inventory } : {}),
     createdAt: toISO(g("createdAt")),
   };
 }

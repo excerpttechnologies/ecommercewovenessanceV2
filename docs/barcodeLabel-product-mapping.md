@@ -66,27 +66,25 @@ Empty values are omitted from the API response, so the UI never prints `undefine
 
 ## Images
 
-For storefront category cards, a matching active `ecommerceproduct` image (`image`, `images` or
-`imageUrl`) is preferred. It is matched by the same exact `itemId` and `businessId` pair as the
-category entry, normalized using the configured ERP image base/Spaces settings, and accepted only
-from an allowed image host. If it is absent or unusable, the card falls back to
-`https://erp.wovenessence.in/august_8A_images/<barcode>.jpg`, built from the barcode. The card
-shows its photo-unavailable state if that fallback cannot load.
-
-The `barcodeLabel.imageUrl` and `barcodeLabel.filePath` fields are not used as storefront image
-sources; their values are summarized below. The barcode URL remains the fallback for these records.
+For storefront category cards, the matching `barcodeLabel.imageUrl` and `barcodeLabel.filePath`
+are resolved first, using the configured ERP image base/Spaces settings and allowed-host checks.
+If neither field contains a loadable image, the barcode fallback
+`https://erp.wovenessence.in/august_8A_images/<barcode>.jpg` is tried. The matching active
+`ecommerceproduct` image (`image`, `images` or `imageUrl`), joined by the exact `itemId` and
+`businessId`, is used when the barcode-label image cannot be loaded. The card shows its
+photo-unavailable state if none of these sources can load.
 
 | Stored ERP image value | Docs | Storefront handling |
 | --- | ---: | --- |
-| `https://templeimg.blr1.digitaloceanspaces.com/<key>?X-Amz-…` | 15,593 | Not used from barcode labels; an allowed matching e-commerce image can use the configured Spaces host |
-| `/august_8A_images/<barcode>.jpg` | 3,136 | Not used as a stored barcode-label value; URL is generated from the label barcode |
-| `data:image/jpeg;base64,…` | 4,768 | Not used from barcode labels; an e-commerce image may use a supported data URI |
-| `/api/files/<hash>.jpg` | 5 | Not used from barcode labels; barcode URL is used instead |
-| `http://wovenessencemobile.etpl.ai/uploads/…` | 11 | Not used from barcode labels; barcode URL is used instead |
+| `https://templeimg.blr1.digitaloceanspaces.com/<key>?X-Amz-…` | 15,593 | Expired signatures are removed; the configured Spaces host and credentials are used when available |
+| `/august_8A_images/<barcode>.jpg` | 3,136 | Resolved against the configured ERP image base |
+| `data:image/jpeg;base64,…` | 4,768 | Known placeholder data is rejected; other supported data images are retained |
+| `/api/files/<hash>.jpg` | 5 | Resolved against the configured ERP image base |
+| `http://wovenessencemobile.etpl.ai/uploads/…` | 11 | Rejected as a disallowed legacy host; remaining image sources are tried |
 | empty | 3,975 | URL is generated from the label barcode |
 
-Barcode product cards load the JPEG directly from the ERP host and directory above; they do not use
-`next/image` optimization or redirect through an image proxy.
+Barcode product cards load the resolved image directly; they do not use `next/image` optimization
+or redirect through an image proxy.
 
 ## Relationships checked and not used
 
@@ -124,6 +122,38 @@ through `subgroups._id`; selecting a subgroup filters the same e-commerce produc
 than guessing from the barcode label's older group field. Existing stock checks still exclude sold,
 void and unavailable labels are still visible but cannot be added to the bag. No ERP or e-commerce
 records are written.
+
+## Add On categories
+
+The Add On categories use RetailERP `barcodeLabel.groupId` → `productgroup._id` directly.
+They do not use `ecommerceproduct.productType`: at the time of inspection, the published
+e-commerce catalogue had only `SAREES` (7 records), `FABRICS` (1) and `DUPATTA` (1), and no
+published Add On product types. No `subgroups` collection was present in the inspected database.
+The group IDs below were resolved from the actual `productgroup` records in `grooretailerp1`
+on 2026-11-07. Counts are barcode-label documents in each exact group, including sold labels.
+
+| Storefront category | `productgroup.name` | `productgroup._id` | Barcode labels | In stock |
+| --- | --- | --- | ---: | ---: |
+| Inskirt | `inskirt` | `6ae2ee99eb54c4ea4fd9b5a1` | 6 | 6 |
+| Border | `border` | `6ae2ee77eb54c4ea4fd9b540` | 0 | 0 |
+| Pavada | `pavada` | `6ae2ee67eb54c4ea4fd9b4c3` | 2 | 2 |
+| Dhotis | `dhotis` | `6ae2ee48eb54c4ea4fd9b451` | 0 | 0 |
+| Ready Made | `ready made` | `6ae2ee3aeb54c4ea4fd9b400` | 0 | 0 |
+| Ready Bits | `ready bits` | `6ae2ee2ceb54c4ea4fd9b3b7` | 395 | 211 |
+| Unstitched Suits | `unstitched suits` | `6ae2ee1deb54c4ea4fd9b387` | 709 | 709 |
+
+These are category/group IDs, not product IDs; every listing still queries live barcode labels by
+the exact group ID and pages results from MongoDB. Empty groups stay available in navigation and
+return the normal empty state. If RetailERP recreates a product group, update the corresponding ID
+in `src/lib/add-on-categories.ts`; do not infer membership from names, item codes or descriptions.
+
+Image resolution for these categories checks each label's own `imageUrl` and `filePath`, then the
+barcode image paths, using the existing allowed-host/placeholder checks. Representative live probes
+on 2026-11-07 found the legacy ERP image host returning 502 and the old public barcode URL returning
+404; the DigitalOcean barcode mirror returned an image for the sampled Unstitched Suits barcode,
+but 404 for the sampled Inskirt, Pavada and Ready Bits barcodes. Unavailable photos are omitted so
+the existing “Photo unavailable” card state is shown instead of a broken image; the ERP needs to
+restore or populate those image sources for the affected labels.
 
 ## Queries
 

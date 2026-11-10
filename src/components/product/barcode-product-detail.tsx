@@ -1,13 +1,15 @@
 "use client";
-import { PincodeCheck } from "@/components/product/pincode-check";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   BadgeCheck, Banknote, Check, ChevronLeft, ChevronRight, Grid3x3, Heart, Image as ImageIcon, Layers, Minus, Palette,
-  Brush, Plus, RotateCcw, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2, X, ZoomIn,
+  Brush, Plus, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2, X, ZoomIn,
 } from "lucide-react";
+import { PincodeCheck } from "@/components/product/pincode-check";
+import { ProductInformationTabs, type ProductOverviewRow } from "@/components/product/info-tabs";
+import { COUNTRY_OF_ORIGIN, type CustomerCareInfo, type ShippingReturnsInfo } from "@/lib/product-info";
 import type { BarcodeProduct } from "@/domain/types";
 import { useCart, useWishlist } from "@/hooks/useCart";
 import { swatchColor } from "@/lib/colour";
@@ -73,7 +75,7 @@ function ZoomImage({ src, alt, discount }: { src?: string; alt: string; discount
   );
 }
 
-export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previous, next, freeShippingAbove, codEnabled }: {
+export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previous, next, freeShippingAbove, codEnabled, customerCare, shippingReturns }: {
   item: BarcodeProduct;
   categoryTitle: string;
   categoryHref: string;
@@ -81,12 +83,13 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   next: Neighbour;
   freeShippingAbove?: number | null;
   codEnabled: boolean;
+  customerCare: CustomerCareInfo;
+  shippingReturns: ShippingReturnsInfo;
 }) {
   const router = useRouter();
   const { add } = useCart();
   const { has, toggle } = useWishlist();
   const [qty, setQty] = useState(1);
-  const [tab, setTab] = useState<"details" | "care" | "shipping">("details");
   const [shared, setShared] = useState(false);
 
   const price = item.price ?? 0;
@@ -97,6 +100,17 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const name = item.ecommerce?.displayName || item.itemName || item.name;
   const subtitle = [item.ecommerce?.description, item.printDescription].find((d) => d && d.trim() && d !== name);
   const attrs = Object.entries(item.ecommerce?.attributes ?? {}).filter((e): e is [string, string] => Boolean(e[1]));
+  const overview: ProductOverviewRow[] = [
+    { label: "Product name", value: name },
+    { label: "Item code", value: item.itemCode ?? item.barcode },
+    { label: "Barcode", value: item.barcode },
+    { label: "Category", value: categoryTitle },
+    ...attrs.map(([key, value]) => ({ label: ATTR_LABELS[key] ?? key, value })),
+    { label: "Group", value: item.group ?? "" },
+    { label: "HSN", value: item.hsnCode ?? "" },
+    { label: "Net quantity", value: item.qty != null ? `${item.qty} ${item.uom ?? "piece"}` : "" },
+    { label: "Country of origin", value: COUNTRY_OF_ORIGIN },
+  ].filter((row) => row.value.trim());
   const colour = item.ecommerce?.attributes?.color;
   const wished = has(item.barcode);
   const busy = add.isPending;
@@ -248,43 +262,17 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
             ))}
           </ul>
 
-          <div className="mt-6">
-            <div role="tablist" aria-label="Product information" className="we-scroller flex gap-1 overflow-x-auto border-b border-line">
-              {([["details", "Product Details"], ["care", "Fabric & Care"], ["shipping", "Shipping & Returns"]] as const).map(([key, label]) => (
-                <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={cn("-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors sm:px-4 sm:py-2.5 sm:text-sm", tab === key ? "border-maroon text-maroon" : "border-transparent text-olive hover:text-maroon")}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div role="tabpanel" className="pt-4 text-[15px] leading-relaxed text-ink/80">
-              {tab === "details" && (
-                <>
-                  <p>{subtitle ? `${sentence(subtitle)}. ` : ""}A {categoryTitle.toLowerCase().replace(/s$/, "")} chosen at our Temple Fabrics store in Jayanagar, Bengaluru. Each barcode is a single piece, so the one you order is the one in the photo.</p>
-                  {attrs.length > 0 && (
-                    <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                      {attrs.map(([key, value]) => <li key={key} className="flex items-center gap-2"><Check className="h-4 w-4 text-maroon" />{ATTR_LABELS[key] ?? key}: {value}</li>)}
-                      {item.hsnCode && <li className="flex items-center gap-2"><Check className="h-4 w-4 text-maroon" />HSN: {item.hsnCode}</li>}
-                    </ul>
-                  )}
-                </>
-              )}
-              {tab === "care" && (
-                <ul className="space-y-1.5">
-                  <li className="flex gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-maroon" />Dry clean recommended for silks and zari work.</li>
-                  <li className="flex gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-maroon" />Store folded in a muslin or cotton cloth, away from damp and direct sunlight.</li>
-                  <li className="flex gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-maroon" />Refold every few months to protect the zari from creasing.</li>
-                  <li className="flex gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-maroon" />Iron on low heat on the reverse side.</li>
-                </ul>
-              )}
-              {tab === "shipping" && (
-                <div className="space-y-2">
-                  <PincodeCheck sku={item.barcode} price={item.offerPrice ?? item.price} className="mb-3 rounded-xl border border-line bg-ivory/60 p-4" />
-                  <p className="flex gap-2"><Truck className="mt-1 h-4 w-4 shrink-0 text-maroon" />Shipped from Bengaluru to addresses across India{freeShippingAbove ? `; free on orders above ₹${freeShippingAbove.toLocaleString("en-IN")}` : ""}.</p>
-                  <p className="flex gap-2"><RotateCcw className="mt-1 h-4 w-4 shrink-0 text-maroon" />See our <Link href="/pages/returns" className="text-maroon underline underline-offset-2">returns</Link> and <Link href="/pages/shipping-policy" className="text-maroon underline underline-offset-2">shipping</Link> policies, or <Link href="/contact" className="text-maroon underline underline-offset-2">contact us</Link> with any question.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <ProductInformationTabs
+            productName={name}
+            overview={overview}
+            material={item.ecommerce?.attributes?.fabric}
+            silkMark={null}
+            shipping={shippingReturns}
+            customerCare={customerCare}
+            deliveryCheck={
+              <PincodeCheck sku={item.barcode} price={item.offerPrice ?? item.price} className="rounded-xl border border-line bg-ivory/60 p-4" />
+            }
+          />
         </div>
       </div>
     </div>

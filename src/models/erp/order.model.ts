@@ -63,6 +63,30 @@ export const OrderShippingSchema = new Schema(
   { _id: false, strict: false },
 );
 
+/** Stock-processing state for a website order (see lib/inventory/order-inventory.ts). */
+export const OrderInventorySchema = new Schema(
+  {
+    status: { type: String, default: "Pending", index: true },
+    trigger: String,
+    requestedBy: String,
+    processKey: String,
+    processingKey: String,
+    processingAt: Date,
+    claimedAt: Date,
+    attempts: { type: Number, default: 0 },
+    lastError: String,
+    failedAt: Date,
+    processedAt: Date,
+    deductedAt: Date,
+    restoredAt: Date,
+    restoredBy: String,
+    updatedAt: Date,
+    // Barcode allocations per order line; shape is defined in src/domain/types.ts.
+    lines: { type: [Schema.Types.Mixed], default: [] },
+  },
+  { _id: false, strict: false },
+);
+
 export const OrderSchema = new Schema(
   {
     ...defineFromMapping({
@@ -95,6 +119,7 @@ export const OrderSchema = new Schema(
     shiprocketShipmentId: { type: Number, index: true },
     shiprocketLock: Date,
     shipping: OrderShippingSchema,
+    inventory: OrderInventorySchema,
   },
   { collection: ERP_COLLECTIONS.orders, strict: false, versionKey: false },
 );

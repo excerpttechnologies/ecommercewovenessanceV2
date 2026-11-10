@@ -96,6 +96,55 @@ export const CATEGORY_SEO: Record<StorefrontCategoryGroup, { title: string; desc
     ],
     keywords: ["new arrivals sarees", "latest sarees", "new sarees online", "new fabrics"],
   },
+  inskirt: {
+    title: "Inskirts Online | Woven Essence",
+    description: "Shop Inskirts from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse Inskirts from the Temple Fabrics collection.",
+    about: ["Explore Inskirts listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["inskirt", "saree inskirt"],
+  },
+  border: {
+    title: "Saree Borders Online | Woven Essence",
+    description: "Shop saree borders from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse borders from the Temple Fabrics collection.",
+    about: ["Explore borders listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["saree border", "border"],
+  },
+  pavada: {
+    title: "Pavadas Online | Woven Essence",
+    description: "Shop Pavadas from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse Pavadas from the Temple Fabrics collection.",
+    about: ["Explore Pavadas listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["pavada", "pavadai"],
+  },
+  dhotis: {
+    title: "Dhotis Online | Woven Essence",
+    description: "Shop Dhotis from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse Dhotis from the Temple Fabrics collection.",
+    about: ["Explore Dhotis listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["dhotis", "dhoti"],
+  },
+  "ready-made": {
+    title: "Ready Made Clothing Online | Woven Essence",
+    description: "Shop ready-made clothing from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse ready-made products from the Temple Fabrics collection.",
+    about: ["Explore ready-made products listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["ready made clothing", "ready-made"],
+  },
+  "ready-bits": {
+    title: "Ready Bits Online | Woven Essence",
+    description: "Shop Ready Bits from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse Ready Bits from the Temple Fabrics collection.",
+    about: ["Explore Ready Bits listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["ready bits"],
+  },
+  "unstitched-suits": {
+    title: "Unstitched Suits Online | Woven Essence",
+    description: "Shop unstitched suits from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse unstitched suits from the Temple Fabrics collection.",
+    about: ["Explore unstitched suits listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["unstitched suits", "suit fabric"],
+  },
 };
 
 /* ------------------------------------------------------------------ */

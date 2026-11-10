@@ -7,6 +7,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { BarcodeProductGrid } from "@/components/product/barcode-product-grid";
 import { BarcodeProductDetail } from "@/components/product/barcode-product-detail";
 import { getSettings } from "@/lib/site-data";
+import { customerCareFrom, shippingReturnsFrom } from "@/lib/product-info";
 import { JsonLd } from "@/components/seo/json-ld";
 import { ERP_CATEGORY_TITLES, getBarcodeImageCatalog, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
 import { barcodeProductPath } from "@/lib/paths";
@@ -105,6 +106,8 @@ export default async function BarcodeProductPage({ params }: { params: Params })
           next={index >= 0 ? neighbour(firstPage[index + 1]) : null}
           freeShippingAbove={settings?.commerce?.freeShippingAbove}
           codEnabled={settings?.commerce?.codEnabled !== false}
+          customerCare={customerCareFrom(settings)}
+          shippingReturns={shippingReturnsFrom(settings)}
         />
       </div>
       {related.length > 0 && (

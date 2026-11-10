@@ -221,13 +221,13 @@ export default async function Home() {
           );
         }
         case "bestSellers": {
-          const r = await master.products.list({ sort: "best_selling", limit });
+          const r = await master.products.list({ sort: "best_selling", limit, inStock: true });
           return <ProductSection key={s.key} title={s.title ?? "Best sellers"} subtitle={s.subtitle} href="/collections/sarees?sort=best_selling" items={r.items} />;
         }
         case "collection": {
           const col = cfg.slug ? await site.collectionBySlug(String(cfg.slug)) : null;
           if (!col) return null;
-          const r = await master.products.list({ ...collectionToListParams(col), limit });
+          const r = await master.products.list({ ...collectionToListParams(col), limit, inStock: true });
           return <ProductSection key={s.key + col.slug} title={s.title ?? col.name} subtitle={s.subtitle ?? col.description} href={`/collections/${col.slug}`} items={r.items} />;
         }
         case "occasions": {

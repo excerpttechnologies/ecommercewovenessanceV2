@@ -75,11 +75,14 @@ export const GET = handler(async () => {
   const [customer, orders, products] = await Promise.all([
     s ? getCustomers().getById(s.sub) : null,
     s ? getOrders().listByCustomer(s.sub, { limit: 5 }) : null,
-    skus.length ? getMasterData().products.getBySkus(skus) : [],
+    skus.length ? getMasterData().products.getBySkus(skus).then((items) => items.filter((product) => product.stock.qty > 0)) : [],
   ]);
   const found = new Set(products.map((p) => p.sku));
   const missing = skus.filter((k) => !found.has(k));
-  const barcodeItems = missing.length ? await getBarcodeLabels().getByBarcodes(missing) : [];
+  const barcodeItems = missing.length
+    ? (await getBarcodeLabels().getByBarcodes(missing))
+      .filter((item) => item.status === "IN_STOCK" && (item.qty == null || item.qty > 0))
+    : [];
   const all = [...products, ...barcodeItems.map(barcodeProductToProduct)];
 
   const wishlist = all.map((p) => {

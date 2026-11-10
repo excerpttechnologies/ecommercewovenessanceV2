@@ -13,8 +13,14 @@ interface Stats {
   last30: { orders: number; revenue: number; aov: number };
   statusCounts: Record<string, number>;
   series: { date: string; orders: number; revenue: number }[];
-  pendingReviews: number; newEnquiries: number; abandonedCarts: number; customers: number;
-  stock: { total: number; inStock: number; lowStock: number; outOfStock: number };
+  pendingReviews: number; newEnquiries: number; abandonedCarts: number;
+  customers: number | null;
+  stock: { total: number; inStock: number; lowStock: number; outOfStock: number } | null;
+  /** Per-source health so an unreachable RetailERP shows a reason instead of silent zeros. */
+  sources: {
+    web: { ok: boolean; error: string | null };
+    erp: { configured: boolean; ok: boolean; stock: boolean; empty: boolean; error: string | null };
+  };
   topSkus: { sku: string; name: string; qty: number; revenue: number }[];
   latestOrders: Order[];
   outForDelivery: Order[];
@@ -27,11 +33,12 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title="Dashboard" />
+      <SourceNotice sources={data.sources} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Today" value={formatINR(data.today.revenue)} sub={`${data.today.orders} orders`} tone="maroon" />
         <Stat label="Last 30 days" value={formatINR(data.last30.revenue)} sub={`${data.last30.orders} orders · AOV ${formatINR(data.last30.aov)}`} />
-        <Stat label="ERP customers" value={data.customers} sub={`${data.abandonedCarts} website abandoned carts`} />
-        <Stat label="Stock" value={`${data.stock.inStock}/${data.stock.total}`} sub={`${data.stock.lowStock} low · ${data.stock.outOfStock} out`} tone="gold" />
+        <Stat label="ERP customers" value={data.customers ?? "—"} sub={data.customers === null ? "RetailERP unavailable" : `${data.abandonedCarts} website abandoned carts`} />
+        <Stat label="Stock" value={data.stock ? `${data.stock.inStock}/${data.stock.total}` : "—"} sub={data.stock ? `${data.stock.lowStock} low · ${data.stock.outOfStock} out` : "RetailERP unavailable"} tone="gold" />
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="rounded-sm border border-line p-4">
@@ -47,7 +54,7 @@ export default function Dashboard() {
               <li className="flex justify-between"><Link href="/admin/orders?status=Packed" className="hover:text-maroon">To ship</Link><Badge tone="blue">{data.statusCounts.Packed ?? 0}</Badge></li>
               <li className="flex justify-between"><Link href="/admin/reviews" className="hover:text-maroon">Website reviews pending</Link><Badge tone="gold">{data.pendingReviews}</Badge></li>
               <li className="flex justify-between"><Link href="/admin/enquiries" className="hover:text-maroon">Website new enquiries</Link><Badge tone="gold">{data.newEnquiries}</Badge></li>
-              <li className="flex justify-between"><Link href="/admin/inventory" className="hover:text-maroon">ERP low stock</Link><Badge tone="red">{data.stock.lowStock}</Badge></li>
+              <li className="flex justify-between"><Link href="/admin/inventory" className="hover:text-maroon">ERP low stock</Link><Badge tone="red">{data.stock?.lowStock ?? "—"}</Badge></li>
             </ul>
           </div>
         </div>
@@ -105,4 +112,19 @@ function Sparkline({ data }: { data: { date: string; revenue: number; orders: nu
       {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="2.5" fill="var(--we-maroon)"><title>{data[i].date}: {formatINR(data[i].revenue)} ({data[i].orders} orders)</title></circle>)}
     </svg>
   );
+}
+
+/** Says why a source is missing instead of leaving the admin guessing at a wall of zeros. */
+function SourceNotice({ sources }: { sources: Stats["sources"] }) {
+  const message = sources.web.error
+    ? `Website order figures could not be loaded: ${sources.web.error}`
+    : !sources.erp.configured
+      ? "RetailERP is not configured (set ERP_MONGODB_URI). RetailERP orders, customers and stock are unavailable; the website figures on this page are live."
+      : sources.erp.error
+        ? `RetailERP is unavailable: ${sources.erp.error}`
+        : sources.erp.empty
+          ? "RetailERP is connected but reports no products and no customers. Check that ERP_DB_NAME / ERP_MONGODB_URI point at the live RetailERP database — the website figures on this page are live."
+          : null;
+  if (!message) return null;
+  return <p className="mb-4 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{message}</p>;
 }

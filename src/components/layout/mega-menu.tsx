@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { ArrowRight, Brush, CalendarDays, ChevronRight, Grid3x3, Layers, Palette, Tag } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { MenuNode } from "@/repositories/web/site.repository";
 
@@ -32,10 +33,12 @@ function promoFor(item: MenuNode) {
  * Columns = child "group" nodes; leaves = links (attribute filters).
  */
 export function MegaMenu({ item, open, onNavigate }: { item: MenuNode; open: boolean; onNavigate?: () => void }) {
+  const pathname = usePathname();
   const groups = item.children.filter((c) => c.kind === "group" && c.children.length);
   const loose = item.children.filter((c) => c.kind === "link");
   const label = titleCase(item.label);
   const promo = promoFor(item);
+  const isAddOnMenu = item.id === "storefront-add-on";
   return (
     <div
       role="region"
@@ -58,7 +61,7 @@ export function MegaMenu({ item, open, onNavigate }: { item: MenuNode; open: boo
                 <ul className="we-scroller max-h-[min(19rem,52vh)] overflow-y-auto overscroll-contain pr-1">
                   {g.children.map((l) => (
                     <li key={l.id}>
-                      <Link href={l.href ?? "#"} title={l.label} className="group/link flex items-center justify-between gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] text-ink/85 transition-colors hover:bg-maroon/[0.06] hover:text-maroon">
+                      <Link href={l.href ?? "#"} title={l.label} aria-current={isAddOnMenu && l.href === pathname ? "page" : undefined} className={cn("group/link flex items-center justify-between gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] transition-colors hover:bg-maroon/[0.06] hover:text-maroon", isAddOnMenu && l.href === pathname ? "bg-maroon/[0.06] font-semibold text-maroon" : "text-ink/85")}>
                         <span className="min-w-0 truncate whitespace-nowrap">
                           {l.label}
                           {l.badge && <span className="ml-2 rounded-full bg-maroon/10 px-1.5 text-[9px] font-semibold uppercase text-maroon">{l.badge}</span>}
@@ -75,7 +78,7 @@ export function MegaMenu({ item, open, onNavigate }: { item: MenuNode; open: boo
             <ul className="w-52 min-w-0 shrink px-2.5 py-1.5 xl:px-3">
               {loose.map((l) => (
                 <li key={l.id}>
-                  <Link href={l.href ?? "#"} title={l.label} className="group/link flex items-center justify-between gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] text-ink/85 hover:bg-maroon/[0.06] hover:text-maroon">
+                  <Link href={l.href ?? "#"} title={l.label} aria-current={isAddOnMenu && l.href === pathname ? "page" : undefined} className={cn("group/link flex items-center justify-between gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[13px] hover:bg-maroon/[0.06] hover:text-maroon", isAddOnMenu && l.href === pathname ? "bg-maroon/[0.06] font-semibold text-maroon" : "text-ink/85")}>
                     {l.label}
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-maroon/70" />
                   </Link>

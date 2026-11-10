@@ -1,5 +1,6 @@
 import { clearCart } from "@/lib/cart-server";
 import { getWebConnection } from "@/lib/db";
+import { processOrderInventory, releaseOrderInventory } from "@/lib/inventory/order-inventory";
 import { OrderModel } from "@/models/erp/order.model";
 import { CouponModel } from "@/models/web/commerce.models";
 import type { AnyDoc } from "@/models/_util";
@@ -8,7 +9,7 @@ import type { AnyDoc } from "@/models/_util";
  * Payment-state changes for website orders. Every transition is a single atomic
  * conditional update, so the browser "verify" call and the Razorpay webhook can
  * both run (even at the same moment) and the order is still finalised once.
- * Touches only website orders / carts / coupons — never ERP data or stock.
+ * Touches only website orders / carts / coupons / the website stock ledger — never ERP documents.
  */
 
 export interface GatewayOrderRef {
@@ -33,10 +34,9 @@ async function orders() {
 }
 
 /**
- * [CHG-02] NEW FUNCTION: findOrderByGatewayId(gatewayOrderId)
- * WHY: the order now exists BEFORE payment, so after payment we find it by the Razorpay order id
- * (used by checkout confirm step and by the webhook). Returns { orderNo, netAmount, paymentStatus } or null.
- * ERROR HINT: "ORDER_NOT_FOUND" from checkout means no website order has this paymentGatewayOrderId.
+ * [CHG-02] findOrderByGatewayId(gatewayOrderId)
+ * The order exists BEFORE payment, so after payment we find it by the Razorpay order id
+ * (used by the checkout confirm step and by the webhook). Null => ORDER_NOT_FOUND.
  */
 export async function findOrderByGatewayId(gatewayOrderId: string): Promise<GatewayOrderRef | null> {
   const doc = await (await orders())
@@ -47,8 +47,8 @@ export async function findOrderByGatewayId(gatewayOrderId: string): Promise<Gate
 }
 
 /**
- * [CHG-02] NEW FUNCTION: setOrderCartToken(orderNo, cartToken)
- * WHY: the cart is emptied only after payment succeeds. The webhook has no browser cookie, so the cart token
+ * [CHG-02] setOrderCartToken(orderNo, cartToken)
+ * The cart is emptied only after payment succeeds. The webhook has no browser cookie, so the cart token
  * is saved on the order and used later by finalizePaidOrder() to empty the right cart.
  */
 export async function setOrderCartToken(orderNo: string, cartToken: string) {
@@ -56,9 +56,8 @@ export async function setOrderCartToken(orderNo: string, cartToken: string) {
 }
 
 /**
- * [CHG-02] NEW FUNCTION: recordCouponUse(code)
- * WHY: the old checkout route counted the coupon TWICE (duplicated line). Now one helper, called exactly once:
- * COD -> in checkout route; online -> inside finalizePaidOrder() when the order flips to Paid.
+ * [CHG-02] recordCouponUse(code)
+ * Called exactly once per paying order (COD in the checkout route, online in finalizePaidOrder).
  */
 export async function recordCouponUse(code?: string | null) {
   if (!code) return;
@@ -78,10 +77,10 @@ async function queuePaymentNotification(orderNo: string) {
 /**
  * Pending/Failed -> Paid + Confirmed, exactly once. Returns `changed: false`
  * when the order was already paid (repeat call / webhook retry).
- * [CHG-02] NEW FUNCTION: finalizePaidOrder(gatewayOrderId, paymentId)
- * WHY: both the browser confirm step and the Razorpay webhook can arrive (even together). One atomic
- * conditional update (only Pending/Failed -> Paid) means the order, coupon count and cart clearing happen ONCE.
- * ERROR HINT: returns null => order not found or not payable (e.g. already Cancelled and not Pending/Failed).
+ *
+ * [INVENTORY] The hold taken when the order was saved becomes the sale here: the deduction is
+ * triggered only by the call that actually flipped the order, and the inventory service is
+ * idempotent, so a repeated webhook cannot deduct twice.
  */
 export async function finalizePaidOrder(
   gatewayOrderId: string,
@@ -108,24 +107,29 @@ export async function finalizePaidOrder(
   }
 
   // Only the call that actually flipped the order gets here.
+  try {
+    await processOrderInventory(String(updated.orderNo), { kind: "deduct", trigger: "payment_paid", by: "payment" });
+  } catch (error) {
+    // The order is paid either way; the failure is recorded on the order as Failed so an
+    // administrator can retry from Admin → Orders instead of the sale being lost silently.
+    console.error("[inventory] deduction failed after payment", updated.orderNo, error);
+  }
   await recordCouponUse(updated.couponCode);
   if (updated.cartToken) await clearCart(String(updated.cartToken));
   // [SHIPROCKET] Prepaid orders create their shipment only after a verified payment.
-  // Scheduled after the response so checkout never waits on the courier API.
   await schedulePaidShipment(String(updated.orderNo));
 
   // [WHATSAPP] Payment-success message is queued only from this function, i.e.
-  // only after the server verified the payment and marked the order Paid. It is
-  // idempotent, so the browser confirm step and a webhook retry cannot duplicate it.
+  // only after the server verified the payment and marked the order Paid.
   await queuePaymentNotification(String(updated.orderNo));
 
   return { orderNo: String(updated.orderNo), changed: true };
 }
 
 /**
- * [CHG-02] NEW FUNCTION: markPaymentFailed(gatewayOrderId, reason?)
- * WHY: called by the webhook on payment.failed. Sets paymentStatus=Failed but keeps the order open, because
- * Razorpay lets the customer retry on the same gateway order (finalizePaidOrder accepts Failed -> Paid).
+ * markPaymentFailed(gatewayOrderId, reason?) — called by the webhook on payment.failed.
+ * Keeps the order open (Razorpay lets the customer retry on the same gateway order), so the
+ * stock hold stays in place.
  */
 export async function markPaymentFailed(gatewayOrderId: string, reason?: string) {
   const now = new Date();
@@ -139,18 +143,26 @@ export async function markPaymentFailed(gatewayOrderId: string, reason?: string)
 }
 
 /**
- * [CHG-02] NEW FUNCTION: abandonPendingOrder(gatewayOrderId)
- * WHY: the order is created before payment, so if the customer closes the Razorpay window we cancel that unpaid
- * order (paymentStatus=Failed, orderStatus=Cancelled) instead of leaving a Pending order in the admin lists.
- * Only touches orders still Pending, so a paid order is never cancelled by this.
+ * abandonPendingOrder(gatewayOrderId) — the customer closed the Razorpay window.
+ * Cancels the unpaid order and hands its reserved stock back (RELEASE movement), so the
+ * units are sellable again straight away.
  */
 export async function abandonPendingOrder(gatewayOrderId: string) {
   const now = new Date();
-  await (await orders()).updateOne(
-    { paymentGatewayOrderId: gatewayOrderId, paymentStatus: "Pending" },
-    {
-      $set: { paymentStatus: "Failed", orderStatus: "Cancelled" },
-      $push: { statusHistory: { status: "Cancelled", note: "Payment window closed without payment", by: "customer", at: now } },
-    },
-  );
+  const abandoned = await (await orders())
+    .findOneAndUpdate(
+      { paymentGatewayOrderId: gatewayOrderId, paymentStatus: "Pending" },
+      {
+        $set: { paymentStatus: "Failed", orderStatus: "Cancelled" },
+        $push: { statusHistory: { status: "Cancelled", note: "Payment window closed without payment", by: "customer", at: now } },
+      },
+      { new: true },
+    )
+    .lean<AnyDoc>();
+  if (!abandoned) return;
+  try {
+    await releaseOrderInventory(String(abandoned.orderNo), { trigger: "payment_abandoned", by: "customer" });
+  } catch (error) {
+    console.error("[inventory] could not release stock for abandoned order", abandoned.orderNo, error);
+  }
 }

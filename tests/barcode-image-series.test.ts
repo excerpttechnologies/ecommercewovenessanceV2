@@ -50,7 +50,7 @@ describe("getBarcodeImageCatalog", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
   });
 
-  it("searches e-commerce item codes and shows linked barcode labels even when out of stock", async () => {
+  it("searches e-commerce item codes and requests only available barcode labels", async () => {
     getLabelIdsForProductTypes
       .mockResolvedValueOnce(["category-label"])
       .mockResolvedValueOnce(["matched-ecommerce-label"]);
@@ -62,6 +62,8 @@ describe("getBarcodeImageCatalog", () => {
     expect(list).toHaveBeenCalledWith({
       labelIds: ["matched-ecommerce-label"],
       excludedBarcodes: [],
+      availableOnly: true,
+      resolveImages: true,
       group: undefined,
       business: undefined,
       status: undefined,

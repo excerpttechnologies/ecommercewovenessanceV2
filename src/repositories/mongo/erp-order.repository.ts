@@ -43,6 +43,32 @@ function isoDate(value: unknown): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
+/**
+ * One malformed RetailERP record (an unknown status or payment method) must not take the whole
+ * admin list down — the row is skipped and logged, the rest of the page still loads.
+ */
+function mapErpOrdersSafe(records: unknown[]): Order[] {
+  const mapped: Order[] = [];
+  for (const record of records) {
+    try {
+      mapped.push(mapErpOrder(record));
+    } catch (error) {
+      const raw = record as ErpRecord;
+      console.warn(`[erpOrders] skipped ${String(raw?.orderNumber ?? raw?._id ?? "record")}: ${(error as Error).message}`);
+    }
+  }
+  return mapped;
+}
+
+function safeErpStatus(value: unknown): OrderStatus | null {
+  try {
+    return mapErpOrderStatus(value);
+  } catch (error) {
+    console.warn(`[erpOrders] skipped status ${String(value)}: ${(error as Error).message}`);
+    return null;
+  }
+}
+
 function token(value: unknown): string {
   return (text(value) ?? "").toLowerCase().trim().replace(/[\s-]+/g, "_");
 }
@@ -259,7 +285,7 @@ export class MongoErpOrderRepository {
       collection.countDocuments(match),
     ]);
     return {
-      items: records.map(mapErpOrder),
+      items: mapErpOrdersSafe(records),
       total,
       page,
       limit,
@@ -274,7 +300,8 @@ export class MongoErpOrderRepository {
     ]).toArray();
     const counts: Record<string, number> = {};
     for (const row of rows) {
-      const status = mapErpOrderStatus(row._id);
+      const status = safeErpStatus(row._id);
+      if (!status) continue;
       counts[status] = (counts[status] ?? 0) + row.count;
     }
     return counts;
@@ -338,7 +365,8 @@ export class MongoErpOrderRepository {
     ]);
     const countByStatus: Record<string, number> = {};
     for (const row of statusRows) {
-      const status = mapErpOrderStatus(row._id);
+      const status = safeErpStatus(row._id);
+      if (!status) continue;
       countByStatus[status] = (countByStatus[status] ?? 0) + row.count;
     }
     const today = todayRows[0] ?? { orders: 0, revenue: 0 };
@@ -359,8 +387,8 @@ export class MongoErpOrderRepository {
         qty: row.qty,
         revenue: row.revenue,
       })),
-      latestOrders: latest.map(mapErpOrder),
-      outForDelivery: outForDelivery.map(mapErpOrder),
+      latestOrders: mapErpOrdersSafe(latest),
+      outForDelivery: mapErpOrdersSafe(outForDelivery),
     };
   }
 }

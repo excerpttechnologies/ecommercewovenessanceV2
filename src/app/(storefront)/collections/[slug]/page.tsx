@@ -280,6 +280,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { barcodeProductPath } from "@/lib/paths";
 import { CATEGORY_SEO, DEFAULT_OG_IMAGE, OG_DEFAULTS, absoluteUrl, barcodeProductFacts, breadcrumbJsonLd, itemListJsonLd, publicImage } from "@/lib/seo";
 import { ERP_CATEGORY_TITLES, getBarcodeImageCatalog, getBarcodeImageFilterOptions, getBarcodeImageSeries, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
+import { isAddOnCategorySlug } from "@/lib/add-on-categories";
 
 type SP = Record<string, string | string[] | undefined>;
 const toSearchParams = (sp: SP) => {
@@ -304,7 +305,7 @@ const ERP_GROUP_BANNERS: Partial<Record<StorefrontCategoryGroup, string>> = {
 
 function erpGroupForSlug(slug: string): StorefrontCategoryGroup | null {
   if (slug === "sarees" || slug === "fabrics" || slug === "plain-fabrics" || slug === "dupatta" || slug === "best-buy" || slug === "new-arrivals") return slug;
-  return null;
+  return isAddOnCategorySlug(slug) ? slug : null;
 }
 
 async function resolve(slug: string) {

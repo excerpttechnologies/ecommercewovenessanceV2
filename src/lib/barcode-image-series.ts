@@ -274,14 +274,24 @@ import { erpEcommerceKey, loadErpEcommerceCatalogs } from "@/lib/admin/erp-ecomm
 import { isAllowedImageUrl, mapLimit, normalizeImageRef, probeImage } from "@/lib/erp-images";
 import { ERP_BEST_BUY_PRODUCT_TYPE, ERP_NEW_ARRIVAL_PRODUCT_TYPE, toImages } from "@/lib/erp-mapping";
 import { ProductWebMetaModel } from "@/models/web/content.models";
+import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
 
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
+type EcommerceCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
 export type EcommerceClassification = "weave" | "fabric" | "craft" | "occasion" | "color";
 export type EcommerceClassificationFilters = Partial<Record<EcommerceClassification, string>>;
 // NEW (price filter): priceMin / priceMax added to the end of this type.
 export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string; sort?: BarcodeSort; priceMin?: number; priceMax?: number };
 
-export type StorefrontCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
+export type StorefrontCategoryGroup = EcommerceCategoryGroup | AddOnCategorySlug;
+
+const ADD_ON_TITLE_MAP: Record<AddOnCategorySlug, string> = Object.fromEntries(
+  ADD_ON_CATEGORY_SLUGS.map((slug) => [slug, ADD_ON_CATEGORIES[slug].name]),
+) as Record<AddOnCategorySlug, string>;
+
+const ADD_ON_PRODUCT_TYPES: Record<AddOnCategorySlug, readonly string[]> = Object.fromEntries(
+  ADD_ON_CATEGORY_SLUGS.map((slug) => [slug, [] as readonly string[]]),
+) as Record<AddOnCategorySlug, readonly string[]>;
 
 export const ERP_CATEGORY_TITLES: Record<StorefrontCategoryGroup, string> = {
   sarees: "Sarees",
@@ -290,6 +300,7 @@ export const ERP_CATEGORY_TITLES: Record<StorefrontCategoryGroup, string> = {
   dupatta: "Dupatta",
   "best-buy": "Best Buy",
   "new-arrivals": "New Arrivals",
+  ...ADD_ON_TITLE_MAP,
 };
 
 /** Public storefront categories use RetailERP's product-ecom classification. */
@@ -302,6 +313,7 @@ export const ERP_CATEGORY_PRODUCT_TYPES: Record<StorefrontCategoryGroup, readonl
   "best-buy": [ERP_BEST_BUY_PRODUCT_TYPE],
   // Published products added in the last 48 hours, of any product type (29-10-2026).
   "new-arrivals": [ERP_NEW_ARRIVAL_PRODUCT_TYPE],
+  ...ADD_ON_PRODUCT_TYPES,
 };
 
 export function applyPrintDescriptionOverrides(items: BarcodeProduct[], overrides: Map<string, string>) {
@@ -389,7 +401,7 @@ async function inactiveBarcodes() {
 }
 
 const getBarcodeImageScopes = cache(async (
-  group: StorefrontCategoryGroup,
+  group: EcommerceCategoryGroup,
   subgroupId?: string,
   classifications: EcommerceClassificationFilters = {},
 ) => {
@@ -405,6 +417,7 @@ const getBarcodeImageScopes = cache(async (
 export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
   const barcodeLabels = getBarcodeLabels();
   const { subgroup, q, barcode } = filters;
+  const groupIds = getAddOnGroupIds(group);
   const classifications: EcommerceClassificationFilters = {
     weave: filters.weave,
     fabric: filters.fabric,
@@ -413,12 +426,12 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     color: filters.color,
   };
   const [{ labelIds }, excludedBarcodes] = await Promise.all([
-    getBarcodeImageScopes(group, subgroup, classifications),
+    groupIds ? Promise.resolve({ labelIds: [] as string[] }) : getBarcodeImageScopes(group as EcommerceCategoryGroup, subgroup, classifications),
     inactiveBarcodes(),
   ]);
-  if (!labelIds.length) return { items: [], total: 0, page, pages: 0 };
-  const hasClassifications = Object.values(classifications).some(Boolean);
-  const ecommerceMatches = q?.trim()
+  if (!groupIds && !labelIds.length) return { items: [], total: 0, page, pages: 0 };
+  const hasClassifications = !groupIds && Object.values(classifications).some(Boolean);
+  const ecommerceMatches = !groupIds && q?.trim()
     ? hasClassifications
       ? await barcodeLabels.getLabelIdsForProductTypes(
           [...ERP_CATEGORY_PRODUCT_TYPES[group]],
@@ -440,11 +453,12 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     q: searchByEcommerceCode ? undefined : q,
   };
   const detailView = Boolean(barcode?.trim());
-  // Every barcode saved on a published ecommerceproduct is listed, sold ones included:
-  // the card marks a piece that is not IN_STOCK as "Unavailable" and it cannot be added to the bag.
+  // Only labels currently available for purchase are part of the storefront catalog.
   const catalog = await barcodeLabels.list({
-    labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
+    ...(groupIds ? { groupIds: [...groupIds] } : { labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds }),
     excludedBarcodes,
+    availableOnly: true,
+    resolveImages: true,
     ...listFilters,
     ...(detailView ? { barcodes: [barcode!.trim()] } : { sort: filters.sort }),
     page: detailView ? 1 : page,
@@ -459,10 +473,16 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
 }
 
 export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
-  const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group), inactiveBarcodes()]);
+  const groupIds = getAddOnGroupIds(group);
+  if (groupIds) {
+    const excludedBarcodes = await inactiveBarcodes();
+    const facets = await getBarcodeLabels().facets({ groupIds: [...groupIds], excludedBarcodes, availableOnly: true });
+    return { ...facets, subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [] };
+  }
+  const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group as EcommerceCategoryGroup), inactiveBarcodes()]);
   if (!scopes.labelIds.length) return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
   const [facets, subgroup, classifications] = await Promise.all([
-    getBarcodeLabels().facets({ ...scopes, excludedBarcodes }),
+    getBarcodeLabels().facets({ ...scopes, excludedBarcodes, availableOnly: true }),
     getBarcodeLabels().getProductTypeSubgroups([...ERP_CATEGORY_PRODUCT_TYPES[group]]),
     getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[group]]),
   ]);
@@ -471,15 +491,25 @@ export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGrou
 
 export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
   const barcodeLabels = getBarcodeLabels();
-  const [{ labelIds }, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group), inactiveBarcodes()]);
-  if (!labelIds.length) {
+  const groupIds = getAddOnGroupIds(group);
+  const [{ labelIds }, excludedBarcodes] = await Promise.all([
+    groupIds ? Promise.resolve({ labelIds: [] as string[] }) : getBarcodeImageScopes(group as EcommerceCategoryGroup),
+    inactiveBarcodes(),
+  ]);
+  if (!groupIds && !labelIds.length) {
     return (["8A", "9A"] as const).map((prefix) => ({ title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`, items: [] as BarcodeProduct[] }));
   }
 
   const seenImages = new Set<string>();
   const series = [];
   for (const prefix of ["8A", "9A"] as const) {
-    const result = await barcodeLabels.list({ labelIds, seriesPrefix: prefix, excludedBarcodes, limit: 12 });
+    const result = await barcodeLabels.list({
+      ...(groupIds ? { groupIds: [...groupIds], resolveImages: true } : { labelIds }),
+      seriesPrefix: prefix,
+      excludedBarcodes,
+      availableOnly: true,
+      limit: 12,
+    });
     const items = result.items
       .filter((item): item is typeof item & { image: string } => {
         if (!item.image) return false;

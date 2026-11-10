@@ -1,10 +1,147 @@
 import { getErpConnection, getWebConnection } from "@/lib/db";
-import { ORDER_FIELDS as O, ORDER_ITEM_FIELDS as OI } from "@/lib/erp-mapping";
+import { ORDER_FIELDS as O, ORDER_ITEM_FIELDS as OI, mapOrder } from "@/lib/erp-mapping";
 import { OrderModel } from "@/models/erp/order.model";
 import { CartModel, EnquiryModel, ReviewModel } from "@/models/web/commerce.models";
 import { getErpOrders } from "@/repositories";
+import type { AnyDoc } from "@/models/_util";
+import type { Order } from "@/domain/types";
+import type { ErpDashboardOrders } from "@/repositories/mongo/erp-order.repository";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+const emptyDashboardOrders = (): ErpDashboardOrders => ({
+  today: { orders: 0, revenue: 0 },
+  last30: { orders: 0, revenue: 0, aov: 0 },
+  statusCounts: {},
+  series: [],
+  topSkus: [],
+  latestOrders: [],
+  outForDelivery: [],
+});
+
+/** One failing source (RetailERP down, one bad legacy document) must not blank the whole dashboard. */
+async function attemptSource<T>(label: string, fn: () => Promise<T>, errors: string[]): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (error) {
+    const message = (error as Error).message;
+    console.error(`[admin] ${label} unavailable:`, message);
+    errors.push(message);
+    return null;
+  }
+}
+
+/**
+ * Website orders live in the web DB (orderNo WE-…). RetailERP's dashboard query only reads
+ * RetailERP's own sales-order collection, so the dashboard used to show ₹0 / 0 orders while
+ * customers were ordering on the site. Both sources are read independently and merged.
+ */
+async function webDashboardOrders(todayStart: Date, last30Start: Date): Promise<ErpDashboardOrders> {
+  const Orders = OrderModel(await getWebConnection());
+  const created = O.createdAt;
+  const items = `$${O.items}`;
+  const net = `$${O.netAmount}`;
+  const revenue = { $sum: { $ifNull: [net, 0] } };
+  const [todayRows, last30Rows, statusRows, byDay, topSkus, latest, outForDelivery] = await Promise.all([
+    Orders.aggregate<{ orders: number; revenue: number }>([
+      { $match: { [created]: { $gte: todayStart } } },
+      { $group: { _id: null, orders: { $sum: 1 }, revenue } },
+    ]),
+    Orders.aggregate<{ orders: number; revenue: number }>([
+      { $match: { [created]: { $gte: last30Start } } },
+      { $group: { _id: null, orders: { $sum: 1 }, revenue } },
+    ]),
+    Orders.aggregate<{ _id: string; count: number }>([
+      { $group: { _id: `$${O.orderStatus}`, count: { $sum: 1 } } },
+    ]),
+    Orders.aggregate<{ _id: string; orders: number; revenue: number }>([
+      { $match: { [created]: { $gte: last30Start } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: `$${created}`, onNull: "?" } },
+          orders: { $sum: 1 },
+          revenue,
+        },
+      },
+      { $match: { _id: { $ne: "?" } } },
+      { $sort: { _id: 1 } },
+    ]),
+    Orders.aggregate<{ _id: string; name?: string; qty: number; revenue: number }>([
+      { $match: { [created]: { $gte: last30Start } } },
+      { $unwind: items },
+      {
+        $group: {
+          _id: `${items}.${OI.sku}`,
+          name: { $first: `${items}.${OI.name}` },
+          qty: { $sum: `${items}.${OI.qty}` },
+          revenue: { $sum: `${items}.${OI.amount}` },
+        },
+      },
+      { $match: { _id: { $nin: [null, ""] } } },
+      { $sort: { revenue: -1 } },
+      { $limit: 8 },
+    ]),
+    Orders.find({}).sort({ [created]: -1 }).limit(5).lean<AnyDoc[]>(),
+    Orders.find({ [O.orderStatus]: "Out for delivery" }).sort({ [created]: -1 }).limit(5).lean<AnyDoc[]>(),
+  ]);
+  const statusCounts: Record<string, number> = {};
+  for (const row of statusRows) statusCounts[row._id] = (statusCounts[row._id] ?? 0) + row.count;
+  const last30 = last30Rows[0] ?? { orders: 0, revenue: 0 };
+  return {
+    today: todayRows[0] ?? { orders: 0, revenue: 0 },
+    last30: {
+      orders: last30.orders,
+      revenue: last30.revenue,
+      aov: last30.orders ? Math.round(last30.revenue / last30.orders) : 0,
+    },
+    statusCounts,
+    series: byDay.map((row) => ({ date: row._id, orders: row.orders, revenue: row.revenue })),
+    topSkus: topSkus.map((row) => ({ sku: row._id, name: row.name ?? row._id, qty: row.qty, revenue: row.revenue })),
+    latestOrders: latest.map((doc) => mapOrder(doc)),
+    outForDelivery: outForDelivery.map((doc) => mapOrder(doc)),
+  };
+}
+
+/** Combine website and RetailERP figures into one dashboard snapshot (either source may be null). */
+export function mergeDashboardOrders(...sources: (ErpDashboardOrders | null)[]): ErpDashboardOrders {
+  const merged = emptyDashboardOrders();
+  const series = new Map<string, { date: string; orders: number; revenue: number }>();
+  const skus = new Map<string, { sku: string; name: string; qty: number; revenue: number }>();
+  const latest = new Map<string, Order>();
+  const delivery = new Map<string, Order>();
+  for (const source of sources) {
+    if (!source) continue;
+    merged.today.orders += source.today.orders;
+    merged.today.revenue += source.today.revenue;
+    merged.last30.orders += source.last30.orders;
+    merged.last30.revenue += source.last30.revenue;
+    for (const [status, count] of Object.entries(source.statusCounts)) {
+      merged.statusCounts[status] = (merged.statusCounts[status] ?? 0) + count;
+    }
+    for (const row of source.series) {
+      const current = series.get(row.date) ?? { date: row.date, orders: 0, revenue: 0 };
+      current.orders += row.orders;
+      current.revenue += row.revenue;
+      series.set(row.date, current);
+    }
+    for (const row of source.topSkus) {
+      const current = skus.get(row.sku) ?? { sku: row.sku, name: row.name, qty: 0, revenue: 0 };
+      current.qty += row.qty;
+      current.revenue += row.revenue;
+      if (row.name) current.name = row.name;
+      skus.set(row.sku, current);
+    }
+    for (const order of source.latestOrders) if (!latest.has(order.orderNo)) latest.set(order.orderNo, order);
+    for (const order of source.outForDelivery) if (!delivery.has(order.orderNo)) delivery.set(order.orderNo, order);
+  }
+  const byNewest = (a: Order, b: Order) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+  merged.last30.aov = merged.last30.orders ? Math.round(merged.last30.revenue / merged.last30.orders) : 0;
+  merged.series = [...series.values()].sort((a, b) => a.date.localeCompare(b.date));
+  merged.topSkus = [...skus.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  merged.latestOrders = [...latest.values()].sort(byNewest).slice(0, 5);
+  merged.outForDelivery = [...delivery.values()].sort(byNewest).slice(0, 5);
+  return merged;
+}
 
 export async function erpStockSummary() {
   const connection = await getErpConnection();
@@ -207,23 +344,31 @@ export async function erpOverview() {
   };
 }
 
-/** ERP sales, customers and stock are live; customer engagement remains website-owned. */
+/** Website orders and engagement are live from the web DB; RetailERP sales, customers and stock are merged in. */
 export async function dashboardStats() {
   const webConn = await getWebConnection();
   const now = new Date();
   const start30 = new Date(now.getTime() - 30 * 864e5);
   const startToday = new Date(now.toISOString().slice(0, 10));
-  const [orders, pendingReviews, newEnquiries, abandonedCarts, customers, stock] = await Promise.all([
-    getErpOrders().getDashboardOrders(startToday, start30),
+  // ERP_MONGO_URI is the alias the RetailERP backend's .env uses. With neither set, the ERP
+  // connection falls back to MONGODB_URI and every ERP figure is a truthful-but-useless zero.
+  const erpConfigured = Boolean((process.env.ERP_MONGODB_URI ?? process.env.ERP_MONGO_URI ?? "").trim());
+  const webErrors: string[] = [];
+  const erpErrors: string[] = [];
+  const [webOrders, erpOrders, pendingReviews, newEnquiries, abandonedCarts, customers, stock] = await Promise.all([
+    attemptSource("Website order stats", () => webDashboardOrders(startToday, start30), webErrors),
+    attemptSource("RetailERP order stats", () => getErpOrders().getDashboardOrders(startToday, start30), erpErrors),
     ReviewModel(webConn).countDocuments({ status: "pending" }),
     EnquiryModel(webConn).countDocuments({ status: "new" }),
     CartModel(webConn).countDocuments({ "items.0": { $exists: true }, lastActivityAt: { $lt: new Date(now.getTime() - 864e5) } }),
-    getErpConnection().then((connection) => {
+    attemptSource("RetailERP customers", async () => {
+      const connection = await getErpConnection();
       if (!connection.db) throw new Error("RetailERP database connection is not ready");
       return connection.db.collection("customers").countDocuments({});
-    }),
-    erpStockSummary(),
+    }, erpErrors),
+    attemptSource("RetailERP stock", () => erpStockSummary(), erpErrors),
   ]);
+  const orders = mergeDashboardOrders(webOrders, erpOrders);
 
   // Fill missing days so the chart always spans the full 30-day window.
   const series: { date: string; orders: number; revenue: number }[] = [];
@@ -247,6 +392,17 @@ export async function dashboardStats() {
     topSkus: orders.topSkus,
     latestOrders: orders.latestOrders,
     outForDelivery: orders.outForDelivery,
+    sources: {
+      web: { ok: webOrders !== null, error: webErrors[0] ?? null },
+      erp: {
+        configured: erpConfigured,
+        ok: erpOrders !== null,
+        stock: stock !== null,
+        // Connected, but the ERP database itself has no catalogue and no customers.
+        empty: customers === 0 && (stock?.total ?? 0) === 0,
+        error: erpErrors[0] ?? null,
+      },
+    },
   };
 }
 

@@ -197,6 +197,8 @@ export class MongoProductRepository implements ProductRepository {
           priceOverride: m.priceOverride ?? undefined,
           isFeatured: m.isFeatured ?? false,
           salesCount: m.salesCount ?? 0,
+          silkMarkCertified: m.silkMarkCertified ?? false,
+          silkMarkNumber: m.silkMarkNumber ?? undefined,
         },
       };
     });
@@ -347,7 +349,7 @@ export class MongoProductRepository implements ProductRepository {
     if (product.motif) or.push({ [P.motif]: product.motif });
     if (product.category) or.push({ [P.category]: product.category });
     if (!or.length) return [];
-    const docs = await M.find({ $and: [ACTIVE_PRODUCT_QUERY, { [P.sku]: { $ne: product.sku } }, { $or: or }] })
+    const docs = await M.find({ $and: [ACTIVE_PRODUCT_QUERY, { [P.stockQty]: { $gt: 0 } }, { [P.sku]: { $ne: product.sku } }, { $or: or }] })
       .sort(productSort("featured"))
       .limit(limit)
       .lean<AnyDoc[]>();

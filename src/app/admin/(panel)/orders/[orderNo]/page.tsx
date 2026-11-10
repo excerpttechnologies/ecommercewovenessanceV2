@@ -91,6 +91,42 @@ type Detail = Order & {
   allowedTransitions: string[];
   staffLinks?: Record<string, string>;
   isWebsite?: boolean;
+  stock?: {
+    status: string;
+    trigger?: string | null;
+    attempts?: number;
+    processedAt?: string | null;
+    restoredAt?: string | null;
+    restoredBy?: string | null;
+    lastError?: string | null;
+    processing?: boolean;
+    lines?: {
+      index: number;
+      sku: string;
+      name?: string;
+      qty: number;
+      availableStockAfter?: number | null;
+      allocations: {
+        barcodeLabelId: string;
+        barcode: string;
+        itemCode?: string;
+        qty: number;
+        onHand?: number;
+        availableStockAfter?: number;
+        current?: { onHand: number; committed: number; available: number } | null;
+      }[];
+    }[];
+  } | null;
+  stockMovements?: {
+    idempotencyKey: string;
+    movementType: string;
+    direction: string;
+    status: string;
+    sku: string;
+    barcode?: string;
+    qty: number;
+    createdAt?: string;
+  }[];
   shiprocketShipmentId?: number | string | null;
   courierName?: string | null;
   whatsappNotification?: {
@@ -126,6 +162,14 @@ const SHIPPING_TONE: Record<string, BadgeTone> = {
   failed: "red",
   cancelled: "red",
   undelivered: "red",
+};
+
+const INVENTORY_TONE: Record<string, BadgeTone> = {
+  Pending: "muted",
+  Reserved: "amber",
+  Deducted: "green",
+  Restored: "blue",
+  Failed: "red",
 };
 
 const WHATSAPP_TONE: Record<string, BadgeTone> = {
@@ -182,6 +226,15 @@ export default function OrderDetail() {
   const canCancel = (o.allowedTransitions ?? []).includes("Cancelled");
   const act = (action: string, okText: string, extra: Record<string, unknown> = {}) =>
     run(`/api/v1/admin/orders/${orderNo}/ship`, "POST", { action, ...extra }, okText);
+  const inv = (action: "process" | "restore") =>
+    run(
+      `/api/v1/admin/orders/${orderNo}/inventory`,
+      "POST",
+      // `force` only clears a stale processing lock; sending it unconditionally would let two
+      // concurrent clicks process the same order twice.
+      { action, ...(o.stock?.processing ? { force: true } : {}) },
+      action === "restore" ? "Stock released" : "Stock processed",
+    );
   const trackingEvents = [...(shipping?.trackingEvents ?? [])].reverse();
 
   return (
@@ -267,6 +320,58 @@ export default function OrderDetail() {
                 <button className={btn} disabled={busy} onClick={() => act("whatsapp", "WhatsApp payment confirmation sent")}>
                   {o.whatsappNotification ? "Retry WhatsApp message" : "Send WhatsApp confirmation"}
                 </button>
+              )}
+            </div>
+          )}
+
+          {o.isWebsite && (
+            <div className="space-y-2 rounded-sm border border-line p-4 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-widest text-muted">Stock &amp; movements</p>
+                <Badge tone={INVENTORY_TONE[o.stock?.status ?? "Pending"] ?? "muted"}>{o.stock?.status ?? "Pending"}</Badge>
+              </div>
+              <dl className="space-y-1 text-xs text-ink/80">
+                {o.stock?.trigger && <div className="flex justify-between gap-3"><dt className="text-muted">Trigger</dt><dd className="text-right font-mono">{o.stock.trigger}</dd></div>}
+                {o.stock?.processedAt && <div className="flex justify-between gap-3"><dt className="text-muted">Processed</dt><dd className="text-right">{new Date(o.stock.processedAt).toLocaleString("en-IN")}</dd></div>}
+                {o.stock?.restoredAt && <div className="flex justify-between gap-3"><dt className="text-muted">Restored</dt><dd className="text-right">{o.stock.restoredBy ? `${o.stock.restoredBy} · ` : ""}{new Date(o.stock.restoredAt).toLocaleString("en-IN")}</dd></div>}
+                {!!o.stock?.attempts && <div className="flex justify-between gap-3"><dt className="text-muted">Attempts</dt><dd className="text-right">{o.stock.attempts}</dd></div>}
+                {o.stock?.processing && <div className="flex justify-between gap-3"><dt className="text-muted">Processing</dt><dd className="text-right">in progress</dd></div>}
+              </dl>
+              {o.stock?.lastError && <p role="alert" className="rounded-sm bg-red-50 p-2 text-xs text-red-800">{o.stock.lastError}</p>}
+              {(o.stock?.lines ?? []).length > 0 && (
+                <ul className="space-y-2 text-xs">
+                  {(o.stock?.lines ?? []).map((line) => (
+                    <li key={`${line.index}-${line.sku}`} className="rounded-sm bg-ivory/70 p-2">
+                      <p className="font-medium">{line.sku} · qty {line.qty}</p>
+                      {(line.allocations ?? []).map((allocation) => (
+                        <p key={allocation.barcodeLabelId} className="text-muted">
+                          barcode {allocation.barcode || "—"} · taken {allocation.qty}
+                          {allocation.current
+                            ? ` · available now ${allocation.current.available}`
+                            : allocation.availableStockAfter != null
+                              ? ` · available after ${allocation.availableStockAfter}`
+                              : ""}
+                        </p>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(o.stockMovements?.length ?? 0) > 0 ? (
+                <ol className="space-y-1 text-xs">
+                  {(o.stockMovements ?? []).map((movement) => (
+                    <li key={movement.idempotencyKey} className="flex items-baseline justify-between gap-2">
+                      <span><b>{movement.movementType}</b> · {movement.sku}{movement.barcode ? ` · ${movement.barcode}` : ""}</span>
+                      <span className="text-muted">{movement.direction} {movement.qty} · {movement.status}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : <p className="text-xs text-muted">No stock movements recorded for this order yet.</p>}
+              {(o.stock?.status === "Failed" || o.stock?.status === "Reserved" || o.stock?.status === "Deducted") && (
+                <div className="flex flex-wrap gap-2">
+                  {o.stock?.status === "Failed" && <button className={btn} disabled={busy} onClick={() => inv("process")}>Retry stock processing</button>}
+                  {o.stock?.status !== "Failed" && <button className={btn} disabled={busy} onClick={() => { if (confirm("Release the stock this order is holding?")) inv("restore"); }}>Release / restore stock</button>}
+                </div>
               )}
             </div>
           )}

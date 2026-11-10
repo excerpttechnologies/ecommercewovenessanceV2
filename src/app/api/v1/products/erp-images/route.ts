@@ -1,14 +1,14 @@
 import type { NextRequest } from "next/server";
-import { getBarcodeImageSeries, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
+import { ERP_CATEGORY_TITLES, getBarcodeImageSeries, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
 import { redactMongoUri } from "@/lib/db";
 import { fail, handler, ok } from "@/lib/api/response";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/v1/products/erp-images?group=sarees|fabrics|plain-fabrics|dupatta */
+/** GET /api/v1/products/erp-images?group=<storefront-category> */
 export const GET = handler(async (req: NextRequest) => {
   const group = req.nextUrl.searchParams.get("group");
-  if (group !== "sarees" && group !== "fabrics" && group !== "plain-fabrics" && group !== "dupatta") {
+  if (!group || !Object.hasOwn(ERP_CATEGORY_TITLES, group)) {
     return fail("VALIDATION_ERROR", "group must be a supported storefront category", 400);
   }
 

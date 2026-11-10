@@ -11,6 +11,8 @@ import { Gallery } from "@/components/product/gallery";
 import { PincodeCheck } from "@/components/product/pincode-check";
 import { ProductRail } from "@/components/product/product-rail";
 import { Reviews } from "@/components/product/reviews";
+import { ProductInformationTabs, type ProductOverviewRow } from "@/components/product/info-tabs";
+import { COUNTRY_OF_ORIGIN, customerCareFrom, shippingReturnsFrom } from "@/lib/product-info";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { slugify } from "@/lib/utils";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -24,8 +26,9 @@ type ProductPageProps = {
 
 export async function generateMetadata({ params, searchParams }: ProductPageProps): Promise<Metadata> {
   const p = await getMasterData().products.getBySlug((await params).slug);
-  if (!p) {
+  if (!p || p.stock.qty <= 0) {
     const query = await searchParams;
+    if (p) return { title: "Product unavailable", robots: { index: false, follow: true } };
     // Placeholder pages for products without photos stay out of search results.
     if (query.comingSoon === "1" && query.name) return { title: `${query.name} — Coming Soon`, robots: { index: false, follow: true } };
     return {};
@@ -45,7 +48,8 @@ export async function generateMetadata({ params, searchParams }: ProductPageProp
 export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const master = getMasterData();
   const product = await master.products.getBySlug((await params).slug);
-  if (!product) {
+  if (!product || product.stock.qty <= 0) {
+    if (product) notFound();
     const query = await searchParams;
     if (query.comingSoon !== "1" || !query.name) notFound();
     return (
@@ -67,21 +71,28 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     master.categories.getBySlug(slugify(product.category)),
   ]);
 
-  const attrs: [string, string | undefined][] = [
-    ["Fabric", product.fabric],
-    ["Weave", product.weave],
-    ["Craft", product.craft],
-    ["Colour", product.color],
-    ["Motif / Pattern", product.motif],
-    ["Border", product.border],
-    ["Occasion", product.occasion.join(", ") || undefined],
-    ["Blouse", product.blouseIncluded ? "Blouse piece included" : "Without blouse"],
-    ["Length", product.dimensions.length ? `${product.dimensions.length} m` : undefined],
-    ["Width", product.dimensions.width ? `${product.dimensions.width} inches` : undefined],
-    ["Weight", product.dimensions.weight ? `${product.dimensions.weight} g` : undefined],
-    ["HSN", product.pricing.hsnCode],
-    ["SKU", product.sku],
-  ];
+  // Only fields the product actually carries reach the overview tab.
+  const overview: ProductOverviewRow[] = [
+    { label: "Product name", value: product.name },
+    { label: "Item code", value: product.sku },
+    { label: "Barcode", value: product.barcode ?? "" },
+    { label: "Category", value: product.category },
+    { label: "Fabric / material", value: product.fabric ?? "" },
+    { label: "Weave", value: product.weave ?? "" },
+    { label: "Craft", value: product.craft ?? "" },
+    { label: "Colour", value: product.color ?? "" },
+    { label: "Design / pattern", value: product.motif ?? "" },
+    { label: "Border", value: product.border ?? "" },
+    { label: "Occasion", value: product.occasion.join(", ") },
+    { label: "Blouse", value: product.blouseIncluded ? "Blouse piece included" : "" },
+    { label: "Length", value: product.dimensions.length ? `${product.dimensions.length} m` : "" },
+    { label: "Width", value: product.dimensions.width ? `${product.dimensions.width} inches` : "" },
+    { label: "Weight", value: product.dimensions.weight ? `${product.dimensions.weight} g` : "" },
+    { label: "Contents", value: product.blouseIncluded ? "1 saree with blouse piece" : "1 piece" },
+    { label: "Quantity", value: "1 piece" },
+    { label: "Country of origin", value: COUNTRY_OF_ORIGIN },
+    { label: "HSN", value: product.pricing.hsnCode ?? "" },
+  ].filter((row) => row.value.trim());
 
   const jsonLd = {
     "@type": "Product",
@@ -135,20 +146,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-olive">Check delivery</p>
             <PincodeCheck />
           </div>
-          <dl className="mt-6 grid grid-cols-[minmax(0,140px)_1fr] gap-x-4 gap-y-2 border-t border-line pt-5 text-sm">
-            {attrs.filter(([, v]) => v).map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="text-muted">{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-          {product.careInstructions && (
-            <details className="mt-6 border-t border-line pt-4 text-sm">
-              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wider text-olive">Care instructions</summary>
-              <p className="mt-2 text-ink/80">{product.careInstructions}</p>
-            </details>
-          )}
           {(settings.trustBadges ?? []).length > 0 && (
             <ul className="mt-6 grid grid-cols-2 gap-3 border-t border-line pt-5 text-xs text-muted">
               {settings.trustBadges!.slice(0, 4).map((b, i) => <li key={i}>✓ {b.title}</li>)}
@@ -156,6 +153,16 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           )}
         </div>
       </div>
+
+      <ProductInformationTabs
+        productName={product.name}
+        overview={overview}
+        material={product.fabric}
+        careInstructions={product.careInstructions}
+        silkMark={product.web?.silkMarkCertified ? { certified: true, number: product.web.silkMarkNumber } : null}
+        shipping={shippingReturnsFrom(settings)}
+        customerCare={customerCareFrom(settings)}
+      />
 
       <Reviews sku={product.sku} />
 

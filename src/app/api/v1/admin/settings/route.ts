@@ -25,7 +25,7 @@ const Settings = z.object({
   contact: z.object({ phone: z.string(), email: z.string(), address: z.string(), hours: z.string() }).partial().optional(),
   social: z.object({ instagram: z.string(), facebook: z.string(), youtube: z.string() }).partial().optional(),
   seo: z.object({ defaultTitle: z.string(), defaultDescription: z.string(), ogImage: z.string() }).partial().optional(),
-  commerce: z.object({ lowStockThreshold: z.number().int().min(0), freeShippingAbove: z.number().min(0), shippingCharge: z.number().min(0), codEnabled: z.boolean(), razorpayEnabled: z.boolean(), serviceablePincodePrefixes: z.array(z.string()) }).partial().optional(),
+  commerce: z.object({ lowStockThreshold: z.number().int().min(0), freeShippingAbove: z.number().min(0), shippingCharge: z.number().min(0), codEnabled: z.boolean(), razorpayEnabled: z.boolean(), serviceablePincodePrefixes: z.array(z.string()), processingDays: z.number().int().min(1).max(30), returnWindowDays: z.number().int().min(1).max(90) }).partial().optional(),
   shipping: z.object({
     enabled: z.boolean(),
     fallbackToFlatRate: z.boolean(),

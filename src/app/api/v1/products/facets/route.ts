@@ -9,5 +9,5 @@ export const dynamic = "force-dynamic";
 export const GET = handler(async (req: NextRequest) => {
   const parsed = parseProductListParams(req.nextUrl.searchParams);
   if (!parsed.ok) return fail("VALIDATION_ERROR", "Invalid query parameters", 400, parsed.error.flatten());
-  return ok(await getMasterData().products.facets(parsed.params));
+  return ok(await getMasterData().products.facets({ ...parsed.params, inStock: true }));
 });

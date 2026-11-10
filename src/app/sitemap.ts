@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { env } from "@/lib/env";
 import { ERP_CATEGORY_TITLES, getBarcodeImageCatalog, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
 import { barcodeProductPath } from "@/lib/paths";
-import { absoluteUrl, barcodeProductFacts, publicImage } from "@/lib/seo";
+import { absoluteUrl, publicImage } from "@/lib/seo";
 import { getMasterData, getSite } from "@/repositories";
 
 export const revalidate = 3600;
@@ -16,8 +16,6 @@ async function erpProductEntries(group: StorefrontCategoryGroup): Promise<Metada
   for (let page = 1; page <= MAX_PAGES_PER_GROUP; page++) {
     const result = await getBarcodeImageCatalog(group, page, {}, ERP_PAGE_SIZE);
     for (const item of result.items) {
-      // Sold pieces keep their page, but the sitemap only advertises what can be bought.
-      if (!barcodeProductFacts(item).inStock) continue;
       const image = publicImage(item.image);
       entries.push({
         url: absoluteUrl(barcodeProductPath(group, item.barcode)),
@@ -65,7 +63,7 @@ async function masterEntries(): Promise<MetadataRoute.Sitemap> {
   const reserved = new Set(Object.keys(ERP_CATEGORY_TITLES));
   const products: MetadataRoute.Sitemap = [];
   for (let page = 1; page <= 50; page++) {
-    const r = await master.products.list({ page, limit: 96, sort: "newest" });
+    const r = await master.products.list({ page, limit: 96, sort: "newest", inStock: true });
     products.push(...r.items.map((p) => ({ url: absoluteUrl(`/products/${p.slug}`), changeFrequency: "weekly" as const, priority: 0.6 })));
     if (page >= r.pages) break;
   }
