@@ -90,7 +90,7 @@ describe("barcode label series", () => {
 
     await expect(repository.getLabelIdsForProductTypes(["SAREES"])).resolves.toEqual(["label-1", "label-2"]);
     expect(ecommerceFind).toHaveBeenCalledWith(
-      { productType: { $in: ["SAREES"] }, isPublished: true },
+      { productType: { $in: ["SAREES"] }, status: { $in: ["active", "Active", "ACTIVE"] }, isPublished: true },
       { projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, _id: 0 } },
     );
     expect(labelFind).toHaveBeenCalledTimes(1);
@@ -116,6 +116,7 @@ describe("barcode label series", () => {
     expect(ecommerceFind).toHaveBeenCalledWith(
       {
         productType: { $in: ["SAREES"] },
+        status: { $in: ["active", "Active", "ACTIVE"] },
         isPublished: true,
         $and: [{
           $or: [

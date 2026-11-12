@@ -716,40 +716,45 @@ function sortStages(sort?: BarcodeSort): PipelineStage[] {
 }
 
 /**
- * Live on the storefront: products must be both Active AND Published in the ERP.
- * - isPublished: true (required) - Product is marked as published for ecommerce
- * - isActive: must NOT be explicitly false (defaults to active if missing)
- * - status: if present, must NOT be explicitly "Inactive" (case-insensitive)
+ * ERP lifecycle statuses that may appear on the storefront. EcommerceProduct.status is
+ * 'draft' | 'active' | 'archived' (the ERP labels it "Active Status"); case variants are
+ * tolerated because older records were written by hand.
+ */
+const ECOMMERCE_ACTIVE_STATUSES = ["active", "Active", "ACTIVE"];
+
+/**
+ * The single storefront eligibility rule for ecommerceproduct records — it mirrors the
+ * ERP's own public API (wovenessenceV2 app/api/v1/storefront/products):
+ *   status === 'active'  AND  isPublished === true
+ * `isActive` is intentionally NOT part of the rule: the ERP writes a stray `false` on
+ * every ecommerceproduct record and its own storefront API ignores the field, so
+ * filtering on it would hide the entire catalogue.
+ */
+function ecommerceEligibilityMatch(): Record<string, unknown> {
+  return {
+    status: { $in: ECOMMERCE_ACTIVE_STATUSES },
+    isPublished: true,
+  };
+}
+
+/**
+ * Live on the storefront: products must be Active AND Published in the ERP
+ * (see ecommerceEligibilityMatch), plus the group/product-type restriction.
  */
 function activeEcommerceMatch(productTypes: string[]): Record<string, unknown> {
-  // Inactive values for isActive field (same as PRODUCT_FIELDS.isActive logic)
-  const inactiveIsActiveValues = [false, 0, "0", "N", "n", "no", "false", "inactive", "Inactive", "FALSE", "INACTIVE"];
-  
-  // Base filter: must be published AND not explicitly inactive
-  const baseFilter = {
-    isPublished: true,
-    isActive: { $nin: inactiveIsActiveValues },
-    // Also exclude records with explicit "Inactive" status string
-    status: { $nin: ["Inactive", "inactive", "INACTIVE", "Disabled", "disabled", "DISABLED"] },
-  };
-  
-  // the Best Buy section: published products with the ERP's Best Buy tick, any product type
+  const baseFilter = ecommerceEligibilityMatch();
+
+  // the Best Buy section: published+active products with the ERP's Best Buy tick, any product type
   if (productTypes.includes(ERP_BEST_BUY_PRODUCT_TYPE)) {
-    return { 
-      isBestBuy: true, 
-      ...baseFilter,
-    };
+    return { isBestBuy: true, ...baseFilter };
   }
-  
-  // the New Arrivals section: published products added in the last 48 hours, any product type
+
+  // the New Arrivals section: published+active products added in the last 48 hours, any product type
   if (productTypes.includes(ERP_NEW_ARRIVAL_PRODUCT_TYPE)) {
-    return { 
-      ...baseFilter,
-      $or: createdAtWindow(NEW_ARRIVAL_HOURS),
-    };
+    return { ...baseFilter, $or: createdAtWindow(NEW_ARRIVAL_HOURS) };
   }
-  
-  // Regular collections: filter by product type AND active/published status
+
+  // Regular collections: product type + active + published
   return {
     productType: { $in: productTypes },
     ...baseFilter,
@@ -993,6 +998,91 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       { $project: { _id: { $toString: "$_id" } } },
     ]).toArray();
     return rows.map((row) => row._id);
+  }
+
+  /**
+   * Resolve eligible (Active + Published) label IDs for add-on category groups
+   * (Inskirt, Ready Bits, etc.).
+   *
+   * Strategy:
+   * 1. Query ecommerceproduct for eligible records (ecommerceEligibilityMatch — no
+   *    productType restriction because add-on groups have no dedicated ERP product type).
+   * 2. For each matching ecommerceproduct, resolve its linked barcode label IDs (same logic as
+   *    getLabelIdsForProductTypes: via erpDocumentId direct link or saved barcodes).
+   * 3. Intersect with labels that actually belong to one of the requested productgroup IDs.
+   *
+   * Returns an empty list when nothing eligible backs the group — callers must show an
+   * empty collection rather than falling back to unpublished labels.
+   */
+  async getLabelIdsForProductGroups(groupIds: string[]): Promise<string[]> {
+    if (!groupIds.length) return [];
+    const connection = await this.conn();
+
+    // Step 1 — find all Active+Published ecommerceproduct records (no productType filter,
+    // because add-on categories don't have a dedicated ERP product type).
+    const publishedMatch = ecommerceEligibilityMatch();
+
+    let ecommerceProducts: AnyDoc[];
+    try {
+      ecommerceProducts = await connection.db!.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.ecommerceProducts)
+        .find(publishedMatch as unknown as Record<string, unknown>, {
+          projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, _id: 0 },
+        })
+        .toArray();
+    } catch (err) {
+      console.error(`[barcode-groups] ecommerceproduct query failed for groups ${groupIds.join(", ")}: ${String((err as Error)?.message ?? err)}`);
+      // Fall back to group-only query so the page doesn't crash
+      return [];
+    }
+
+    if (!ecommerceProducts.length) {
+      // No published ecommerceproduct records at all — return empty; storefront shows nothing
+      // rather than showing all unpublished labels.
+      return [];
+    }
+
+    // Step 2 — resolve published ecommerceproducts → label IDs (direct + barcode refs).
+    const directLabelIds = new Set<string>();
+    const barcodeReferences: { codes: string[]; businessId?: string }[] = [];
+    for (const product of ecommerceProducts) {
+      if (product.erpDocumentId != null) directLabelIds.add(String(product.erpDocumentId));
+      const codes = savedBarcodes(product);
+      if (codes.length) barcodeReferences.push({ codes, businessId: product.businessId == null ? undefined : String(product.businessId) });
+    }
+
+    const [directLabels, barcodeLabelIds] = await Promise.all([
+      directLabelIds.size
+        ? connection.db!.collection(ERP_BARCODE_COLLECTIONS.labels)
+            .find(
+              { $or: [{ _id: { $in: [...directLabelIds].flatMap((id) => [id, toObjectIdOrString(id)]) } }] } as unknown as Record<string, unknown>,
+              { projection: { _id: 1, [B.groupId]: 1 } },
+            )
+            .toArray()
+        : Promise.resolve([]),
+      this.labelIdsForSavedBarcodes(connection, barcodeReferences),
+    ]);
+
+    // All label IDs that have an Active+Published ecommerceproduct backing them.
+    const publishedLabelIds = new Set([
+      ...directLabels.map((l) => String(l._id)),
+      ...barcodeLabelIds,
+    ]);
+
+    if (!publishedLabelIds.size) {
+      return [];
+    }
+
+    // Step 3 — intersect with the group's own labels so we only return labels that
+    // belong to the requested productgroup AND are backed by a published ecommerceproduct.
+    const groupObjectIds = groupIds.flatMap((id) => [id, toObjectIdOrString(id)]);
+    const groupLabels = await connection.db!.collection(ERP_BARCODE_COLLECTIONS.labels)
+      .find(
+        { _id: { $in: [...publishedLabelIds].flatMap((id) => [id, toObjectIdOrString(id)]) }, [B.groupId]: { $in: groupObjectIds } } as unknown as Record<string, unknown>,
+        { projection: { _id: 1 } },
+      )
+      .toArray();
+
+    return groupLabels.map((l) => String(l._id));
   }
 
   async getLabelIdsForProductTypes(

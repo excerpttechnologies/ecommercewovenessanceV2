@@ -65,6 +65,13 @@ export interface BarcodeLabelRepository {
   list(params: BarcodeListParams): Promise<Paginated<BarcodeProduct> & { skipped: number }>;
   /** Resolve label document IDs through modern ERP Item group assignments. */
   getLabelIdsForItemGroups(groupIds: string[]): Promise<string[]>;
+  /**
+   * Resolve eligible (Active + Published in the ERP) label IDs for add-on categories
+   * (Inskirt, Ready Bits, etc.). Queries ecommerceproduct for eligible records whose
+   * linked barcode label belongs to one of the given product groups, then returns
+   * those label IDs. Empty when nothing eligible backs the groups.
+   */
+  getLabelIdsForProductGroups(groupIds: string[]): Promise<string[]>;
   /** Resolve barcode-label IDs through active ERP e-commerce product types. */
   getLabelIdsForProductTypes(
     productTypes: string[],

@@ -425,13 +425,23 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     occasion: filters.occasion,
     color: filters.color,
   };
-  const [{ labelIds }, excludedBarcodes] = await Promise.all([
-    groupIds ? Promise.resolve({ labelIds: [] as string[] }) : getBarcodeImageScopes(group as EcommerceCategoryGroup, subgroup, classifications),
+
+  // Add-on categories (Inskirt, Ready Bits, etc.) resolve their eligible label IDs via
+  // ecommerceproduct first (Active + Published check), then intersect with the product group.
+  // When nothing eligible backs the group the collection is empty — unpublished labels are
+  // never shown as a fallback.
+  const [scopeResult, excludedBarcodes] = await Promise.all([
+    groupIds
+      ? barcodeLabels.getLabelIdsForProductGroups([...groupIds]).then((ids) => ({ labelIds: ids, isAddOn: true }))
+      : getBarcodeImageScopes(group as EcommerceCategoryGroup, subgroup, classifications).then((r) => ({ ...r, isAddOn: false })),
     inactiveBarcodes(),
   ]);
-  if (!groupIds && !labelIds.length) return { items: [], total: 0, page, pages: 0 };
-  const hasClassifications = !groupIds && Object.values(classifications).some(Boolean);
-  const ecommerceMatches = !groupIds && q?.trim()
+
+  const { labelIds, isAddOn } = scopeResult;
+  if (!labelIds.length) return { items: [], total: 0, page, pages: 0 };
+
+  const hasClassifications = !isAddOn && Object.values(classifications).some(Boolean);
+  const ecommerceMatches = !isAddOn && q?.trim()
     ? hasClassifications
       ? await barcodeLabels.getLabelIdsForProductTypes(
           [...ERP_CATEGORY_PRODUCT_TYPES[group]],
@@ -455,7 +465,7 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
   const detailView = Boolean(barcode?.trim());
   // Only labels currently available for purchase are part of the storefront catalog.
   const catalog = await barcodeLabels.list({
-    ...(groupIds ? { groupIds: [...groupIds] } : { labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds }),
+    labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
     excludedBarcodes,
     availableOnly: true,
     resolveImages: true,
@@ -475,8 +485,14 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
 export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
   const groupIds = getAddOnGroupIds(group);
   if (groupIds) {
-    const excludedBarcodes = await inactiveBarcodes();
-    const facets = await getBarcodeLabels().facets({ groupIds: [...groupIds], excludedBarcodes, availableOnly: true });
+    const [labelIds, excludedBarcodes] = await Promise.all([
+      getBarcodeLabels().getLabelIdsForProductGroups([...groupIds]),
+      inactiveBarcodes(),
+    ]);
+    if (!labelIds.length) {
+      return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
+    }
+    const facets = await getBarcodeLabels().facets({ labelIds, excludedBarcodes, availableOnly: true });
     return { ...facets, subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [] };
   }
   const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group as EcommerceCategoryGroup), inactiveBarcodes()]);
@@ -492,11 +508,16 @@ export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGrou
 export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
   const barcodeLabels = getBarcodeLabels();
   const groupIds = getAddOnGroupIds(group);
-  const [{ labelIds }, excludedBarcodes] = await Promise.all([
-    groupIds ? Promise.resolve({ labelIds: [] as string[] }) : getBarcodeImageScopes(group as EcommerceCategoryGroup),
+  const [scopeResult, excludedBarcodes] = await Promise.all([
+    groupIds
+      ? barcodeLabels.getLabelIdsForProductGroups([...groupIds]).then((ids) => ({ labelIds: ids }))
+      : getBarcodeImageScopes(group as EcommerceCategoryGroup).then((r) => ({ ...r })),
     inactiveBarcodes(),
   ]);
-  if (!groupIds && !labelIds.length) {
+
+  const { labelIds } = scopeResult;
+
+  if (!labelIds.length) {
     return (["8A", "9A"] as const).map((prefix) => ({ title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`, items: [] as BarcodeProduct[] }));
   }
 
@@ -504,7 +525,8 @@ export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
   const series = [];
   for (const prefix of ["8A", "9A"] as const) {
     const result = await barcodeLabels.list({
-      ...(groupIds ? { groupIds: [...groupIds], resolveImages: true } : { labelIds }),
+      labelIds,
+      resolveImages: true,
       seriesPrefix: prefix,
       excludedBarcodes,
       availableOnly: true,

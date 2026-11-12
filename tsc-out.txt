@@ -1,0 +1,227 @@
+src/repositories/mongo/barcode-label.repository.ts(1085,27): error TS1442: Expected '=' for property initializer.
+src/repositories/mongo/barcode-label.repository.ts(1086,24): error TS1442: Expected '=' for property initializer.
+src/repositories/mongo/barcode-label.repository.ts(1087,19): error TS1442: Expected '=' for property initializer.
+src/repositories/mongo/barcode-label.repository.ts(1088,75): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1089,3): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected.
+src/repositories/mongo/barcode-label.repository.ts(1089,4): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected.
+src/repositories/mongo/barcode-label.repository.ts(1089,20): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1089,22): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1090,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1090,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1090,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1090,38): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1090,40): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1091,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1091,41): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1092,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1092,58): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1093,14): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1093,20): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1093,22): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1182,3): error TS1128: Declaration or statement expected.
+src/repositories/mongo/barcode-label.repository.ts(1189,3): error TS1128: Declaration or statement expected.
+src/repositories/mongo/barcode-label.repository.ts(1189,11): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1190,15): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1191,15): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1191,33): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1191,34): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1191,58): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1192,4): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1192,21): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1193,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1193,83): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1194,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1194,15): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1194,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1194,31): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1194,33): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1197,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1197,107): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1198,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1203,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1204,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1204,47): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1205,10): error TS1359: Identifier expected. 'const' is a reserved word that cannot be used here.
+src/repositories/mongo/barcode-label.repository.ts(1205,16): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1205,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1205,25): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1209,5): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1209,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1209,34): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1210,10): error TS1359: Identifier expected. 'const' is a reserved word that cannot be used here.
+src/repositories/mongo/barcode-label.repository.ts(1210,16): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1210,52): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1210,55): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1219,5): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1219,12): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1219,20): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1222,3): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1223,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1223,26): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1224,4): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1224,66): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1225,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1225,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1225,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1225,38): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1225,40): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1226,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1226,41): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1227,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1247,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1248,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1248,71): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1249,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1249,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1249,33): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1249,71): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1249,75): error TS1109: Expression expected.
+src/repositories/mongo/barcode-label.repository.ts(1263,3): error TS1128: Declaration or statement expected.
+src/repositories/mongo/barcode-label.repository.ts(1265,3): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1265,45): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1265,54): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1265,56): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1265,78): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1266,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1266,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1266,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1266,38): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1266,40): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1267,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1267,41): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1268,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1273,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1274,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1275,65): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1276,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1276,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1276,24): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1276,33): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1276,35): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1277,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1279,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1280,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1280,45): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1281,10): error TS1359: Identifier expected. 'const' is a reserved word that cannot be used here.
+src/repositories/mongo/barcode-label.repository.ts(1281,16): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1281,21): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1281,24): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1286,5): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1286,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1286,16): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1286,21): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1286,30): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1286,32): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1287,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1287,89): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1288,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1290,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1291,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1298,8): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1299,12): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1300,54): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1308,3): error TS1128: Declaration or statement expected.
+src/repositories/mongo/barcode-label.repository.ts(1308,11): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1308,35): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1308,56): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1308,65): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1308,67): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1309,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1309,134): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1310,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1310,18): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1310,25): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1310,34): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1310,43): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1311,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1311,167): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1312,12): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1312,50): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1315,3): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1315,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1315,47): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1316,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1316,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1317,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1317,37): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1318,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1321,6): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1322,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1351,7): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1352,10): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1352,30): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1352,45): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1352,61): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1352,82): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1353,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1353,131): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1354,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1354,87): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1356,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1356,17): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1356,22): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1356,23): error TS1109: Expression expected.
+src/repositories/mongo/barcode-label.repository.ts(1356,25): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1356,73): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1357,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1357,47): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1358,10): error TS1359: Identifier expected. 'const' is a reserved word that cannot be used here.
+src/repositories/mongo/barcode-label.repository.ts(1358,16): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1358,18): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1358,21): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1358,29): error TS1005: '{' expected.
+src/repositories/mongo/barcode-label.repository.ts(1358,37): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1358,86): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1359,12): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1365,6): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1368,3): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1368,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1368,38): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1369,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1369,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1370,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1370,103): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1371,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1371,15): error TS1005: '{' expected.
+src/repositories/mongo/barcode-label.repository.ts(1371,22): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1371,26): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1372,9): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1373,14): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1373,34): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1374,7): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1374,13): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1375,14): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1375,18): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1379,3): error TS1434: Unexpected keyword or identifier.
+src/repositories/mongo/barcode-label.repository.ts(1379,31): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1379,40): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1379,42): error TS1005: ';' expected.
+src/repositories/mongo/barcode-label.repository.ts(1379,67): error TS1011: An element access expression should take an argument.
+src/repositories/mongo/barcode-label.repository.ts(1380,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1380,73): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1381,9): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1381,24): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1381,31): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1381,40): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1381,42): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1382,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1382,29): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1383,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1388,7): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1389,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1389,41): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1390,11): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1390,56): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,10): error TS1359: Identifier expected. 'const' is a reserved word that cannot be used here.
+src/repositories/mongo/barcode-label.repository.ts(1391,16): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,21): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,24): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,31): error TS1005: '{' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,35): error TS1003: Identifier expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,45): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,63): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,74): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1391,98): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1392,12): error TS1005: ':' expected.
+src/repositories/mongo/barcode-label.repository.ts(1395,7): error TS1005: ',' expected.
+src/repositories/mongo/barcode-label.repository.ts(1397,1): error TS1128: Declaration or statement expected.
