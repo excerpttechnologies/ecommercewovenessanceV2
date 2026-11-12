@@ -107,9 +107,12 @@ Storefront category membership follows the ERP e-commerce product classification
 | Plain Fabrics | `PLAIN FABRICS` |
 | Dupatta | `DUPATTA` |
 
-Active e-commerce products (active `status` or `isActive: true`) are included, including records not marked as published, because
-unpublished entries were explicitly requested for the storefront. Their barcode labels are resolved
-by the exact `itemId` and `businessId` pair, the same references used by the admin product editor.
+Active and published e-commerce products are included on the storefront. Products must meet BOTH criteria:
+- `isPublished: true` - Product is marked as published for ecommerce in the ERP
+- `isActive` must NOT be explicitly false (defaults to active if missing)
+- `status` if present, must NOT be "Inactive" or "Disabled" (case-insensitive)
+
+Their barcode labels are resolved by the exact `itemId` and `businessId` pair, the same references used by the admin product editor.
 This keeps category assignment consistent with RetailERP's Product-Ecom screen; the public
 catalogue does not infer categories from barcode prefixes, descriptions, item codes or a similarly
 named inventory group. Product-Ecom supplies the storefront display name, description, item code,

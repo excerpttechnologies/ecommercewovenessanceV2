@@ -715,17 +715,44 @@ function sortStages(sort?: BarcodeSort): PipelineStage[] {
   return [{ $sort: { _id: -1 as const } }];
 }
 
-/** Live on the storefront: the ERP's "Is Published" tick alone decides (Is Active / Active Status are not used). */
+/**
+ * Live on the storefront: products must be both Active AND Published in the ERP.
+ * - isPublished: true (required) - Product is marked as published for ecommerce
+ * - isActive: must NOT be explicitly false (defaults to active if missing)
+ * - status: if present, must NOT be explicitly "Inactive" (case-insensitive)
+ */
 function activeEcommerceMatch(productTypes: string[]): Record<string, unknown> {
+  // Inactive values for isActive field (same as PRODUCT_FIELDS.isActive logic)
+  const inactiveIsActiveValues = [false, 0, "0", "N", "n", "no", "false", "inactive", "Inactive", "FALSE", "INACTIVE"];
+  
+  // Base filter: must be published AND not explicitly inactive
+  const baseFilter = {
+    isPublished: true,
+    isActive: { $nin: inactiveIsActiveValues },
+    // Also exclude records with explicit "Inactive" status string
+    status: { $nin: ["Inactive", "inactive", "INACTIVE", "Disabled", "disabled", "DISABLED"] },
+  };
+  
   // the Best Buy section: published products with the ERP's Best Buy tick, any product type
-  if (productTypes.includes(ERP_BEST_BUY_PRODUCT_TYPE)) return { isBestBuy: true, isPublished: true };
+  if (productTypes.includes(ERP_BEST_BUY_PRODUCT_TYPE)) {
+    return { 
+      isBestBuy: true, 
+      ...baseFilter,
+    };
+  }
+  
   // the New Arrivals section: published products added in the last 48 hours, any product type
   if (productTypes.includes(ERP_NEW_ARRIVAL_PRODUCT_TYPE)) {
-    return { isPublished: true, $or: createdAtWindow(NEW_ARRIVAL_HOURS) };
+    return { 
+      ...baseFilter,
+      $or: createdAtWindow(NEW_ARRIVAL_HOURS),
+    };
   }
+  
+  // Regular collections: filter by product type AND active/published status
   return {
     productType: { $in: productTypes },
-    isPublished: true,
+    ...baseFilter,
   };
 }
 
