@@ -761,6 +761,13 @@ function activeEcommerceMatch(productTypes: string[]): Record<string, unknown> {
   };
 }
 
+function scopeToBusiness(match: Record<string, unknown>, businessId?: string): Record<string, unknown> {
+  if (businessId) {
+    match.businessId = { $in: [businessId, toObjectIdOrString(businessId)] };
+  }
+  return match;
+}
+
 /** Barcodes the ERP product-eccom form saved on the record (`barcode`, plus any extra in `barcodes`). */
 function savedBarcodes(product: AnyDoc): string[] {
   const values = [product.barcode, ...(Array.isArray(product.barcodes) ? product.barcodes : [])];
@@ -1089,17 +1096,20 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     productTypes: string[],
     subgroupId?: string,
     query?: string,
-    classifications: Partial<Record<EcommerceClassification, string>> = {},
+    classifications: Partial<Record<EcommerceClassification, string | string[]>> = {},
+    businessId?: string,
   ): Promise<string[]> {
     if (!productTypes.length) return [];
     const connection = await this.conn();
-    const ecommMatch = activeEcommerceMatch(productTypes);
+    const ecommMatch = scopeToBusiness(activeEcommerceMatch(productTypes), businessId);
     if (query?.trim()) {
       const search = new RegExp(escapeRegex(query.trim()), "i");
       ecommMatch.$and = [{ $or: ["ecommItemCode", "itemCode"].map((field) => ({ [field]: search })) }];
     }
     const selectedClassifications = Object.entries(classifications)
-      .filter((entry): entry is [EcommerceClassification, string] => Boolean(entry[1]?.trim()));
+      .filter((entry): entry is [EcommerceClassification, string | string[]] =>
+        (Array.isArray(entry[1]) ? entry[1] : [entry[1]]).some((value) => Boolean(value?.trim())),
+      );
     const classificationProjection = selectedClassifications.length
       ? {
           byWeave: 1,
@@ -1135,9 +1145,11 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       const names = await this.classificationNames(connection, ecommerceProducts);
       ecommerceProducts = ecommerceProducts.filter((product) =>
         selectedClassifications.every(([field, selected]) => {
-          const expected = selected.trim().toLocaleLowerCase();
+          const expected = (Array.isArray(selected) ? selected : [selected])
+            .map((value) => value.trim().toLocaleLowerCase())
+            .filter(Boolean);
           return ecommerceClassificationValues(product, field).some((value) =>
-            classificationLabel(value, names)?.toLocaleLowerCase() === expected,
+            expected.includes(classificationLabel(value, names)?.toLocaleLowerCase() ?? ""),
           );
         }),
       );
@@ -1225,12 +1237,13 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
 
   async getProductTypeClassifications(
     productTypes: string[],
+    businessId?: string,
   ): Promise<Partial<Record<EcommerceClassification, FacetOption[]>>> {
     if (!productTypes.length) return {};
     const connection = await this.conn();
     const products = await connection.db!.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.ecommerceProducts)
       .find(
-        activeEcommerceMatch(productTypes),
+        scopeToBusiness(activeEcommerceMatch(productTypes), businessId),
         {
           projection: {
             byWeave: 1,
@@ -1266,12 +1279,12 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     return facets;
   }
 
-  async getProductTypeSubgroups(productTypes: string[]): Promise<FacetOption[]> {
+  async getProductTypeSubgroups(productTypes: string[], businessId?: string): Promise<FacetOption[]> {
     if (!productTypes.length) return [];
     const connection = await this.conn();
     const ecommerceProducts = await connection.db!.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts)
       .find(
-        activeEcommerceMatch(productTypes),
+        scopeToBusiness(activeEcommerceMatch(productTypes), businessId),
         { projection: { itemId: 1, businessId: 1, _id: 0 } },
       )
       .toArray();

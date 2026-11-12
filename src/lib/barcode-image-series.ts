@@ -267,7 +267,7 @@
 
 import { cache } from "react";
 import { getBarcodeLabels } from "@/repositories";
-import type { BarcodeProduct, BarcodeSort } from "@/domain/types";
+import type { BarcodeFacets, BarcodeProduct, BarcodeSort } from "@/domain/types";
 import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
 import { env } from "@/lib/env";
 import { erpEcommerceKey, loadErpEcommerceCatalogs } from "@/lib/admin/erp-ecommerce-catalog";
@@ -279,7 +279,7 @@ import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnC
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
 type EcommerceCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
 export type EcommerceClassification = "weave" | "fabric" | "craft" | "occasion" | "color";
-export type EcommerceClassificationFilters = Partial<Record<EcommerceClassification, string>>;
+export type EcommerceClassificationFilters = Partial<Record<EcommerceClassification, string | string[]>>;
 // NEW (price filter): priceMin / priceMax added to the end of this type.
 export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string; sort?: BarcodeSort; priceMin?: number; priceMax?: number };
 
@@ -315,6 +315,120 @@ export const ERP_CATEGORY_PRODUCT_TYPES: Record<StorefrontCategoryGroup, readonl
   "new-arrivals": [ERP_NEW_ARRIVAL_PRODUCT_TYPE],
   ...ADD_ON_PRODUCT_TYPES,
 };
+
+const CLASSIFICATION_FIELDS = {
+  byWeave: "weave",
+  byFabric: "fabric",
+  byCraft: "craft",
+  byOccasion: "occasion",
+  byColour: "color",
+} as const;
+
+type StorefrontFilterConfig = {
+  productTypes: string[];
+  businessId?: string;
+  configuredFilters: NonNullable<import("@/domain/types").BarcodeFacets["configuredFilters"]>;
+};
+
+function slugifyProductType(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^ -~]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function productTypeSlug(doc: Record<string, unknown>): string {
+  return slugifyProductType(doc.ecommerceSlug)
+    || slugifyProductType(doc.displayName)
+    || slugifyProductType(doc.label)
+    || slugifyProductType(doc.value);
+}
+
+function storefrontFilterConfig(doc: Record<string, unknown>) {
+  const configured = new Map<string, Record<string, unknown>>();
+  if (Array.isArray(doc.filterConfig)) {
+    for (const [index, raw] of doc.filterConfig.entries()) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const filter = raw as Record<string, unknown>;
+      const key = String(filter.key ?? filter.field ?? "");
+      if (Object.hasOwn(CLASSIFICATION_FIELDS, key)) {
+        configured.set(key, { ...filter, displayOrder: Number(filter.displayOrder ?? index) });
+      }
+    }
+  }
+  if (Array.isArray(doc.filters)) {
+    for (const [index, raw] of doc.filters.entries()) {
+      const key = String(raw ?? "");
+      if (Object.hasOwn(CLASSIFICATION_FIELDS, key) && !configured.has(key)) {
+        configured.set(key, { key, displayOrder: index });
+      }
+    }
+  }
+  return [...configured.values()]
+    .filter((filter) => filter.isActive !== false && filter.isVisible !== false && filter.isFilterable !== false)
+    .sort((a, b) => Number(a.displayOrder ?? 0) - Number(b.displayOrder ?? 0))
+    .flatMap((filter) => {
+      const key = String(filter.key ?? filter.field ?? "") as keyof typeof CLASSIFICATION_FIELDS;
+      const mappedKey = CLASSIFICATION_FIELDS[key];
+      return mappedKey
+        ? [{
+            key: mappedKey,
+            label: String(filter.displayLabel ?? filter.label ?? `By ${mappedKey}`),
+            selectionMode: filter.selectionMode === "single" ? "single" as const : "multiple" as const,
+          }]
+        : [];
+    });
+}
+
+const getStorefrontFilterConfig = cache(async (group: StorefrontCategoryGroup): Promise<StorefrontFilterConfig> => {
+  if (group === "best-buy" || group === "new-arrivals" || getAddOnGroupIds(group)) {
+    return { productTypes: [...ERP_CATEGORY_PRODUCT_TYPES[group]], configuredFilters: [] };
+  }
+
+  const connection = await getErpConnection();
+  const docs = await connection.db!.collection<Record<string, unknown>>("producttypes")
+    .find(
+      { isActive: { $ne: false }, ecommerceVisible: { $ne: false }, ecommerceEnabled: { $ne: false } },
+      { projection: { value: 1, label: 1, displayName: 1, ecommerceSlug: 1, businessId: 1, filters: 1, filterConfig: 1 } },
+    )
+    .toArray();
+  const configuredBusinesses = [...new Set(docs
+    .filter((doc) => Array.isArray(doc.filterConfig) && doc.filterConfig.length > 0 && doc.businessId != null)
+    .map((doc) => String(doc.businessId)))];
+  const matchingTypes = docs.filter((doc) => productTypeSlug(doc) === group);
+  const matchingBusinesses = [...new Set(matchingTypes
+    .filter((doc) => doc.businessId != null)
+    .map((doc) => String(doc.businessId)))];
+  const businessId = env.ERP_ECOMMERCE_BUSINESS_ID
+    ?? (configuredBusinesses.length === 1 ? configuredBusinesses[0] : matchingBusinesses.length === 1 ? matchingBusinesses[0] : undefined);
+
+  if (!businessId && (configuredBusinesses.length > 1 || matchingBusinesses.length > 1)) {
+    throw new Error("ERP_ECOMMERCE_BUSINESS_ID is required when the ERP has multiple e-commerce businesses.");
+  }
+
+  const typeDocs = matchingTypes.filter((doc) => String(doc.businessId ?? "") === businessId);
+  const productTypes = [...new Set(typeDocs
+    .map((doc) => typeof doc.value === "string" ? doc.value.trim() : "")
+    .filter(Boolean))];
+  return {
+    productTypes,
+    businessId,
+    configuredFilters: typeDocs.flatMap(storefrontFilterConfig).slice(0, 5),
+  };
+});
+
+export const getStorefrontClassificationFacets = cache(async (
+  group: StorefrontCategoryGroup,
+): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters">> => {
+  const config = await getStorefrontFilterConfig(group);
+  const classifications = await getBarcodeLabels().getProductTypeClassifications(config.productTypes, config.businessId);
+  const activeClassifications: Pick<BarcodeFacets, EcommerceClassification> = {};
+  for (const filter of config.configuredFilters) {
+    activeClassifications[filter.key] = classifications[filter.key] ?? [];
+  }
+  return { ...activeClassifications, configuredFilters: config.configuredFilters };
+});
 
 export function applyPrintDescriptionOverrides(items: BarcodeProduct[], overrides: Map<string, string>) {
   return items.map((item) => {
@@ -405,12 +519,12 @@ const getBarcodeImageScopes = cache(async (
   subgroupId?: string,
   classifications: EcommerceClassificationFilters = {},
 ) => {
-  const productTypes = [...ERP_CATEGORY_PRODUCT_TYPES[group]];
+  const { productTypes, businessId, configuredFilters } = await getStorefrontFilterConfig(group);
   const hasClassifications = Object.values(classifications).some(Boolean);
   const labelIds = hasClassifications
-    ? await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications)
-    : await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId);
-  return { labelIds };
+    ? await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications, businessId)
+    : await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, undefined, businessId);
+  return { labelIds, productTypes, businessId, configuredFilters };
 });
 
 /** All ERP barcode-label images for a clothing category, paged and filtered for the storefront. */
@@ -425,6 +539,13 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     occasion: filters.occasion,
     color: filters.color,
   };
+  const configuredFilters = groupIds
+    ? []
+    : (await getStorefrontFilterConfig(group as EcommerceCategoryGroup)).configuredFilters;
+  const visibleClassificationKeys = new Set(configuredFilters.map((filter) => filter.key));
+  for (const key of Object.keys(classifications) as EcommerceClassification[]) {
+    if (!visibleClassificationKeys.has(key)) delete classifications[key];
+  }
 
   // Add-on categories (Inskirt, Ready Bits, etc.) resolve their eligible label IDs via
   // ecommerceproduct first (Active + Published check), then intersect with the product group.
@@ -432,7 +553,12 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
   // never shown as a fallback.
   const [scopeResult, excludedBarcodes] = await Promise.all([
     groupIds
-      ? barcodeLabels.getLabelIdsForProductGroups([...groupIds]).then((ids) => ({ labelIds: ids, isAddOn: true }))
+      ? barcodeLabels.getLabelIdsForProductGroups([...groupIds]).then((ids) => ({
+          labelIds: ids,
+          isAddOn: true,
+          productTypes: [] as string[],
+          businessId: undefined,
+        }))
       : getBarcodeImageScopes(group as EcommerceCategoryGroup, subgroup, classifications).then((r) => ({ ...r, isAddOn: false })),
     inactiveBarcodes(),
   ]);
@@ -441,15 +567,17 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
   if (!labelIds.length) return { items: [], total: 0, page, pages: 0 };
 
   const hasClassifications = !isAddOn && Object.values(classifications).some(Boolean);
+  const ecommerceConfig = scopeResult;
   const ecommerceMatches = !isAddOn && q?.trim()
     ? hasClassifications
       ? await barcodeLabels.getLabelIdsForProductTypes(
-          [...ERP_CATEGORY_PRODUCT_TYPES[group]],
+          ecommerceConfig.productTypes,
           subgroup,
           q,
           classifications,
+          ecommerceConfig.businessId,
         )
-      : await barcodeLabels.getLabelIdsForProductTypes([...ERP_CATEGORY_PRODUCT_TYPES[group]], subgroup, q)
+      : await barcodeLabels.getLabelIdsForProductTypes(ecommerceConfig.productTypes, subgroup, q, undefined, ecommerceConfig.businessId)
     : [];
   const searchByEcommerceCode = ecommerceMatches.length > 0;
   const listFilters = {
@@ -499,8 +627,8 @@ export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGrou
   if (!scopes.labelIds.length) return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
   const [facets, subgroup, classifications] = await Promise.all([
     getBarcodeLabels().facets({ ...scopes, excludedBarcodes, availableOnly: true }),
-    getBarcodeLabels().getProductTypeSubgroups([...ERP_CATEGORY_PRODUCT_TYPES[group]]),
-    getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[group]]),
+    getBarcodeLabels().getProductTypeSubgroups(scopes.productTypes, scopes.businessId),
+    getStorefrontClassificationFacets(group),
   ]);
   return { ...facets, ...classifications, subgroup };
 }
@@ -573,10 +701,13 @@ export const getErpHomeSections = cache(async (limitPerGroup = 8) => {
  * the first storefront category where it is used.
  */
 export async function getErpFilterChips(key: EcommerceClassification): Promise<{ label: string; href: string }[]> {
-  const facets = await Promise.all(STOREFRONT_GROUPS.map(async (group) => ({
-    group,
-    options: (await getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[group]]))[key] ?? [],
-  })));
+  const facets = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+    const config = await getStorefrontClassificationFacets(group);
+    return {
+      group,
+      options: (config.configuredFilters ?? []).some((filter) => filter.key === key) ? config[key] ?? [] : [],
+    };
+  }));
   const chips = new Map<string, { label: string; href: string }>();
   for (const { group, options } of facets) {
     for (const option of options) {

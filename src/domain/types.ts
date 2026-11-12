@@ -780,6 +780,11 @@ export interface BarcodeFacets {
   group: FacetOption[];
   business: FacetOption[];
   uomType: FacetOption[];
+  configuredFilters?: {
+    key: "weave" | "fabric" | "craft" | "occasion" | "color";
+    label: string;
+    selectionMode: "single" | "multiple";
+  }[];
   subgroup?: FacetOption[];
   weave?: FacetOption[];
   fabric?: FacetOption[];

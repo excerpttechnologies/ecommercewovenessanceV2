@@ -1,14 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getLabelIdsForProductTypes, list, getErpConnection, loadErpEcommerceCatalogs } = vi.hoisted(() => ({
+const {
+  getLabelIdsForProductTypes,
+  getProductTypeClassifications,
+  getProductTypeSubgroups,
+  facets,
+  list,
+  getErpConnection,
+  loadErpEcommerceCatalogs,
+} = vi.hoisted(() => ({
   getLabelIdsForProductTypes: vi.fn(),
+  getProductTypeClassifications: vi.fn(),
+  getProductTypeSubgroups: vi.fn(),
+  facets: vi.fn(),
   list: vi.fn(),
   getErpConnection: vi.fn(),
   loadErpEcommerceCatalogs: vi.fn(),
 }));
 
 vi.mock("@/repositories", () => ({
-  getBarcodeLabels: () => ({ getLabelIdsForProductTypes, list }),
+  getBarcodeLabels: () => ({
+    getLabelIdsForProductTypes,
+    getProductTypeClassifications,
+    getProductTypeSubgroups,
+    facets,
+    list,
+  }),
 }));
 
 vi.mock("@/lib/db", () => ({ getErpConnection, getWebConnection: vi.fn() }));
@@ -39,12 +56,36 @@ vi.mock("@/models/web/content.models", () => ({
 const { getBarcodeImageCatalog } = await import("@/lib/barcode-image-series");
 
 describe("getBarcodeImageCatalog", () => {
+  let erpConnection: { db: { collection: ReturnType<typeof vi.fn> } };
+
   beforeEach(() => {
     getLabelIdsForProductTypes.mockReset();
     list.mockReset();
-    getErpConnection.mockReset().mockResolvedValue({});
+    erpConnection = {
+      db: {
+        collection: vi.fn((name: string) => ({
+          find: () => ({
+            toArray: async () => name === "producttypes"
+              ? [{
+                  value: "SAREES",
+                  ecommerceSlug: "sarees",
+                  businessId: "business-1",
+                  filterConfig: [
+                    { key: "byWeave", displayLabel: "Weave", selectionMode: "multiple" },
+                    { key: "byFabric", displayLabel: "Fabric", isVisible: false },
+                  ],
+                }]
+              : [],
+          }),
+        })),
+      },
+    };
+    getErpConnection.mockReset().mockResolvedValue(erpConnection);
     loadErpEcommerceCatalogs.mockReset().mockResolvedValue(new Map());
     getLabelIdsForProductTypes.mockResolvedValue(["category-label"]);
+    getProductTypeClassifications.mockResolvedValue({ weave: [{ value: "Brocade", label: "Brocade", count: 2 }], fabric: [] });
+    getProductTypeSubgroups.mockResolvedValue([]);
+    facets.mockResolvedValue({ status: [], group: [], business: [], uomType: [], total: 0 });
     list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 48, pages: 0, skipped: 0 });
     // Photo checks never leave the test: barcode photos are missing unless a test says otherwise.
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
@@ -57,8 +98,8 @@ describe("getBarcodeImageCatalog", () => {
 
     await getBarcodeImageCatalog("sarees", 1, { q: "10A2312" });
 
-    expect(getLabelIdsForProductTypes).toHaveBeenNthCalledWith(1, ["SAREES"], undefined);
-    expect(getLabelIdsForProductTypes).toHaveBeenNthCalledWith(2, ["SAREES"], undefined, "10A2312");
+    expect(getLabelIdsForProductTypes).toHaveBeenNthCalledWith(1, ["SAREES"], undefined, undefined, undefined, "business-1");
+    expect(getLabelIdsForProductTypes).toHaveBeenNthCalledWith(2, ["SAREES"], undefined, "10A2312", undefined, "business-1");
     expect(list).toHaveBeenCalledWith({
       labelIds: ["matched-ecommerce-label"],
       excludedBarcodes: [],
@@ -81,9 +122,33 @@ describe("getBarcodeImageCatalog", () => {
       ["SAREES"],
       undefined,
       undefined,
-      { weave: "Brocade", fabric: undefined, craft: undefined, occasion: undefined, color: undefined },
+      { weave: "Brocade" },
+      "business-1",
     );
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ labelIds: ["category-label"] }));
+  });
+
+  it("exposes only the active ERP-configured classification filters", async () => {
+    const { getBarcodeImageFilterOptions } = await import("@/lib/barcode-image-series");
+
+    const result = await getBarcodeImageFilterOptions("sarees");
+
+    expect(result.configuredFilters).toEqual([{ key: "weave", label: "Weave", selectionMode: "multiple" }]);
+    expect(result.weave).toEqual([{ value: "Brocade", label: "Brocade", count: 2 }]);
+    expect(result.fabric).toBeUndefined();
+    expect(getProductTypeClassifications).toHaveBeenCalledWith(["SAREES"], "business-1");
+  });
+
+  it("ignores URL selections for filters not enabled on that ERP Product Type", async () => {
+    await getBarcodeImageCatalog("sarees", 1, { fabric: "Banarasi Silk Sarees" });
+
+    expect(getLabelIdsForProductTypes).toHaveBeenCalledWith(
+      ["SAREES"],
+      undefined,
+      undefined,
+      undefined,
+      "business-1",
+    );
   });
 
   it("keeps each barcode's own photo when several barcodes share one ERP e-commerce product", async () => {
@@ -131,8 +196,8 @@ describe("getBarcodeImageCatalog", () => {
 
     const result = await getBarcodeImageCatalog("sarees", 1);
 
-    expect(getErpConnection).toHaveBeenCalledOnce();
-    expect(loadErpEcommerceCatalogs).toHaveBeenCalledWith({}, [item]);
+    expect(getErpConnection).toHaveBeenCalledTimes(3);
+    expect(loadErpEcommerceCatalogs).toHaveBeenCalledWith(erpConnection, [item]);
     expect(result.items[0].image).toBe("https://templeimg.blr1.digitaloceanspaces.com/brocade.jpg");
     expect(result.items[0].ecommerce).toEqual({
       displayName: "Brocade silk saree",

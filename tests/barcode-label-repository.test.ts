@@ -185,31 +185,46 @@ describe("barcode label series", () => {
 
   it("filters storefront products by the selected ERP e-commerce weave", async () => {
     const weaveId = "64a000000000000000000001";
+    const secondWeaveId = "64a000000000000000000002";
+    const businessId = "64a000000000000000000099";
     const ecommerceFind = vi.fn().mockReturnValue({
       toArray: vi.fn().mockResolvedValue([
-        { itemId: "item-1", businessId: "business-1", barcode: "8A0001", byWeave: [weaveId] },
-        { itemId: "item-2", businessId: "business-1", barcode: "8A0002", byWeave: ["64a000000000000000000002"] },
+        { itemId: "item-1", businessId, barcode: "8A0001", byWeave: [weaveId], byCraft: ["Zari"] },
+        { itemId: "item-2", businessId, barcode: "8A0002", byWeave: [secondWeaveId], byCraft: ["Zari"] },
+        { itemId: "item-3", businessId, barcode: "8A0003", byWeave: [weaveId], byCraft: ["Embroidery"] },
       ]),
     });
     const optionsFind = vi.fn().mockReturnValue({
-      toArray: vi.fn().mockResolvedValue([{ _id: weaveId, name: "Brocade" }]),
+      toArray: vi.fn().mockResolvedValue([
+        { _id: weaveId, name: "Brocade" },
+        { _id: secondWeaveId, name: "Chiffon" },
+      ]),
     });
     const labelFind = vi.fn().mockReturnValue({
-      toArray: vi.fn().mockResolvedValue([{ _id: "label-1", barcodeNo: "8A0001", businessId: "business-1" }]),
+      toArray: vi.fn().mockResolvedValue([
+        { _id: "label-1", barcodeNo: "8A0001", businessId },
+        { _id: "label-2", barcodeNo: "8A0002", businessId },
+      ]),
     });
     const collection = vi.fn((name: string) => ({
-      find: name === "ecommerceproduct" ? ecommerceFind : name === "productclassificationoption" ? optionsFind : labelFind,
+      find: name === "ecommerceproduct" ? ecommerceFind : name === "byweave" ? optionsFind : labelFind,
     }));
     const repository = new MongoBarcodeLabelRepository(async () => ({ db: { collection } }) as never);
 
-    await expect(repository.getLabelIdsForProductTypes(["SAREES"], undefined, undefined, { weave: "Brocade" }))
-      .resolves.toEqual(["label-1"]);
-    expect(optionsFind).toHaveBeenCalledWith(
-      { _id: { $in: [expect.anything(), expect.anything()] } },
-      { projection: { _id: 1, name: 1 } },
-    );
+    await expect(repository.getLabelIdsForProductTypes(
+      ["SAREES"],
+      undefined,
+      undefined,
+      { weave: ["Brocade", "Chiffon"], craft: "Zari" },
+      businessId,
+    )).resolves.toEqual(["label-1", "label-2"]);
+    expect(ecommerceFind.mock.calls[0][0].businessId.$in.map(String)).toEqual([businessId, businessId]);
+    expect(optionsFind).toHaveBeenCalledOnce();
+    expect(optionsFind.mock.calls[0][0]._id.$in.map(String)).toEqual([weaveId, secondWeaveId]);
+    expect(optionsFind.mock.calls[0][0].isActive).toEqual({ $ne: false });
+    expect(optionsFind.mock.calls[0][1]).toEqual({ projection: { _id: 1, name: 1 } });
     expect(labelFind).toHaveBeenCalledWith(
-      { barcodeNo: { $in: ["8A0001", "8a0001"] } },
+      { barcodeNo: { $in: ["8A0001", "8a0001", "8A0002", "8a0002"] } },
       { projection: { _id: 1, barcodeNo: 1, businessId: 1, currentBusinessId: 1 } },
     );
   });

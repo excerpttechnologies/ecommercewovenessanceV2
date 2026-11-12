@@ -289,6 +289,7 @@ const toSearchParams = (sp: SP) => {
   return u;
 };
 const firstParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
+const allParams = (value: string | string[] | undefined) => Array.isArray(value) ? value : value ? [value] : undefined;
 // NEW (price filter): whole-rupee number from the URL, or undefined when missing/invalid.
 const numParam = (value: string | string[] | undefined) => {
   const raw = firstParam(value);
@@ -413,11 +414,11 @@ export default async function CollectionPage({ params, searchParams }: { params:
       status: firstParam(sp.status),
       uomType: firstParam(sp.uomType),
       subgroup: firstParam(sp.subgroup),
-      weave: firstParam(sp.weave),
-      fabric: firstParam(sp.fabric),
-      craft: firstParam(sp.craft),
-      occasion: firstParam(sp.occasion),
-      color: firstParam(sp.color),
+      weave: allParams(sp.weave),
+      fabric: allParams(sp.fabric),
+      craft: allParams(sp.craft),
+      occasion: allParams(sp.occasion),
+      color: allParams(sp.color),
       q: firstParam(sp.q),
       // NEW (price filter)
       priceMin: numParam(sp.priceMin),

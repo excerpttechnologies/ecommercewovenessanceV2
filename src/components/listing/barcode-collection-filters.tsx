@@ -244,7 +244,6 @@ import { cn } from "@/lib/utils";
 
 type Props = { facets: BarcodeFacets };
 
-const CHIP_KEYS = ["fabric", "subgroup", "occasion"] as const;
 const MAX_CHIPS = 7;
 const PRICE_KEYS = ["priceMin", "priceMax"] as const;
 
@@ -272,6 +271,13 @@ function useFilterUrl() {
     push(next);
   };
   const update = (key: string, value: string) => updateMany({ [key]: value });
+  const updateSelection = (key: string, values: string[]) => {
+    const next = new URLSearchParams(sp.toString());
+    next.delete(key);
+    values.forEach((value) => next.append(key, value));
+    next.delete("page");
+    push(next);
+  };
   const clearAll = () => {
     const next = new URLSearchParams();
     for (const keep of ["sort", "view"]) {
@@ -280,19 +286,20 @@ function useFilterUrl() {
     }
     push(next);
   };
-  return { sp, update, updateMany, clearAll };
+  return { sp, update, updateMany, updateSelection, clearAll };
 }
 
-type Choice = { key: string; label: string; options: FacetOption[] };
+type Choice = { key: string; label: string; options: FacetOption[]; selectionMode?: "single" | "multiple" };
 
 function facetChoices(facets: BarcodeFacets): Choice[] {
   return [
     { key: "subgroup", label: "Category", options: facets.subgroup ?? [] },
-    { key: "fabric", label: "Fabric", options: facets.fabric ?? [] },
-    { key: "occasion", label: "Occasion", options: facets.occasion ?? [] },
-    { key: "color", label: "Colour", options: facets.color ?? [] },
-    { key: "weave", label: "Weave", options: facets.weave ?? [] },
-    { key: "craft", label: "Craft", options: facets.craft ?? [] },
+    ...(facets.configuredFilters ?? []).map(({ key, label, selectionMode }) => ({
+      key,
+      label,
+      options: facets[key] ?? [],
+      selectionMode,
+    })),
     { key: "group", label: "Group", options: facets.group },
     { key: "business", label: "Business", options: facets.business },
     { key: "status", label: "Status", options: facets.status },
@@ -352,7 +359,7 @@ function PriceFilter({ onApply }: { onApply?: () => void }) {
 
 /** Search box + price + every facet group; shared by the desktop sidebar and the mobile drawer. */
 function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () => void }) {
-  const { sp, update } = useFilterUrl();
+  const { sp, update, updateSelection } = useFilterUrl();
   return (
     <>
       <form
@@ -369,13 +376,23 @@ function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () =>
         </button>
       </form>
       <PriceFilter />
-      {choices.filter((c) => c.options.length > 0).map(({ key, label, options }, index) => {
-        const current = sp.get(key) ?? "";
+      {choices.filter((c) => c.options.length > 0).map(({ key, label, options, selectionMode }, index) => {
+        const selected = sp.getAll(key);
+        const current = selected[0] ?? "";
+        const toggle = (value: string) => {
+          if (selectionMode !== "multiple") {
+            update(key, current === value ? "" : value);
+            return;
+          }
+          updateSelection(key, selected.includes(value)
+            ? selected.filter((item) => item !== value)
+            : [...selected, value]);
+        };
         return (
-          <FilterGroup key={key} title={label} defaultOpen={index < 3 || Boolean(current)}>
+          <FilterGroup key={key} title={label} defaultOpen={index < 3 || selected.length > 0}>
             <ul className="we-scroller max-h-72 space-y-0.5 overflow-y-auto pr-1">
               <li>
-                <OptionRow label={`All ${label.toLowerCase()}`} active={!current} onClick={() => update(key, "")} />
+                <OptionRow label={`All ${label.toLowerCase()}`} active={!selected.length} onClick={() => update(key, "")} />
               </li>
               {options.map((option) => (
                 <li key={option.value}>
@@ -383,8 +400,8 @@ function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () =>
                     label={option.label}
                     count={option.count}
                     swatch={key === "color" ? swatchColor(option.swatch ?? option.value) : undefined}
-                    active={current === option.value}
-                    onClick={() => update(key, current === option.value ? "" : option.value)}
+                    active={selected.includes(option.value)}
+                    onClick={() => toggle(option.value)}
                   />
                 </li>
               ))}
@@ -424,7 +441,7 @@ export function BarcodeFilterSidebar({ facets }: Props) {
  * a Filters drawer holding every facet. Each facet is single-select and synced to one URL key.
  */
 export function BarcodeCollectionFilters({ facets }: Props) {
-  const { sp, update, clearAll } = useFilterUrl();
+  const { sp, update, updateSelection, clearAll } = useFilterUrl();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -432,13 +449,20 @@ export function BarcodeCollectionFilters({ facets }: Props) {
   const activeKeys = ["q", ...PRICE_KEYS, ...choices.map((c) => c.key)].filter((k) => sp.get(k));
 
   // Chips come from the first facet that has values, most-stocked first.
-  const chipKey = CHIP_KEYS.find((k) => (choices.find((c) => c.key === k)?.options.length ?? 0) > 0);
+  const chipKeys = [...(facets.configuredFilters ?? []).map((filter) => filter.key), "subgroup"];
+  const chipKey = chipKeys.find((k) => (choices.find((c) => c.key === k)?.options.length ?? 0) > 0);
   const chipOptions = chipKey ? [...choices.find((c) => c.key === chipKey)!.options].sort((a, b) => b.count - a.count).slice(0, MAX_CHIPS) : [];
-  const chipValue = chipKey ? sp.get(chipKey) ?? "" : "";
+  const chipValues = chipKey ? sp.getAll(chipKey) : [];
+  const chipValue = chipValues[0] ?? "";
   // Keep a selected value visible even when it is not one of the top chips.
-  const selectedExtra = chipKey && chipValue && !chipOptions.some((o) => o.value === chipValue)
-    ? choices.find((c) => c.key === chipKey)!.options.find((o) => o.value === chipValue)
-    : undefined;
+  const selectedExtras = chipKey
+    ? chipValues
+        .filter((value) => !chipOptions.some((option) => option.value === value))
+        .flatMap((value) => {
+          const option = choices.find((choice) => choice.key === chipKey)?.options.find((item) => item.value === value);
+          return option ? [option] : [];
+        })
+    : [];
 
   useEffect(() => {
     if (!open) return;
@@ -452,9 +476,18 @@ export function BarcodeCollectionFilters({ facets }: Props) {
       <div className="flex min-w-0 items-center gap-2.5 lg:items-start">
         {chipKey && (
           <div className="we-scroller flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 lg:flex-wrap lg:py-0 lg:justify-end lg:overflow-visible">
-            <Chip label="All" active={!chipValue} onClick={() => update(chipKey, "")} />
-            {[...chipOptions, ...(selectedExtra ? [selectedExtra] : [])].map((o) => (
-              <Chip key={o.value} label={o.label} active={chipValue === o.value} onClick={() => update(chipKey, chipValue === o.value ? "" : o.value)} />
+            <Chip label="All" active={!chipValues.length} onClick={() => update(chipKey, "")} />
+            {[...chipOptions, ...selectedExtras].map((o) => (
+              <Chip key={o.value} label={o.label} active={chipValues.includes(o.value)} onClick={() => {
+                const choice = choices.find((item) => item.key === chipKey);
+                if (choice?.selectionMode === "multiple") {
+                  updateSelection(chipKey, chipValues.includes(o.value)
+                    ? chipValues.filter((value) => value !== o.value)
+                    : [...chipValues, o.value]);
+                } else {
+                  update(chipKey, chipValue === o.value ? "" : o.value);
+                }
+              }} />
             ))}
           </div>
         )}

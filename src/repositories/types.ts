@@ -77,13 +77,15 @@ export interface BarcodeLabelRepository {
     productTypes: string[],
     subgroupId?: string,
     query?: string,
-    classifications?: Partial<Record<"weave" | "fabric" | "craft" | "occasion" | "color", string>>,
+    classifications?: Partial<Record<"weave" | "fabric" | "craft" | "occasion" | "color", string | string[]>>,
+    businessId?: string,
   ): Promise<string[]>;
   /** Resolve ERP subgroup filters available for active e-commerce product types. */
-  getProductTypeSubgroups(productTypes: string[]): Promise<FacetOption[]>;
+  getProductTypeSubgroups(productTypes: string[], businessId?: string): Promise<FacetOption[]>;
   /** Resolve live ERP e-commerce classification filters by product type. */
   getProductTypeClassifications(
     productTypes: string[],
+    businessId?: string,
   ): Promise<Partial<Record<"weave" | "fabric" | "craft" | "occasion" | "color", FacetOption[]>>>;
   /** Filter options with live counts (status, product group, business, UOM type). */
   facets(params?: BarcodeListParams): Promise<BarcodeFacets>;

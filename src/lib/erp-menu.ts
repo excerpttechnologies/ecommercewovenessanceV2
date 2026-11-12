@@ -1,19 +1,6 @@
-import { getBarcodeLabels } from "@/repositories";
 import { redactMongoUri } from "@/lib/db";
-import { ERP_CATEGORY_PRODUCT_TYPES, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
+import { ERP_CATEGORY_PRODUCT_TYPES, getStorefrontClassificationFacets, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
 import type { MenuNode } from "@/repositories/web/site.repository";
-
-/** Mega-menu columns in display order: query key the collection page filters on + column heading. */
-const FILTER_GROUPS = [
-  ["fabric", "By Fabric"],
-  ["weave", "By Weave"],
-  ["craft", "By Craft"],
-  ["occasion", "By Occasion"],
-  ["color", "By Colour"],
-] as const;
-
-/** Columns left out of a category's mega menu (the collection page filters still offer them). */
-const HIDDEN_GROUPS: Partial<Record<StorefrontCategoryGroup, readonly string[]>> = { sarees: ["color"] };
 
 function erpCategorySlug(node: MenuNode): StorefrontCategoryGroup | null {
   const slug = node.href?.match(/^\/collections\/([^/?#]+)$/)?.[1];
@@ -21,9 +8,8 @@ function erpCategorySlug(node: MenuNode): StorefrontCategoryGroup | null {
 }
 
 /**
- * The filter columns under an ERP category (Sarees, Fabrics…) come from RetailERP itself: only the
- * weave / fabric / craft / occasion / colour values that published e-commerce products of that type
- * carry, so a value appears once it is used in the ERP and an empty filter is never offered.
+ * The filter columns under an ERP category come from its active, visible ERP Product Type config;
+ * each column is omitted unless it is configured and has live values.
  * Other menu items are left as stored. If the ERP cannot be read, the stored columns are kept.
  */
 export async function withErpFilterColumns(menu: MenuNode[]): Promise<MenuNode[]> {
@@ -31,10 +17,10 @@ export async function withErpFilterColumns(menu: MenuNode[]): Promise<MenuNode[]
     const slug = erpCategorySlug(top);
     if (!slug) return top;
     try {
-      const facets = await getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[slug]]);
-      const columns: MenuNode[] = FILTER_GROUPS.flatMap(([key, label]) => {
+      const facets = await getStorefrontClassificationFacets(slug);
+      const columns: MenuNode[] = (facets.configuredFilters ?? []).flatMap(({ key, label }) => {
         const options = facets[key] ?? [];
-        if (!options.length || HIDDEN_GROUPS[slug]?.includes(key)) return [];
+        if (!options.length) return [];
         return [{
           id: `${top.id}-erp-${key}`,
           label,

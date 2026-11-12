@@ -16,6 +16,8 @@ const schema = z
     /** Same as ERP_MONGODB_URI — the name the RetailERP backend's .env uses. ERP_MONGODB_URI wins if both are set. */
     ERP_MONGO_URI: z.string().optional(),
     ERP_DB_NAME: z.string().min(1).default("grooretailerp1"),
+    /** Optional tenant override when the ERP database contains multiple storefront businesses. */
+    ERP_ECOMMERCE_BUSINESS_ID: z.string().optional(),
     /** Origin of the deployed RetailERP web app. Relative ERP image paths (e.g. /august_8A_images/4A1142.jpg) are served from here. */
     ERP_IMAGE_BASE: z.string().optional(),
     /** Comma-separated DigitalOcean Spaces bucket hosts ERP images may come from (keep in sync with next.config.ts). */
@@ -37,6 +39,7 @@ const schema = z
   .transform((e) => ({
     ...e,
     ERP_MONGODB_URI: blankToUndefined(e.ERP_MONGODB_URI) ?? blankToUndefined(e.ERP_MONGO_URI) ?? e.MONGODB_URI,
+    ERP_ECOMMERCE_BUSINESS_ID: blankToUndefined(e.ERP_ECOMMERCE_BUSINESS_ID),
     LEGACY_BRIDGE_BRANCH_ID: blankToUndefined(e.LEGACY_BRIDGE_BRANCH_ID),
     ERP_IMAGE_BASE: blankToUndefined(e.ERP_IMAGE_BASE)?.replace(/\/+$/, ""),
     ERP_IMAGE_SPACES_HOSTS: e.ERP_IMAGE_SPACES_HOSTS.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean),

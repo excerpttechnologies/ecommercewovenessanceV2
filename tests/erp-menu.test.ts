@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MenuNode } from "@/repositories/web/site.repository";
 
-const { getProductTypeClassifications } = vi.hoisted(() => ({ getProductTypeClassifications: vi.fn() }));
+const { getStorefrontClassificationFacets } = vi.hoisted(() => ({ getStorefrontClassificationFacets: vi.fn() }));
 
-vi.mock("@/repositories", () => ({ getBarcodeLabels: () => ({ getProductTypeClassifications }) }));
 vi.mock("@/lib/db", () => ({ redactMongoUri: (s: string) => s }));
 vi.mock("@/lib/barcode-image-series", () => ({
   ERP_CATEGORY_PRODUCT_TYPES: { sarees: ["SAREES"], dupatta: ["DUPATTA"] },
+  getStorefrontClassificationFacets,
 }));
 
 const { withErpFilterColumns } = await import("@/lib/erp-menu");
@@ -22,21 +22,22 @@ const storedSarees: MenuNode = {
 
 describe("withErpFilterColumns", () => {
   beforeEach(() => {
-    getProductTypeClassifications.mockReset();
+    getStorefrontClassificationFacets.mockReset();
   });
 
-  it("replaces the stored columns with only the ERP values published products carry", async () => {
-    getProductTypeClassifications.mockResolvedValue({
+  it("replaces stored columns with the configured ERP filters and live values", async () => {
+    getStorefrontClassificationFacets.mockResolvedValue({
       weave: [{ value: "Brocade", label: "Brocade", count: 2 }],
       fabric: [{ value: "Banarasi Silk Sarees", label: "Banarasi Silk Sarees", count: 1 }],
-      craft: [],
-      occasion: [],
-      color: [],
+      configuredFilters: [
+        { key: "weave", label: "By Weave", selectionMode: "multiple" },
+        { key: "fabric", label: "By Fabric", selectionMode: "multiple" },
+      ],
     });
 
     const [sarees] = await withErpFilterColumns([storedSarees]);
 
-    expect(getProductTypeClassifications).toHaveBeenCalledWith(["SAREES"]);
+    expect(getStorefrontClassificationFacets).toHaveBeenCalledWith("sarees");
     expect(sarees.children.map((column) => column.label)).toEqual(["By Weave", "By Fabric"]);
     expect(sarees.children[0].children.map((item) => [item.label, item.href])).toEqual([
       ["Brocade", "/collections/sarees?weave=Brocade"],
@@ -45,7 +46,7 @@ describe("withErpFilterColumns", () => {
   });
 
   it("shows no columns for an ERP category whose products have no classifications", async () => {
-    getProductTypeClassifications.mockResolvedValue({ weave: [], fabric: [], craft: [], occasion: [], color: [] });
+    getStorefrontClassificationFacets.mockResolvedValue({ weave: [], configuredFilters: [] });
     const dupatta: MenuNode = { ...storedSarees, id: "dupatta", href: "/collections/dupatta" };
 
     const [result] = await withErpFilterColumns([dupatta]);
@@ -54,7 +55,7 @@ describe("withErpFilterColumns", () => {
   });
 
   it("leaves non-ERP menu items alone and keeps the stored columns when the ERP is unavailable", async () => {
-    getProductTypeClassifications.mockImplementation(async () => { throw new Error("ERP down"); });
+    getStorefrontClassificationFacets.mockImplementation(async () => { throw new Error("ERP down"); });
     vi.spyOn(console, "error").mockImplementation(() => {});
     const newArrivals: MenuNode = { id: "new", label: "NEW ARRIVALS", kind: "top", href: "/new-arrivals", children: [] };
 
