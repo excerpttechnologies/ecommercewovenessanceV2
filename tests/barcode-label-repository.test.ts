@@ -235,7 +235,7 @@ describe("barcode label series", () => {
         // saved against barcode 8A1929, which also exists in two other businesses
         { itemId: "item-1", businessId: "business-1", barcode: "8A1929" },
         // saved against 8A3147, which only exists in another business: those labels are used
-        { itemId: "item-2", businessId: "business-1", barcode: "8A3147", barcodes: ["8A3147", " "] },
+        { itemId: "item-2", businessId: "business-1", barcode: "8A3147", barcodes: ["8A3148", " "] },
         // no barcode saved: shows nothing
         { itemId: "item-3", businessId: "business-1" },
         // typed in lower case in the ERP form: still finds label 8A1935
@@ -250,6 +250,7 @@ describe("barcode label series", () => {
               { _id: "other-a", barcodeNo: "8A1929", businessId: "business-2" },
               { _id: "moved", barcodeNo: "8A1929", businessId: "business-3", currentBusinessId: "business-1" },
               { _id: "elsewhere", barcodeNo: "8A3147", businessId: "business-2" },
+              { _id: "additional", barcodeNo: "8A3148", businessId: "business-1" },
               { _id: "upper-case", barcodeNo: "8A1935", businessId: "business-1" },
             ]
           : [{ _id: "item-3-label" }],
@@ -258,10 +259,10 @@ describe("barcode label series", () => {
     const collection = vi.fn((name: string) => ({ find: name === "ecommerceproduct" ? ecommerceFind : labelFind }));
     const repository = new MongoBarcodeLabelRepository(async () => ({ db: { collection } }) as never);
 
-    await expect(repository.getLabelIdsForProductTypes(["SAREES"])).resolves.toEqual(["own", "moved", "elsewhere", "upper-case"]);
+    await expect(repository.getLabelIdsForProductTypes(["SAREES"])).resolves.toEqual(["own", "moved", "elsewhere", "additional", "upper-case"]);
     expect(labelFind).toHaveBeenCalledTimes(1);
     expect(labelFind).toHaveBeenCalledWith(
-      { barcodeNo: { $in: ["8A1929", "8a1929", "8A3147", "8a3147", "8a1935", "8A1935"] } },
+      { barcodeNo: { $in: ["8A1929", "8a1929", "8A3147", "8a3147", "8A3148", "8a3148", "8a1935", "8A1935"] } },
       { projection: { _id: 1, barcodeNo: 1, businessId: 1, currentBusinessId: 1 } },
     );
   });

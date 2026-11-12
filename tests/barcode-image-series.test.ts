@@ -4,6 +4,7 @@ const {
   getLabelIdsForProductTypes,
   getProductTypeClassifications,
   getProductTypeSubgroups,
+  getLabelIdsForProductGroups,
   facets,
   list,
   getErpConnection,
@@ -12,6 +13,7 @@ const {
   getLabelIdsForProductTypes: vi.fn(),
   getProductTypeClassifications: vi.fn(),
   getProductTypeSubgroups: vi.fn(),
+  getLabelIdsForProductGroups: vi.fn(),
   facets: vi.fn(),
   list: vi.fn(),
   getErpConnection: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock("@/repositories", () => ({
     getLabelIdsForProductTypes,
     getProductTypeClassifications,
     getProductTypeSubgroups,
+    getLabelIdsForProductGroups,
     facets,
     list,
   }),
@@ -57,25 +60,26 @@ const { getBarcodeImageCatalog } = await import("@/lib/barcode-image-series");
 
 describe("getBarcodeImageCatalog", () => {
   let erpConnection: { db: { collection: ReturnType<typeof vi.fn> } };
+  let productTypeDocs: Record<string, unknown>[];
 
   beforeEach(() => {
     getLabelIdsForProductTypes.mockReset();
+    getLabelIdsForProductGroups.mockReset().mockResolvedValue(["group-label"]);
     list.mockReset();
+    productTypeDocs = [{
+      value: "SAREES",
+      ecommerceSlug: "sarees",
+      businessId: "business-1",
+      filterConfig: [
+        { key: "byWeave", displayLabel: "Weave", selectionMode: "multiple" },
+        { key: "byFabric", displayLabel: "Fabric", isVisible: false },
+      ],
+    }];
     erpConnection = {
       db: {
         collection: vi.fn((name: string) => ({
           find: () => ({
-            toArray: async () => name === "producttypes"
-              ? [{
-                  value: "SAREES",
-                  ecommerceSlug: "sarees",
-                  businessId: "business-1",
-                  filterConfig: [
-                    { key: "byWeave", displayLabel: "Weave", selectionMode: "multiple" },
-                    { key: "byFabric", displayLabel: "Fabric", isVisible: false },
-                  ],
-                }]
-              : [],
+            toArray: async () => name === "producttypes" ? productTypeDocs : [],
           }),
         })),
       },
@@ -149,6 +153,39 @@ describe("getBarcodeImageCatalog", () => {
       undefined,
       "business-1",
     );
+  });
+
+  it("includes published products by their configured Product Type when a legacy group ID no longer matches", async () => {
+    productTypeDocs = [{
+      value: "UNSTITCHED SUITS",
+      label: "unstitched suits",
+      businessId: "business-1",
+      isActive: true,
+    }];
+    getLabelIdsForProductTypes.mockResolvedValue(["published-product-type-label"]);
+    list.mockResolvedValue({
+      items: [{ id: "label-8a2837", barcode: "8A2837", itemId: "item-1", businessId: "business-1" }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+
+    const result = await getBarcodeImageCatalog("unstitched-suits", 1);
+
+    expect(getLabelIdsForProductGroups).toHaveBeenCalledWith(["6ae2ee1deb54c4ea4fd9b387"]);
+    expect(getLabelIdsForProductTypes).toHaveBeenCalledWith(
+      ["UNSTITCHED SUITS"],
+      undefined,
+      undefined,
+      undefined,
+      "business-1",
+    );
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({
+      labelIds: ["group-label", "published-product-type-label"],
+    }));
+    expect(result.items.map((item) => item.barcode)).toEqual(["8A2837"]);
   });
 
   it("keeps each barcode's own photo when several barcodes share one ERP e-commerce product", async () => {

@@ -382,7 +382,7 @@ function storefrontFilterConfig(doc: Record<string, unknown>) {
 }
 
 const getStorefrontFilterConfig = cache(async (group: StorefrontCategoryGroup): Promise<StorefrontFilterConfig> => {
-  if (group === "best-buy" || group === "new-arrivals" || getAddOnGroupIds(group)) {
+  if (group === "best-buy" || group === "new-arrivals") {
     return { productTypes: [...ERP_CATEGORY_PRODUCT_TYPES[group]], configuredFilters: [] };
   }
 
@@ -417,6 +417,26 @@ const getStorefrontFilterConfig = cache(async (group: StorefrontCategoryGroup): 
     configuredFilters: typeDocs.flatMap(storefrontFilterConfig).slice(0, 5),
   };
 });
+
+async function getAddOnLabelIds(
+  group: StorefrontCategoryGroup,
+  groupIds: readonly string[],
+): Promise<string[]> {
+  const [groupLabelIds, config] = await Promise.all([
+    getBarcodeLabels().getLabelIdsForProductGroups([...groupIds]),
+    getStorefrontFilterConfig(group),
+  ]);
+  const productTypeLabelIds = config.productTypes.length
+    ? await getBarcodeLabels().getLabelIdsForProductTypes(
+        config.productTypes,
+        undefined,
+        undefined,
+        undefined,
+        config.businessId,
+      )
+    : [];
+  return [...new Set([...groupLabelIds, ...productTypeLabelIds])];
+}
 
 export const getStorefrontClassificationFacets = cache(async (
   group: StorefrontCategoryGroup,
@@ -547,13 +567,11 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     if (!visibleClassificationKeys.has(key)) delete classifications[key];
   }
 
-  // Add-on categories (Inskirt, Ready Bits, etc.) resolve their eligible label IDs via
-  // ecommerceproduct first (Active + Published check), then intersect with the product group.
-  // When nothing eligible backs the group the collection is empty — unpublished labels are
-  // never shown as a fallback.
+  // Add-on categories retain legacy group matches and also include active, published products
+  // matching the configured Product Type, so stale group membership does not hide a product.
   const [scopeResult, excludedBarcodes] = await Promise.all([
     groupIds
-      ? barcodeLabels.getLabelIdsForProductGroups([...groupIds]).then((ids) => ({
+      ? getAddOnLabelIds(group, groupIds).then((ids) => ({
           labelIds: ids,
           isAddOn: true,
           productTypes: [] as string[],
@@ -614,7 +632,7 @@ export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGrou
   const groupIds = getAddOnGroupIds(group);
   if (groupIds) {
     const [labelIds, excludedBarcodes] = await Promise.all([
-      getBarcodeLabels().getLabelIdsForProductGroups([...groupIds]),
+      getAddOnLabelIds(group, groupIds),
       inactiveBarcodes(),
     ]);
     if (!labelIds.length) {
@@ -638,7 +656,7 @@ export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
   const groupIds = getAddOnGroupIds(group);
   const [scopeResult, excludedBarcodes] = await Promise.all([
     groupIds
-      ? barcodeLabels.getLabelIdsForProductGroups([...groupIds]).then((ids) => ({ labelIds: ids }))
+      ? getAddOnLabelIds(group, groupIds).then((ids) => ({ labelIds: ids }))
       : getBarcodeImageScopes(group as EcommerceCategoryGroup).then((r) => ({ ...r })),
     inactiveBarcodes(),
   ]);
