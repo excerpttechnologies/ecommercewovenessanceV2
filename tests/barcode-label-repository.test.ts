@@ -39,7 +39,7 @@ describe("barcode label series", () => {
     expect(aggregate.mock.calls[0][0][0].$match._id.$in[0].toString()).toBe("6a9905f8ee2f8f36193a0ce2");
   });
 
-  it("uses only the ERP barcode image URL, even when the label has another image URL", async () => {
+  it("uses the label's own ERP image URL when the record has one", async () => {
     aggregate.mockImplementation(async (pipeline: Array<Record<string, unknown>>) =>
       pipeline[0]?.$group
         ? [{ _id: "8A2524", n: 1 }]
@@ -49,7 +49,7 @@ describe("barcode label series", () => {
 
     const result = await repository.list({ status: "IN_STOCK", limit: 1 });
 
-    expect(result.items[0].image).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
+    expect(result.items[0].image).toBe("https://templeimg.blr1.digitaloceanspaces.com/8A2524.jpg");
   });
 
   it("resolves unique existing barcodeLabel IDs from exact ERP Item group references", async () => {
@@ -91,7 +91,7 @@ describe("barcode label series", () => {
     await expect(repository.getLabelIdsForProductTypes(["SAREES"])).resolves.toEqual(["label-1", "label-2"]);
     expect(ecommerceFind).toHaveBeenCalledWith(
       { productType: { $in: ["SAREES"] }, status: { $in: ["active", "Active", "ACTIVE"] }, isPublished: true },
-      { projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, _id: 0 } },
+      { projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, publishedBarcodes: 1, _id: 0 } },
     );
     expect(labelFind).toHaveBeenCalledTimes(1);
     expect(labelFind).toHaveBeenCalledWith(
@@ -125,7 +125,7 @@ describe("barcode label series", () => {
           ],
         }],
       },
-      { projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, _id: 0 } },
+      { projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, publishedBarcodes: 1, _id: 0 } },
     );
   });
 
@@ -168,13 +168,13 @@ describe("barcode label series", () => {
       toArray: vi.fn().mockResolvedValue([{ _id: "label-2", barcodeNo: "8A0002", businessId: "business-1" }]),
     });
     const collection = vi.fn((name: string) => ({
-      find: name === "ecommerceproduct" ? ecommerceFind : name === "items" ? itemFind : labelFind,
+      find: name === "ecommerceproduct" ? ecommerceFind : name === "item" ? itemFind : labelFind,
     }));
     const repository = new MongoBarcodeLabelRepository(async () => ({ db: { collection } }) as never);
 
     await expect(repository.getLabelIdsForProductTypes(["SAREES"], "subgroup-2")).resolves.toEqual(["label-2"]);
     expect(itemFind).toHaveBeenCalledWith(
-      { _id: { $in: ["item-1", "item-1", "item-2", "item-2"] }, subgroup: { $in: ["subgroup-2", "subgroup-2"] } },
+      { _id: { $in: ["item-1", "item-1", "item-2", "item-2"] }, subGroupId: { $in: ["subgroup-2", "subgroup-2"] } },
       { projection: { _id: 1 } },
     );
     expect(labelFind).toHaveBeenCalledWith(
@@ -301,15 +301,15 @@ describe("barcode label series", () => {
     });
     const itemFind = vi.fn().mockReturnValue({
       toArray: vi.fn().mockResolvedValue([
-        { _id: "item-1", subgroup: "subgroup-1" },
-        { _id: "item-2", subgroup: "subgroup-1" },
+        { _id: "item-1", subGroupId: "subgroup-1" },
+        { _id: "item-2", subGroupId: "subgroup-1" },
       ]),
     });
     const subgroupFind = vi.fn().mockReturnValue({
       toArray: vi.fn().mockResolvedValue([{ _id: "subgroup-1", name: "Kanchipuram" }]),
     });
     const collection = vi.fn((name: string) => ({
-      find: name === "ecommerceproduct" ? ecommerceFind : name === "items" ? itemFind : subgroupFind,
+      find: name === "ecommerceproduct" ? ecommerceFind : name === "item" ? itemFind : subgroupFind,
     }));
     const repository = new MongoBarcodeLabelRepository(async () => ({ db: { collection } }) as never);
 

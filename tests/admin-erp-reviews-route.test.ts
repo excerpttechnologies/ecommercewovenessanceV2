@@ -45,7 +45,6 @@ describe("GET /api/v1/admin/reviews", () => {
       data: [],
       meta: {
         source: "erp",
-        collection: "items",
         summary: { totalItems: 10, totalReviews: 0 },
       },
     });

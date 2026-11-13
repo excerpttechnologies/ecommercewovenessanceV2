@@ -44,14 +44,14 @@ describe("erpInventory", () => {
 
     const pipeline = mocks.aggregate.mock.calls[0][0];
     expect(pipeline[1].$lookup).toMatchObject({
-      from: "barcodeLabel",
-      localField: "barcodeManagement.sourceBarcodeLabel",
+      from: "productgroup",
+      localField: "groupId",
       foreignField: "_id",
     });
-    expect(pipeline[3].$project.itemCode.$ifNull[0]).toBe("$identity.itemCode");
-    expect(pipeline[3].$project.barcode.$ifNull).toEqual(["$_sourceLabel.barcodeNo", ""]);
-    expect(pipeline[3].$project.name.$ifNull[0]).toBe("$identity.productName");
-    expect(pipeline[3].$project.category.$convert.input.$ifNull[0]).toBe("$identity.productType");
+    expect(pipeline[3].$project.itemCode.$ifNull[0]).toBe("$itemCode");
+    expect(pipeline[3].$project.barcode.$ifNull).toEqual(["$barcodeNo", ""]);
+    expect(pipeline[3].$project.name.$ifNull[0]).toBe("$itemName");
+    expect(pipeline[3].$project.category.$convert.input.$ifNull[0]).toBe("$_group.name");
   });
 });
 

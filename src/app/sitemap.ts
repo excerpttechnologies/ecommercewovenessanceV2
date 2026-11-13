@@ -39,6 +39,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...groups.map((group) => ({ url: absoluteUrl(`/collections/${group}`), lastModified: now, changeFrequency: "daily" as const, priority: 0.9 })),
     { url: absoluteUrl("/stores"), changeFrequency: "monthly", priority: 0.5 },
     { url: absoluteUrl("/contact"), changeFrequency: "monthly", priority: 0.4 },
+    { url: absoluteUrl("/about-us"), changeFrequency: "monthly", priority: 0.4 },
+    { url: absoluteUrl("/terms-and-conditions"), changeFrequency: "yearly", priority: 0.3 },
+    { url: absoluteUrl("/refund-policy"), changeFrequency: "yearly", priority: 0.3 },
+    { url: absoluteUrl("/return-policy"), changeFrequency: "yearly", priority: 0.3 },
   ];
 
   // Each source is independent: one failing (e.g. the ERP being unreachable) never empties the sitemap.

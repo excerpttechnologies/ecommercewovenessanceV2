@@ -15,6 +15,9 @@ export default async function ContactPage() {
   const s = await getSettings();
   const contactEmail = s.contact?.email || "hello@wovenessence.in";
   const contactHours = s.contact?.hours || "Mon–Sat, 10:30 am – 8:30 pm";
+  const storeName = s.storeName?.trim() || "Woven Essence";
+  const legalName = s.legalName?.trim();
+  const businessName = legalName && legalName !== storeName ? `${storeName} by ${legalName}` : storeName;
 
   return (
     <div className="mx-auto max-w-site px-4 py-6 sm:px-6">
@@ -23,7 +26,8 @@ export default async function ContactPage() {
       <div className="mt-4 grid gap-10 md:grid-cols-2">
         <div>
           <h1 className="text-4xl font-bold">Talk to us</h1>
-          <div className="mt-6 space-y-2 text-sm text-ink/80">
+          <p className="mt-2 text-sm font-semibold text-olive">{businessName}</p>
+          <div className="mt-5 space-y-2 text-sm text-ink/80">
             {s.contact?.address && <p>{s.contact.address}</p>}
             {s.contact?.phone && <p><a href={`tel:${s.contact.phone}`} className="hover:text-maroon">{s.contact.phone}</a></p>}
             <p><a href={`mailto:${contactEmail}`} className="hover:text-maroon">{contactEmail}</a></p>

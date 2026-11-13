@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Successfully implemented support for three MongoDB image path formats in the E-commerce application. All formats now resolve correctly to their respective server origins without breaking existing product images or image functionality.
+Successfully implemented comprehensive support for all MongoDB image path formats in the E-commerce application. All formats now resolve correctly to their respective server origins without breaking existing product images or image functionality.
 
 ## Root Cause
 
@@ -10,11 +10,12 @@ The E-commerce application had existing image handling logic that supported:
 - Absolute URLs (e.g., `https://example.com/product.jpg`)
 - Legacy ERP image paths (e.g., `/august_8A_images/8A2524.jpg`)
 
-However, it did not properly handle two additional image formats now present in MongoDB:
+However, it did not properly handle multiple additional image formats now present in MongoDB:
 1. **ERP uploaded file API paths**: `/api/files/c1/c1cfaa7c9297b89e87eb2bfa8d256b700213b34f6cc1b964f3f8fda9e4d58b92.jpg`
 2. **Server public image paths**: `/images/8A/8A3164.jpg`
+3. **Multiple image fields**: MongoDB stores images in different fields (`image`, `imageUrl`, `filePath`, `images` array)
 
-These formats were not being resolved against the correct ERP server origin, causing images to fail to load.
+These formats were not being resolved against the correct ERP server origin, and not all image fields were being checked, causing images to fail to load.
 
 ## Image Format Analysis
 
@@ -43,6 +44,24 @@ These formats were not being resolved against the correct ERP server origin, cau
 - **Server origin**: ERP server (configured via `ERP_IMAGE_BASE`)
 - **Resolution**: Already supported via existing `erp-images.ts` logic
 - **Example**: `https://erp.wovenessence.in/august_8A_images/8A2524.jpg`
+
+### CASE 5: Data URIs
+- **Format**: `data:image/jpeg;base64,/9j/4AAQSkZJRg...`
+- **Resolution**: Returned as-is (already complete)
+- **Use case**: Embedded images, placeholders
+
+### CASE 6: Protocol-Relative URLs
+- **Format**: `//example.com/image.jpg`
+- **Resolution**: Converted to `https://example.com/image.jpg`
+- **Use case**: CDN URLs that inherit protocol
+
+### CASE 7: MongoDB Image Fields
+The application now checks multiple MongoDB fields in priority order:
+1. `image` - Primary image field
+2. `imageUrl` - ERP image URL field
+3. `filePath` - Uploaded file path field
+4. `images` - Array of images (first element used)
+5. Fallback to barcode URL
 
 ## Server Ownership
 

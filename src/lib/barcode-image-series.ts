@@ -505,7 +505,7 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
     // One ERP product covers every barcode saved on it but holds a single image, so each barcode
     // keeps its own photo; the product image only fills in when that photo does not load.
     const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
-      ...[raw.image, raw.images, raw.imageUrl].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
+      ...[raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
     ]);
     const ecommerce = {
       displayName: catalog.displayName,

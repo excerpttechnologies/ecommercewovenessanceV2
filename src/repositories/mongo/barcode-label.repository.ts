@@ -787,6 +787,9 @@ const PROJECTION: Record<string, 1> = Object.fromEntries(
     .map((p) => [p, 1]),
 );
 
+// Include the 'image' field for product photos (may contain /api/files/ or /images/ paths)
+PROJECTION.image = 1;
+
 /** $lookup by a hex-string id held in `localField` (the ERP stores these refs as strings). */
 function lookupName(from: string, localField: string, nameField: string, as: string): PipelineStage[] {
   return [
@@ -930,7 +933,20 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const rows = docs.map((raw) => {
       try {
         const product = mapBarcodeLabel(raw);
-        const image = barcodeImageUrl(product.barcode);
+        // Check all possible image fields in priority order:
+        // 1. 'image' field (primary image field)
+        // 2. 'imageUrl' field (ERP image URL)
+        // 3. 'filePath' field (uploaded file path like /api/files/...)
+        // 4. 'images' array (first image from array)
+        // 5. Fall back to barcode URL
+        const mongoImage = typeof raw.image === "string" ? raw.image.trim() : undefined;
+        const mongoImageUrl = typeof raw[B.imageUrl] === "string" ? raw[B.imageUrl].trim() : undefined;
+        const mongoFilePath = typeof raw[B.filePath] === "string" ? raw[B.filePath].trim() : undefined;
+        const mongoImagesArray = Array.isArray(raw.images) && raw.images.length > 0
+          ? (typeof raw.images[0] === "string" ? raw.images[0].trim() : undefined)
+          : undefined;
+
+        const image = mongoImage || mongoImageUrl || mongoFilePath || mongoImagesArray || barcodeImageUrl(product.barcode);
         return image ? { ...product, image } : product;
       } catch (e) {
         skipped++;
@@ -973,7 +989,7 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
             : fallback;
           const resolved = await resolveRecordImage(
             [
-              ...[raw[B.imageUrl], raw[B.filePath], raw.image].flatMap((value) =>
+              ...[raw.image, raw[B.imageUrl], raw[B.filePath], raw.images].flatMap((value) =>
                 toImages(Array.isArray(value) ? value : [value]),
               ),
               fallbackFromConfiguredBase,

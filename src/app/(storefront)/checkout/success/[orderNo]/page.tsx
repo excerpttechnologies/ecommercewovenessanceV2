@@ -686,7 +686,7 @@ export default async function Success({ params }: { params: Promise<{ orderNo: s
             <li><b className="block text-[#111827]">Exchange / return</b>Within 7 days of delivery, unused with tags. Blouse-stitched sarees are not returnable.</li>
             <li><b className="block text-[#111827]">Refund</b>{online ? "To your original payment method" : "By bank transfer or UPI"} within 5–7 working days after approval.</li>
           </ul>
-          <p className="mt-3 text-xs"><Link href="/pages/returns" className="text-[#1d4ed8] underline">Full returns & refund policy</Link> · <Link href="/pages/shipping-policy" className="text-[#1d4ed8] underline">Shipping policy</Link></p>
+          <p className="mt-3 text-xs"><Link href="/return-policy" className="text-[#1d4ed8] underline">Full returns & refund policy</Link> · <Link href="/pages/shipping-policy" className="text-[#1d4ed8] underline">Shipping policy</Link></p>
         </Collapsible>
 
         {/* Actions */}
