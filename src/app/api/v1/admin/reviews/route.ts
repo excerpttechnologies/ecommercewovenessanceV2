@@ -21,6 +21,5 @@ export const GET = handler(async (req: NextRequest) => {
     pages: result.pages,
     summary: result.summary,
     source: "erp",
-    collection: "items",
   });
 });

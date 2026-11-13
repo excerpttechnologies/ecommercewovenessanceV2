@@ -768,10 +768,16 @@ function scopeToBusiness(match: Record<string, unknown>, businessId?: string): R
   return match;
 }
 
-/** Barcodes the ERP product-eccom form saved on the record (`barcode`, plus any extra in `barcodes`). */
+/** Barcodes the ERP product-eccom form published on the record. `publishedBarcodes`
+ *  is authoritative when present (the ERP's per-barcode "Show in E-commerce" list,
+ *  possibly empty); legacy rows without it fall back to `barcode` + `barcodes`. */
 function savedBarcodes(product: AnyDoc): string[] {
+  const clean = (value: unknown) => (typeof value === "string" || typeof value === "number" ? String(value).trim() : "");
+  if (Array.isArray(product.publishedBarcodes)) {
+    return [...new Set(product.publishedBarcodes.map(clean).filter(Boolean))];
+  }
   const values = [product.barcode, ...(Array.isArray(product.barcodes) ? product.barcodes : [])];
-  return [...new Set(values.map((value) => (typeof value === "string" || typeof value === "number" ? String(value).trim() : "")).filter(Boolean))];
+  return [...new Set(values.map(clean).filter(Boolean))];
 }
 
 /** Only the fields the mapper reads leave the database. */
@@ -1033,7 +1039,7 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     try {
       ecommerceProducts = await connection.db!.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.ecommerceProducts)
         .find(publishedMatch as unknown as Record<string, unknown>, {
-          projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, _id: 0 },
+          projection: { itemId: 1, businessId: 1, erpDocumentId: 1, barcode: 1, barcodes: 1, publishedBarcodes: 1, _id: 0 },
         })
         .toArray();
     } catch (err) {
@@ -1135,6 +1141,7 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
             erpDocumentId: 1,
             barcode: 1,
             barcodes: 1,
+            publishedBarcodes: 1,
             ...classificationProjection,
             _id: 0,
           },
@@ -1172,9 +1179,9 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     if (subgroupId && barcodeReferences.length) {
       const itemIds = [...new Set(barcodeReferences.flatMap((reference) => (reference.itemId ? [reference.itemId] : [])))]
         .flatMap((itemId) => [itemId, toObjectIdOrString(itemId)]);
-      const items = await connection.db!.collection<{ _id: ErpId }>("items")
+      const items = await connection.db!.collection<{ _id: ErpId; subGroupId?: unknown }>("item")
         .find(
-          { _id: { $in: itemIds }, subgroup: { $in: [subgroupId, toObjectIdOrString(subgroupId)] } },
+          { _id: { $in: itemIds }, subGroupId: { $in: [subgroupId, toObjectIdOrString(subgroupId)] } },
           { projection: { _id: 1 } },
         )
         .toArray();
@@ -1291,18 +1298,18 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const itemIds = [...new Set(ecommerceProducts.flatMap((product) => product.itemId == null ? [] : [String(product.itemId)]))]
       .flatMap((itemId) => [itemId, toObjectIdOrString(itemId)]);
     if (!itemIds.length) return [];
-    const items = await connection.db!.collection<{ _id: ErpId; subgroup?: unknown }>("items")
-      .find({ _id: { $in: itemIds }, subgroup: { $nin: [null, ""] } }, { projection: { _id: 1, subgroup: 1 } })
+    const items = await connection.db!.collection<{ _id: ErpId; subGroupId?: unknown }>("item")
+      .find({ _id: { $in: itemIds }, subGroupId: { $nin: [null, ""] } }, { projection: { _id: 1, subGroupId: 1 } })
       .toArray();
     const counts = new Map<string, number>();
     for (const item of items) {
-      if (item.subgroup == null) continue;
-      const subgroupId = String(item.subgroup);
+      if (item.subGroupId == null) continue;
+      const subgroupId = String(item.subGroupId);
       counts.set(subgroupId, (counts.get(subgroupId) ?? 0) + 1);
     }
     if (!counts.size) return [];
     const subgroupIds = [...counts.keys()].flatMap((id) => [id, toObjectIdOrString(id)]);
-    const subgroups = await connection.db!.collection<{ _id: ErpId; name?: unknown; subgroupName?: unknown }>("subgroups")
+    const subgroups = await connection.db!.collection<{ _id: ErpId; name?: unknown; subgroupName?: unknown }>("productgroup")
       .find({ _id: { $in: subgroupIds } }, { projection: { _id: 1, name: 1, subgroupName: 1 } })
       .toArray();
     const names = new Map(subgroups.map((subgroup) => [

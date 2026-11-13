@@ -143,27 +143,33 @@ export function mergeDashboardOrders(...sources: (ErpDashboardOrders | null)[]):
   return merged;
 }
 
+/** barcodeLabel is the stock-carrying collection: `qtyNum` (fallback `qty` string)
+ *  and a lifecycle `status`. SOLD / VOID / HISTORY / IN_TRANSIT labels are not sellable. */
+const ERP_STOCK_MATCH = { status: { $in: ["IN_STOCK", null] } };
+const ERP_STOCK_QTY = {
+  $convert: {
+    input: {
+      $ifNull: [
+        "$qtyNum",
+        { $convert: { input: "$qty", to: "double", onError: 0, onNull: 0 } },
+      ],
+    },
+    to: "double",
+    onError: 0,
+    onNull: 0,
+  },
+};
+
 export async function erpStockSummary() {
   const connection = await getErpConnection();
   if (!connection.db) throw new Error("RetailERP database connection is not ready");
-  const [row] = await connection.db.collection("items").aggregate<{
+  const [row] = await connection.db.collection("barcodeLabel").aggregate<{
     total: number;
     outOfStock: number;
     lowStock: number;
   }>([
-    { $match: { status: "active" } },
-    {
-      $project: {
-        quantity: {
-          $convert: {
-            input: { $ifNull: ["$inventory.availableStock", "$inventory.currentStock"] },
-            to: "double",
-            onError: 0,
-            onNull: 0,
-          },
-        },
-      },
-    },
+    { $match: ERP_STOCK_MATCH },
+    { $project: { quantity: ERP_STOCK_QTY } },
     {
       $group: {
         _id: null,
@@ -208,85 +214,46 @@ export function resolveInventoryCategory(productType: unknown, productName: unkn
 export async function erpInventory(threshold: number) {
   const connection = await getErpConnection();
   if (!connection.db) throw new Error("RetailERP database connection is not ready");
-  const [result] = await connection.db.collection("items").aggregate<{
+  const [result] = await connection.db.collection("barcodeLabel").aggregate<{
     summary: { total: number; inStock: number; lowStock: number; outOfStock: number }[];
     lowStock: (ErpInventoryRow & { productType?: string })[];
     outOfStock: (ErpInventoryRow & { productType?: string })[];
   }>([
-    { $match: { status: "active" } },
+    { $match: ERP_STOCK_MATCH },
     {
       $lookup: {
-        from: "barcodeLabel",
-        localField: "barcodeManagement.sourceBarcodeLabel",
+        from: "productgroup",
+        localField: "groupId",
         foreignField: "_id",
-        as: "_sourceLabel",
+        as: "_group",
       },
     },
-    { $set: { _sourceLabel: { $first: "$_sourceLabel" } } },
+    { $set: { _group: { $first: "$_group" } } },
     {
       $project: {
         _id: 1,
-        itemCode: {
-          $ifNull: [
-            "$identity.itemCode",
-            { $ifNull: ["$_sourceLabel.itemCode", { $ifNull: ["$itemCode", { $ifNull: ["$code", "$sku"] }] }] },
-          ],
-        },
-        barcode: {
-          $ifNull: ["$_sourceLabel.barcodeNo", ""],
-        },
+        itemCode: { $ifNull: ["$itemCode", "$barcodeNo"] },
+        barcode: { $ifNull: ["$barcodeNo", ""] },
         name: {
           $ifNull: [
-            "$identity.productName",
+            "$itemName",
             {
               $ifNull: [
-                "$_sourceLabel.supplierDescription",
-                {
-                  $ifNull: [
-                    "$_sourceLabel.printDescription",
-                    {
-                      $ifNull: [
-                        "$_sourceLabel.itemName",
-                        {
-                          $ifNull: [
-                            "$name",
-                            {
-                              $ifNull: [
-                                "$itemName",
-                                { $ifNull: ["$productName", { $ifNull: ["$_sourceLabel.itemCode", "$_sourceLabel.barcodeNo"] }] },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
+                "$supplierDescription",
+                { $ifNull: ["$printDescription", { $ifNull: ["$itemCode", "$barcodeNo"] }] },
               ],
             },
           ],
         },
         category: {
           $convert: {
-            input: {
-              $ifNull: [
-                "$identity.productType",
-                { $ifNull: ["$categoryName", "$groupName"] },
-              ],
-            },
+            input: { $ifNull: ["$_group.name", "—"] },
             to: "string",
             onError: "—",
             onNull: "—",
           },
         },
-        qty: {
-          $convert: {
-            input: { $ifNull: ["$inventory.availableStock", "$inventory.currentStock"] },
-            to: "double",
-            onError: 0,
-            onNull: 0,
-          },
-        },
+        qty: ERP_STOCK_QTY,
       },
     },
     {
@@ -328,8 +295,8 @@ export async function erpOverview() {
   const connection = await getErpConnection();
   if (!connection.db) throw new Error("RetailERP database connection is not ready");
   const [products, customers, statusCounts, stock] = await Promise.all([
-    connection.db.collection("items").countDocuments({ status: "active" }),
-    connection.db.collection("customers").countDocuments({}),
+    connection.db.collection("item").countDocuments({}),
+    connection.db.collection("customer").countDocuments({}),
     getErpOrders().getStatusCounts(),
     erpStockSummary(),
   ]);
@@ -364,7 +331,7 @@ export async function dashboardStats() {
     attemptSource("RetailERP customers", async () => {
       const connection = await getErpConnection();
       if (!connection.db) throw new Error("RetailERP database connection is not ready");
-      return connection.db.collection("customers").countDocuments({});
+      return connection.db.collection("customer").countDocuments({});
     }, erpErrors),
     attemptSource("RetailERP stock", () => erpStockSummary(), erpErrors),
   ]);
