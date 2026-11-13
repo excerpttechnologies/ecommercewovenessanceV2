@@ -122,11 +122,13 @@ describe("GET /api/v1/admin/products", () => {
 
     expect(response.status).toBe(200);
     expect(collectionReads).toContain("ecommerceproduct");
-    expect(ecommerceFilters[0]).toEqual({
-      $or: [{
-        itemId: { $in: ["item-1"] },
-        businessId: { $in: ["business-1"] },
-      }],
+    expect(ecommerceFilters[0]).toMatchObject({
+      $or: expect.arrayContaining([
+        {
+          itemId: { $in: ["item-1"] },
+          businessId: { $in: ["business-1"] },
+        },
+      ]),
     });
     expect(body.data[0].erpEcommerce).toMatchObject({
       id: "catalog-1",

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getBarcodeImageSeries = vi.fn();
-vi.mock("@/lib/barcode-image-series", () => ({ getBarcodeImageSeries }));
+vi.mock("@/lib/barcode-image-series", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    getBarcodeImageSeries,
+  };
+});
 
 const { GET } = await import("@/app/api/v1/products/erp-images/route");
 const req = (qs = "") => ({ nextUrl: new URL(`http://localhost/api/v1/products/erp-images${qs}`) }) as never;

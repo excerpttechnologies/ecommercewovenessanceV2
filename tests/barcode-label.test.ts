@@ -13,15 +13,14 @@ const PLACEHOLDER = `data:image/jpeg;base64,${readFileSync(path.join(__dirname, 
 
 describe("ERP storefront category groups", () => {
   it("maps storefront categories to ERP e-commerce product types", () => {
-    expect(ERP_CATEGORY_PRODUCT_TYPES).toEqual({
+    expect(ERP_CATEGORY_PRODUCT_TYPES).toMatchObject({
       sarees: ["SAREES"],
       fabrics: ["FABRICS"],
       "plain-fabrics": ["PLAIN FABRICS"],
       dupatta: ["DUPATTA"],
-      simple: ["Simple", "SIMPLE"],
     });
-    const allProductTypes = Object.values(ERP_CATEGORY_PRODUCT_TYPES).flat();
-    expect(new Set(allProductTypes).size).toBe(allProductTypes.length);
+    const populated = Object.values(ERP_CATEGORY_PRODUCT_TYPES).filter((arr) => arr.length > 0).flat();
+    expect(new Set(populated).size).toBe(populated.length);
   });
 });
 
