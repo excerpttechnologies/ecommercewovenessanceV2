@@ -973,7 +973,7 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
             : fallback;
           const resolved = await resolveRecordImage(
             [
-              ...[raw[B.imageUrl], raw[B.filePath]].flatMap((value) =>
+              ...[raw[B.imageUrl], raw[B.filePath], raw.image].flatMap((value) =>
                 toImages(Array.isArray(value) ? value : [value]),
               ),
               fallbackFromConfiguredBase,

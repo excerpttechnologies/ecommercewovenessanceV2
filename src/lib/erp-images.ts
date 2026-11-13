@@ -24,6 +24,7 @@ const DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp|avif);base64,/i;
 const SPACES_HOST = /^([a-z0-9.-]+)\.([a-z0-9-]+)\.digitaloceanspaces\.com$/i;
 const BARCODE_IMAGE_ORIGIN = "https://erp.wovenessence.in";
 const BARCODE_IMAGE_PATH = /^\/august_8A_images\/[a-z0-9_-]+\.jpg$/i;
+const ERP_FILES_PATH = /^\/api\/files\/[a-z0-9]+\/[a-z0-9]+\.[a-z]+$/i;
 
 export function barcodeImageUrl(barcode: string): string | undefined {
   if (!/^[a-z0-9_-]+$/i.test(barcode)) return undefined;
@@ -69,8 +70,11 @@ export function normalizeImageRef(ref: unknown, opts: ImageResolveOptions = {}):
   try {
     if (/^https?:\/\//i.test(s)) url = new URL(s);
     else if (s.startsWith("//")) url = new URL(`https:${s}`);
-    else if (opts.base) url = new URL(s.startsWith("/") ? s : `/${s}`, `${opts.base}/`);
-    else return null;
+    else if (opts.base) {
+      // Resolve relative paths against ERP_IMAGE_BASE
+      // This handles /api/files/, /images/, and other relative paths
+      url = new URL(s.startsWith("/") ? s : `/${s}`, `${opts.base}/`);
+    } else return null;
   } catch {
     return null;
   }
@@ -100,6 +104,7 @@ export function isAllowedImageUrl(url: string, opts: Pick<ImageResolveOptions, "
   try {
     const u = new URL(url);
     if (u.protocol === "https:" && u.origin === BARCODE_IMAGE_ORIGIN && BARCODE_IMAGE_PATH.test(u.pathname)) return true;
+    if (u.protocol === "https:" && u.origin === BARCODE_IMAGE_ORIGIN && ERP_FILES_PATH.test(u.pathname)) return true;
     if (u.protocol === "https:" && isSpacesHostAllowed(u.hostname, opts)) return true;
     if (!opts.base) return false;
     const b = new URL(opts.base);

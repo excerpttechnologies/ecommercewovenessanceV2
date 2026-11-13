@@ -6,7 +6,8 @@ type RemotePattern = NonNullable<NonNullable<NextConfig["images"]>["remotePatter
  * RetailERP image hosts — keep in sync with isAllowedImageUrl() in src/lib/erp-images.ts:
  *  - ERP_IMAGE_SPACES_HOSTS: the DigitalOcean Spaces bucket(s) the ERP uploads product photos to
  *    (exact hosts, never a wildcard: /_next/image is public and would proxy any bucket)
- *  - ERP_IMAGE_BASE: the deployed RetailERP web app that serves relative paths like /august_8A_images/…
+ *  - ERP_IMAGE_BASE: the deployed RetailERP web app that serves relative paths like /august_8A_images/…,
+ *    /api/files/…, and /images/…
  */
 function erpImagePatterns(): RemotePattern[] {
   const spacesHosts = (process.env.ERP_IMAGE_SPACES_HOSTS ?? "templeimg.blr1.digitaloceanspaces.com")
@@ -36,6 +37,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "https", hostname: "wovenessence.in", pathname: "/images/**" },
       { protocol: "https", hostname: "erp.wovenessence.in", pathname: "/august_8A_images/**" },
+      { protocol: "https", hostname: "erp.wovenessence.in", pathname: "/api/files/**" },
+      { protocol: "https", hostname: "erp.wovenessence.in", pathname: "/images/**" },
       ...erpImagePatterns(),
     ],
   },

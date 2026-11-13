@@ -1,0 +1,11 @@
+# ADD THESE LINES TO YOUR .env.local FILE
+
+# Deployed RetailERP web app; serves relative ERP image paths
+ERP_IMAGE_BASE=https://erp.wovenessence.in
+
+# DigitalOcean Spaces bucket host holding ERP product photos
+ERP_IMAGE_SPACES_HOSTS=templeimg.blr1.digitaloceanspaces.com
+
+# Optional: DigitalOcean Spaces keys for private images
+# DO_SPACES_KEY=your_access_key
+# DO_SPACES_SECRET=your_secret_key
