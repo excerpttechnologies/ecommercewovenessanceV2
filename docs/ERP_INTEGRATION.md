@@ -213,13 +213,52 @@ If the ERP splits data differently (e.g. `item_master` + `item_stock` + `item_pr
 | Data | Owner | Editable in admin? |
 | --- | --- | --- |
 | ERP product name, price, MRP, GST, stock, attributes, images | RetailERP | No — source data remains read-only |
-| Product display name, item name, active flag, slug, SEO, featured flag, extra images | Website (`productWebMeta`) | Yes — Products → row → Edit; inactive barcode items are omitted from storefront catalogs |
+| Product display name, item name, active flag, slug, SEO, featured flag, gallery images | Website (`productWebMeta`) | Yes — Products → row → Edit; inactive barcode items are omitted from storefront catalogs |
 | Categories, stores | RetailERP | No |
 | Menu, banners, collections, homepage sections, CMS, testimonials, coupons | Website | Yes |
 | Orders, customers (website registrations) | Website, stored with ERP field names | Yes (status workflow, AWB) |
 
 Stock and prices are **never cached**: every product list, cart hydration and checkout re-reads master data,
 so the site can never sell a SKU RetailERP has already sold in-store.
+
+### Product image gallery
+
+Barcode product pages show up to five images: a large main image plus thumbnails
+(vertical on desktop, horizontal on mobile). The gallery is website-owned metadata,
+so **ERP image fields are never modified**:
+
+- `productWebMeta.extraImages` — ordered list of alternate image URLs (slots 2–5).
+- `productWebMeta.galleryPrimaryImage` — optional primary override. When empty, the
+  final storefront image remains the primary image.
+- ERP `ecommerceproduct.additionalImages` — alternate views maintained in RetailERP.
+  They are validated against the allowed ERP/Spaces hosts and appended after the
+  website images, de-duplicated and capped at five. They are **not** copied into
+  `productWebMeta`.
+- Gallery assembly runs after the ERP e-commerce lookup, so an ERP product image that
+  replaces a missing barcode photo is used as the gallery primary
+  (`src/lib/barcode-image-series.ts`).
+- Manage the gallery in Admin → Products → row → **Edit** → *Product gallery*
+  (`src/components/admin/product-gallery-editor.tsx`): upload, replace, remove,
+  reorder or choose the primary image, then save. ERP additional images are shown
+  read-only in the editor and in the storefront preview.
+- Uploads accept JPEG, PNG or WebP up to `IMAGE_MAX_MB` (default 8 MB). Files are
+  stored on disk under `UPLOAD_ROOT/products/<sku>/` and served from
+  `/api/v1/uploads/…`; MongoDB stores only URLs. Docker Compose mounts the
+  `uploads` volume so files survive container rebuilds. On a multi-replica or
+  serverless deployment, point `UPLOAD_ROOT` at shared persistent storage or paste
+  a CDN URL instead.
+- View labels are display-only and derived from the existing product type/category/
+  group strings (`src/lib/product-gallery.ts`): Saree → Full Drape/Pallu/Border/
+  Texture/Blouse Piece; Fabric → Full View/Texture/Pattern/Border/Folded View;
+  Men's Wear → Front/Side/Back/Detail/Styling.
+- AI image generation is **not** wired into this project. Only upload real
+  photographs; generated or synthetic images are never published automatically.
+
+Single-image products keep working unchanged, and no data migration is required —
+products without saved gallery metadata fall back to the ERP/barcode image alone.
+Product `4A1277` currently has one real ERP image (`4A1287.jpg` is its matching
+product photo); alternate photos must be uploaded before thumbnails appear, and
+images from other products are never substituted.
 
 ## 9. Runtime switches
 

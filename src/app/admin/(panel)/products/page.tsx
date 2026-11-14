@@ -9,6 +9,7 @@ import { getProductClassificationOptions, type ClassificationField } from "@/lib
 import type { ErpEcommerceCatalog } from "@/lib/admin/erp-ecommerce-catalog";
 import { PageHeader, Pager, Table } from "@/components/admin/table";
 import { ProductThumb } from "@/components/admin/product-thumb";
+import { ProductGalleryEditor } from "@/components/admin/product-gallery-editor";
 import { ClassificationPicker } from "@/components/admin/classification-picker";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,8 @@ type Row = BarcodeProduct & {
     supplierCodeOverride?: string;
     supplierNameOverride?: string;
     printDescriptionOverride?: string;
+    galleryPrimaryImage?: string;
+    extraImages?: string[];
     ecommOffPercent?: number;
     barcodePriceOverride?: number;
     barcodeQtyOverride?: number;
@@ -94,6 +97,9 @@ export default function ProductsPage() {
   const [occasionDescription, setOccasionDescription] = useState("");
   const [colorDescription, setColorDescription] = useState("");
   const [printDescription, setPrintDescription] = useState("");
+  const [galleryPrimary, setGalleryPrimary] = useState("");
+  const [galleryImages, setGalleryImages] = useState<string[]>(["", "", "", ""]);
+  const [initialGallery, setInitialGallery] = useState<{ primary: string; extras: string[] }>({ primary: "", extras: [] });
   const [ecommOffPercent, setEcommOffPercent] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -192,6 +198,12 @@ export default function ProductsPage() {
     if (!stale && meta?.pages && page > meta.pages) setPage(meta.pages);
   }, [stale, meta?.pages, page]);
 
+  const savedGalleryImages = galleryImages.map((value) => value.trim()).filter(Boolean);
+  const savedGalleryPrimary = galleryPrimary.trim();
+  const galleryChanged =
+    JSON.stringify(savedGalleryImages) !== JSON.stringify(initialGallery.extras)
+    || savedGalleryPrimary !== initialGallery.primary;
+
   const save = useMutation({
     mutationFn: () => api("/api/v1/admin/products", {
       method: "PATCH",
@@ -208,6 +220,7 @@ export default function ProductsPage() {
         ...(occasionDescription !== initialEditValues.occasionDescription ? { occasionDescription: occasionDescription.trim() || null } : {}),
         ...(colorDescription !== initialEditValues.colorDescription ? { colorDescription: colorDescription.trim() || null } : {}),
         ...(printDescription !== initialEditValues.printDescription ? { printDescriptionOverride: printDescription.trim() || null } : {}),
+        ...(galleryChanged ? { galleryPrimaryImage: savedGalleryPrimary || null, extraImages: savedGalleryImages } : {}),
         ...(ecommOffPercent !== initialEditValues.ecommOffPercent ? { ecommOffPercent: ecommOffPercent.trim() ? Number(ecommOffPercent) : null } : {}),
         ...(price !== initialEditValues.price ? { barcodePriceOverride: price.trim() ? Number(price) : null } : {}),
         ...(quantity !== initialEditValues.quantity ? { barcodeQtyOverride: quantity.trim() ? Number(quantity) : null } : {}),
@@ -319,6 +332,10 @@ export default function ProductsPage() {
                 setOccasionDescription(values.occasionDescription);
                 setColorDescription(values.colorDescription);
                 setPrintDescription(values.printDescription);
+                const savedExtras = (r.web?.extraImages ?? []).map((value) => (typeof value === "string" ? value.trim() : "")).filter(Boolean).slice(0, 4);
+                setGalleryImages(Array.from({ length: 4 }, (_, index) => savedExtras[index] ?? ""));
+                setGalleryPrimary(r.web?.galleryPrimaryImage ?? "");
+                setInitialGallery({ primary: r.web?.galleryPrimaryImage ?? "", extras: savedExtras });
                 setEcommOffPercent(values.ecommOffPercent);
                 setPrice(values.price);
                 setQuantity(values.quantity);
@@ -346,6 +363,16 @@ export default function ProductsPage() {
                 <p className="text-xs text-muted">RetailERP barcode {editing.barcode}</p>
               </div>
             </div>
+            <ProductGalleryEditor
+              sku={editing.barcode}
+              labelContext={[productType, editing.group].filter(Boolean).join(" ")}
+              baseImage={editing.image}
+              primary={galleryPrimary}
+              extras={galleryImages}
+              erpExtras={editing.erpEcommerce?.additionalImages ?? []}
+              onPrimaryChange={setGalleryPrimary}
+              onExtrasChange={setGalleryImages}
+            />
             {editing.erpEcommerce?.raw && (
               <details className="rounded-sm border border-border bg-white">
                 <summary className="cursor-pointer px-3 py-2 text-sm font-medium">

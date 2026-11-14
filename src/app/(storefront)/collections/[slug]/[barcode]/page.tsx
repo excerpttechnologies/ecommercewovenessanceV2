@@ -55,13 +55,14 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const title = barcodeProductTitle(item, categoryTitle);
   const description = barcodeProductDescription(item, categoryTitle);
   const path = barcodeProductPath(group, item.barcode);
-  const image = publicImage(item.image) ?? absoluteUrl(DEFAULT_OG_IMAGE);
+  const images = (item.images?.length ? item.images : [item.image]).map(publicImage).filter((src): src is string => Boolean(src));
+  const image = images[0] ?? absoluteUrl(DEFAULT_OG_IMAGE);
   const { sellingPrice, inStock, name } = barcodeProductFacts(item);
   return {
     title,
     description,
     alternates: { canonical: path },
-    openGraph: { ...OG_DEFAULTS, url: path, title, description, images: [{ url: image, alt: name }] },
+    openGraph: { ...OG_DEFAULTS, url: path, title, description, images: (images.length ? images : [image]).map((url) => ({ url, alt: name })) },
     twitter: { card: "summary_large_image", title, description, images: [image] },
     other: sellingPrice > 0
       ? {

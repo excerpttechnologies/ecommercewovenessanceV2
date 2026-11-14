@@ -321,7 +321,7 @@ export function itemListJsonLd(items: { name: string; path: string; image?: stri
 export function barcodeProductJsonLd(item: BarcodeProduct, group: string, categoryTitle: string): Json {
   const { name, sellingPrice, inStock } = barcodeProductFacts(item);
   const url = absoluteUrl(barcodeProductPath(group, item.barcode));
-  const image = publicImage(item.image);
+  const images = (item.images?.length ? item.images : [item.image]).map(publicImage).filter((src): src is string => Boolean(src));
   const attrs = item.ecommerce?.attributes ?? {};
   return {
     "@type": "Product",
@@ -330,7 +330,7 @@ export function barcodeProductJsonLd(item: BarcodeProduct, group: string, catego
     description: barcodeProductDescription(item, categoryTitle),
     sku: item.barcode,
     ...(item.itemCode && item.itemCode !== item.barcode ? { mpn: item.itemCode } : {}),
-    ...(image ? { image: [image] } : {}),
+    ...(images.length ? { image: images } : {}),
     brand: { "@type": "Brand", name: SITE_NAME },
     category: categoryTitle,
     ...(attrs.color ? { color: attrs.color } : {}),

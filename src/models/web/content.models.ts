@@ -256,6 +256,8 @@ export const ProductWebMetaSchema = new Schema(
     supplierCodeOverride: String,
     supplierNameOverride: String,
     printDescriptionOverride: String,
+    /** Storefront gallery primary override (ERP/barcode image when blank). */
+    galleryPrimaryImage: String,
     ecommOffPercent: { type: Number, min: 0, max: 100 },
     cardTitle: String,
     cardDescription: String,

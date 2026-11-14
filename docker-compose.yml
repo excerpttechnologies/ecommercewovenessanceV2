@@ -9,6 +9,7 @@ services:
     build: .
     depends_on: [mongo]
     ports: ["3000:3000"]
+    volumes: ["uploads:/app/uploads"]
     environment:
       DATA_SOURCE: mock
       MONGODB_URI: mongodb://mongo:27017
@@ -30,3 +31,4 @@ services:
 
 volumes:
   mongo_data:
+  uploads:

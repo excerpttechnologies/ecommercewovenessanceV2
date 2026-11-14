@@ -1,6 +1,6 @@
 import { type Connection } from "mongoose";
 import { toObjectIdOrString } from "@/lib/db";
-import { ERP_BARCODE_COLLECTIONS } from "@/lib/erp-mapping";
+import { ERP_BARCODE_COLLECTIONS, toImages } from "@/lib/erp-mapping";
 import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
 
 export interface ErpEcommerceCatalog {
@@ -21,6 +21,8 @@ export interface ErpEcommerceCatalog {
   isFeatured?: boolean;
   isPublished?: boolean;
   image?: string;
+  /** Alternate views maintained on the ERP product (raw references; the storefront validates hosts). */
+  additionalImages?: string[];
   slug?: string;
   status?: string;
   attributes: {
@@ -118,6 +120,10 @@ export function mapErpEcommerceCatalog(
     isFeatured: typeof source.isFeatured === "boolean" ? source.isFeatured : undefined,
     isPublished: typeof source.isPublished === "boolean" ? source.isPublished : undefined,
     image: text(source.image),
+    additionalImages: (() => {
+      const images = toImages(source.additionalImages).map((image) => image.trim()).filter(Boolean);
+      return images.length ? images : undefined;
+    })(),
     slug: text(source.slug),
     status: text(source.status),
     attributes: {

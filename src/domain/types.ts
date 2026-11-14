@@ -734,6 +734,10 @@ export interface BarcodeProduct {
   grcNo?: string;
   /** Verified, browser-loadable image URL (or data URI). Absent when `imageIssue` is set. */
   image?: string;
+  /** Ordered gallery images for the product detail page (primary first). Backward-compatible; may be absent. */
+  images?: string[];
+  /** Alternate views from the ERP product's `additionalImages` (normalized, allowed hosts only). */
+  erpAdditionalImages?: string[];
   imageIssue?: ImageIssue;
   /** How many barcodeLabel documents carry this barcode — only set when more than one. */
   barcodeLabelCount?: number;

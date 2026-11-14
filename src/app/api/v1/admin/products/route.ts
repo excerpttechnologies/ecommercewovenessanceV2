@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { z } from "zod";
 import { parseBody } from "@/lib/api/body";
 import { fail, handler, ok } from "@/lib/api/response";
@@ -8,6 +9,9 @@ import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
 import { ERP_BARCODE_COLLECTIONS } from "@/lib/erp-mapping";
+import { env } from "@/lib/env";
+import { GALLERY_SLOT_LIMIT, isAllowedGalleryUrl } from "@/lib/product-gallery";
+import { pruneProductUploads } from "@/lib/product-upload";
 import { ProductWebMetaModel } from "@/models/web/content.models";
 import {
   erpEcommerceKey,
@@ -86,6 +90,8 @@ export const GET = handler(async (req: NextRequest) => {
         supplierCodeOverride: m.supplierCodeOverride,
         supplierNameOverride: m.supplierNameOverride,
         printDescriptionOverride: m.printDescriptionOverride,
+        galleryPrimaryImage: m.galleryPrimaryImage,
+        extraImages: m.extraImages,
         ecommOffPercent: m.ecommOffPercent,
         isFeatured: m.isFeatured,
         isActive: m.isActive,
@@ -111,6 +117,12 @@ export const GET = handler(async (req: NextRequest) => {
   );
 });
 
+const galleryUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine(isAllowedGalleryUrl, "Use an http(s) or site-relative image URL");
+
 /** PATCH /api/v1/admin/products — website-owned product overlay only. */
 export const PATCH = handler(async (req: NextRequest) => {
   const actor = await requireAdmin("products:write");
@@ -133,20 +145,25 @@ export const PATCH = handler(async (req: NextRequest) => {
     supplierCodeOverride: z.string().trim().max(120).nullable().optional(),
     supplierNameOverride: z.string().trim().max(160).nullable().optional(),
     printDescriptionOverride: z.string().trim().max(1000).nullable().optional(),
+    galleryPrimaryImage: z.union([z.literal(""), galleryUrl]).nullable().optional(),
     ecommOffPercent: z.number().finite().min(0).max(100).nullable().optional(),
     barcodePriceOverride: z.number().finite().min(0).max(100_000_000).nullable().optional(),
     barcodeQtyOverride: z.number().finite().min(0).max(1_000_000).nullable().optional(),
     barcodeStatusOverride: z.enum(["IN_STOCK", "IN_TRANSIT", "SOLD", "HISTORY", "VOID"]).nullable().optional(),
     isFeatured: z.boolean().optional(),
     isActive: z.boolean().optional(),
-    extraImages: z.array(z.string()).optional(),
+    extraImages: z
+      .array(galleryUrl)
+      .max(GALLERY_SLOT_LIMIT - 1)
+      .transform((images) => [...new Set(images)])
+      .optional(),
     webTags: z.array(z.string()).optional(),
     weightKg: z.number().finite().min(0.001).max(1000).nullable().optional(),
     lengthCm: z.number().finite().min(1).max(300).nullable().optional(),
     breadthCm: z.number().finite().min(1).max(300).nullable().optional(),
     heightCm: z.number().finite().min(1).max(300).nullable().optional(),
-  }).refine(({ slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags, weightKg, lengthCm, breadthCm, heightCm }) =>
-    [slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags, weightKg, lengthCm, breadthCm, heightCm].some((value) => value !== undefined)));
+  }).refine(({ slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, galleryPrimaryImage, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags, weightKg, lengthCm, breadthCm, heightCm }) =>
+    [slug, seoTitle, seoDescription, productName, itemName, barcodeName, productType, itemType, weaveDescription, fabricDescription, craftDescription, occasionDescription, colorDescription, groupNameOverride, supplierCodeOverride, supplierNameOverride, printDescriptionOverride, galleryPrimaryImage, ecommOffPercent, barcodePriceOverride, barcodeQtyOverride, barcodeStatusOverride, isFeatured, isActive, extraImages, webTags, weightKg, lengthCm, breadthCm, heightCm].some((value) => value !== undefined)));
   if (!b.ok) return b.res;
   const { sku, ...patch } = b.data;
   let product;
@@ -161,7 +178,7 @@ export const PATCH = handler(async (req: NextRequest) => {
   const before = await M.findOne({ sku }).lean();
   const set: Record<string, unknown> = {};
   const unset: Record<string, 1> = {};
-  for (const key of ["productName", "itemName", "barcodeName", "productType", "itemType", "weaveDescription", "fabricDescription", "craftDescription", "occasionDescription", "colorDescription", "groupNameOverride", "supplierCodeOverride", "supplierNameOverride", "printDescriptionOverride", "ecommOffPercent", "barcodePriceOverride", "barcodeQtyOverride", "barcodeStatusOverride", "weightKg", "lengthCm", "breadthCm", "heightCm"] as const) {
+  for (const key of ["productName", "itemName", "barcodeName", "productType", "itemType", "weaveDescription", "fabricDescription", "craftDescription", "occasionDescription", "colorDescription", "groupNameOverride", "supplierCodeOverride", "supplierNameOverride", "printDescriptionOverride", "galleryPrimaryImage", "ecommOffPercent", "barcodePriceOverride", "barcodeQtyOverride", "barcodeStatusOverride", "weightKg", "lengthCm", "breadthCm", "heightCm"] as const) {
     const value = patch[key];
     if (value === undefined) continue;
     if (value !== null && value !== "") set[key] = value;
@@ -185,5 +202,18 @@ export const PATCH = handler(async (req: NextRequest) => {
     throw e;
   }
   await audit(actor, "productMeta.update", "productWebMeta", sku, before, after, req);
+  // Removing a slot should also remove its website-uploaded file. External/ERP URLs and
+  // other products' folders are never touched (pruneProductUploads is SKU-scoped).
+  try {
+    const kept = [
+      typeof after?.galleryPrimaryImage === "string" ? after.galleryPrimaryImage : "",
+      ...(Array.isArray(after?.extraImages)
+        ? after.extraImages.filter((value): value is string => typeof value === "string")
+        : []),
+    ];
+    await pruneProductUploads(path.resolve(process.cwd(), env.UPLOAD_ROOT), sku, kept);
+  } catch (error) {
+    console.error("[admin/products] gallery upload cleanup failed:", error);
+  }
   return ok(after);
 });

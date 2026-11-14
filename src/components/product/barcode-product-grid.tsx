@@ -150,13 +150,14 @@ export function BarcodeProductGrid({ items, collectionSlug, detailView = false, 
             <article key={item.id} data-reveal className={cn("group flex min-w-0 overflow-hidden rounded-xl bg-white/90 shadow-[0_10px_30px_-18px_rgba(122,18,56,0.35)] ring-1 ring-black/[0.04] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_-18px_rgba(122,18,56,0.45)]", list ? "flex-row p-3" : "flex-col")}>
               {image}
               <div className="flex min-w-0 flex-1 flex-col px-2.5 pb-2.5 pt-2 sm:px-3 sm:pb-3 sm:pt-2.5">
-                <p className="line-clamp-1 text-sm font-semibold uppercase leading-tight tracking-wide text-olive sm:text-base">Code {item.barcode}</p>
+                <p className="line-clamp-1 break-words text-[15px] font-bold uppercase leading-tight tracking-wide text-olive sm:text-base">Code {item.barcode}</p>
+                <span aria-hidden className="my-1.5 block h-px w-full bg-[#e5e5e5]" />
                 {detailHref ? (
                   <Link href={detailHref} className="mt-0.5 line-clamp-1 font-display text-sm font-semibold uppercase sm:text-base leading-tight text-olive hover:text-maroon">{productTitle}</Link>
                 ) : (
                   <p className="mt-0.5 line-clamp-1 font-display text-sm font-semibold uppercase sm:text-base leading-tight text-olive">{productTitle}</p>
                 )}
-                {subtitle ? <p className="mt-0.5 line-clamp-1 text-[10px] uppercase text-muted sm:text-[11px]">{subtitle}</p> : <p className="mt-0.5 h-3.5 sm:h-4" aria-hidden />}
+                {subtitle ? <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-muted sm:text-xs">{subtitle}</p> : <p className="mt-0.5 h-3.5 sm:h-4" aria-hidden />}
                 {list && classifications.length > 0 && (
                   <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
                     {colour && <span className="h-3.5 w-3.5 rounded-full ring-1 ring-black/10" style={{ background: swatchColor(colour) }} />}

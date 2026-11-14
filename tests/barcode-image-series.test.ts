@@ -47,12 +47,17 @@ vi.mock("@/lib/admin/erp-ecommerce-catalog", () => ({
   loadErpEcommerceCatalogs,
 }));
 
+let productMetaDocs: Record<string, unknown>[] = [];
+
 vi.mock("@/models/web/content.models", () => ({
   ProductWebMetaModel: () => ({
-    find: () => ({
-      select: () => ({ lean: async () => [] }),
-      lean: async () => [],
-    }),
+    find: (filter?: { isActive?: boolean }) => {
+      const docs = filter?.isActive === false ? [] : productMetaDocs;
+      return {
+        select: () => ({ lean: async () => docs }),
+        lean: async () => docs,
+      };
+    },
   }),
 }));
 
@@ -66,6 +71,7 @@ describe("getBarcodeImageCatalog", () => {
     getLabelIdsForProductTypes.mockReset();
     getLabelIdsForProductGroups.mockReset().mockResolvedValue(["group-label"]);
     list.mockReset();
+    productMetaDocs = [];
     productTypeDocs = [{
       value: "SAREES",
       ecommerceSlug: "sarees",
@@ -261,5 +267,197 @@ describe("getBarcodeImageCatalog", () => {
     const result = await getBarcodeImageCatalog("sarees", 1);
 
     expect(result.items[0].image).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
+  });
+
+  it("attaches the saved gallery in order with the barcode photo as the default primary", async () => {
+    const image = "https://erp.wovenessence.in/august_8A_images/8A2524.jpg";
+    list.mockResolvedValue({
+      items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524", image }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    productMetaDocs = [{
+      sku: "8A2524",
+      extraImages: ["https://cdn.example.com/side.jpg", "https://cdn.example.com/back.jpg"],
+    }];
+
+    const result = await getBarcodeImageCatalog("sarees", 1);
+
+    expect(result.items[0].images).toEqual([
+      image,
+      "https://cdn.example.com/side.jpg",
+      "https://cdn.example.com/back.jpg",
+    ]);
+  });
+
+  it("uses the saved gallery primary override without overwriting the ERP barcode photo", async () => {
+    const image = "https://erp.wovenessence.in/august_8A_images/8A2524.jpg";
+    list.mockResolvedValue({
+      items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524", image }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    productMetaDocs = [{
+      sku: "8A2524",
+      galleryPrimaryImage: "https://cdn.example.com/gallery-primary.jpg",
+      extraImages: ["https://cdn.example.com/side.jpg"],
+    }];
+
+    const result = await getBarcodeImageCatalog("sarees", 1);
+
+    expect(result.items[0].images).toEqual([
+      "https://cdn.example.com/gallery-primary.jpg",
+      "https://cdn.example.com/side.jpg",
+    ]);
+    expect(result.items[0].image).toBe(image);
+  });
+
+  it("builds the saved gallery after the ERP e-commerce image replaces a missing barcode photo", async () => {
+    const erpImage = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287.jpg";
+    list.mockResolvedValue({
+      items: [{
+        id: "label-1",
+        itemId: "item-1",
+        businessId: "business-1",
+        barcode: "4A1277",
+        image: "https://erp.wovenessence.in/august_8A_images/4A1277.jpg",
+      }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
+      ["item-1:business-1", {
+        displayName: "4-M.DECOR",
+        productType: "FABRICS",
+        attributes: {},
+        raw: { image: `${erpImage}?X-Amz-Signature=expired` },
+      }],
+    ]));
+    productMetaDocs = [{
+      sku: "4A1277",
+      extraImages: ["https://cdn.example.com/texture.jpg"],
+    }];
+
+    const result = await getBarcodeImageCatalog("fabrics", 1, { barcode: "4A1277" });
+
+    expect(result.items[0].image).toBe(erpImage);
+    expect(result.items[0].images).toEqual([
+      erpImage,
+      "https://cdn.example.com/texture.jpg",
+    ]);
+  });
+
+  it("merges ERP additionalImages after website extras and removes duplicates", async () => {
+    const main = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287.jpg";
+    const side = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287-side.jpg";
+    const detail = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287-detail.jpg";
+    list.mockResolvedValue({
+      items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "4A1277" }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
+      ["item-1:business-1", {
+        displayName: "4-M.DECOR",
+        attributes: {},
+        raw: {
+          image: main,
+          additionalImages: [main, side, detail, side],
+        },
+      }],
+    ]));
+    productMetaDocs = [{
+      sku: "4A1277",
+      extraImages: [side, "https://cdn.example.com/back.jpg"],
+    }];
+
+    const result = await getBarcodeImageCatalog("fabrics", 1);
+
+    expect(result.items[0].images).toEqual([
+      main,
+      side,
+      "https://cdn.example.com/back.jpg",
+      detail,
+    ]);
+  });
+
+  it("supports ERP additionalImages when no website gallery metadata exists", async () => {
+    const main = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/8A2524.jpg";
+    const pallu = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/8A2524-pallu.jpg";
+    list.mockResolvedValue({
+      items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524" }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
+      ["item-1:business-1", { attributes: {}, raw: { image: main, additionalImages: [pallu] } }],
+    ]));
+
+    const result = await getBarcodeImageCatalog("sarees", 1);
+
+    expect(result.items[0].images).toEqual([main, pallu]);
+    expect(result.items[0].erpAdditionalImages).toEqual([pallu]);
+  });
+
+  it("keeps a one-photo product as a one-image gallery", async () => {
+    const main = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287.jpg";
+    list.mockResolvedValue({
+      items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "4A1277" }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
+      ["item-1:business-1", { displayName: "4-M.DECOR", attributes: {}, raw: { image: main, additionalImages: [] } }],
+    ]));
+
+    const result = await getBarcodeImageCatalog("fabrics", 1);
+
+    expect(result.items[0].images).toEqual([main]);
+  });
+
+  it("caps the combined website and ERP gallery at five images", async () => {
+    const erpExtras = Array.from({ length: 6 }, (_, index) => `https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/extra-${index}.jpg`);
+    list.mockResolvedValue({
+      items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524" }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
+      ["item-1:business-1", { attributes: {}, raw: { image: erpExtras[0], additionalImages: erpExtras } }],
+    ]));
+    productMetaDocs = [{
+      sku: "8A2524",
+      extraImages: ["https://cdn.example.com/side.jpg", "https://cdn.example.com/back.jpg"],
+    }];
+
+    const result = await getBarcodeImageCatalog("sarees", 1);
+
+    expect(result.items[0].images).toHaveLength(5);
+    expect(result.items[0].images?.slice(0, 3)).toEqual([
+      erpExtras[0],
+      "https://cdn.example.com/side.jpg",
+      "https://cdn.example.com/back.jpg",
+    ]);
   });
 });

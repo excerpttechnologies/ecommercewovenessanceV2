@@ -25,6 +25,10 @@ const schema = z
     /** Optional DigitalOcean Spaces keys. When set, private ERP images in those buckets are served via fresh presigned URLs. */
     DO_SPACES_KEY: z.string().optional(),
     DO_SPACES_SECRET: z.string().optional(),
+    /** Directory for website-owned uploads (served by /api/v1/uploads/…). Keep outside public/. */
+    UPLOAD_ROOT: z.string().default("uploads"),
+    /** Maximum size of one uploaded product photo, in MB. */
+    IMAGE_MAX_MB: z.coerce.number().positive().max(50).default(8),
     /** NVIDIA API key (nvapi-…, from build.nvidia.com) for Admin → AI Assistant. Server-only; never sent to the browser. */
     NVIDIA_API_KEY: z.string().optional(),
     /** Chat model served by the NVIDIA API; it must support tool calling. */

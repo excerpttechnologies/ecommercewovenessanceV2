@@ -274,6 +274,7 @@ import { erpEcommerceKey, loadErpEcommerceCatalogs } from "@/lib/admin/erp-ecomm
 import { isAllowedImageUrl, mapLimit, normalizeImageRef, probeImage } from "@/lib/erp-images";
 import { ERP_BEST_BUY_PRODUCT_TYPE, ERP_NEW_ARRIVAL_PRODUCT_TYPE, toImages } from "@/lib/erp-mapping";
 import { ProductWebMetaModel } from "@/models/web/content.models";
+import { buildGalleryImages } from "@/lib/product-gallery";
 import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
 
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
@@ -457,35 +458,84 @@ export function applyPrintDescriptionOverrides(items: BarcodeProduct[], override
   });
 }
 
-async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
-  if (!items.length) return items;
+type ProductWebOverrides = {
+  printDescription?: string;
+  galleryPrimaryImage?: string;
+  extraImages: unknown[];
+};
+
+/** Website-owned overrides (description + gallery) for the page's barcodes, keyed by SKU. */
+async function loadProductWebOverrides(items: BarcodeProduct[]): Promise<Map<string, ProductWebOverrides> | null> {
   try {
     const metas = await ProductWebMetaModel(await getWebConnection())
       .find({ sku: { $in: [...new Set(items.map((item) => item.barcode))] } })
-      .select({ sku: 1, printDescriptionOverride: 1 })
+      .select({ sku: 1, printDescriptionOverride: 1, extraImages: 1, galleryPrimaryImage: 1 })
       .lean();
-    const overrides = new Map(
-      metas
-        .filter((meta) => typeof meta.printDescriptionOverride === "string" && meta.printDescriptionOverride.trim())
-        .map((meta) => [meta.sku, meta.printDescriptionOverride as string]),
-    );
-    return applyPrintDescriptionOverrides(items, overrides);
+    return new Map(metas.map((meta) => [meta.sku, {
+      printDescription: typeof meta.printDescriptionOverride === "string" && meta.printDescriptionOverride.trim()
+        ? meta.printDescriptionOverride
+        : undefined,
+      galleryPrimaryImage: typeof meta.galleryPrimaryImage === "string" ? meta.galleryPrimaryImage : undefined,
+      extraImages: Array.isArray(meta.extraImages) ? meta.extraImages : [],
+    }]));
   } catch (error) {
-    console.error("[barcode-image-series] product description lookup failed:", redactMongoUri(String((error as Error)?.message ?? error)));
-    return items;
+    console.error("[barcode-image-series] product web metadata lookup failed:", redactMongoUri(String((error as Error)?.message ?? error)));
+    return null;
   }
 }
 
-function ecommerceImage(refs: unknown[]): string | undefined {
+async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
+  if (!items.length) return items;
+  const overrides = await loadProductWebOverrides(items);
+  if (!overrides) return items;
+  // Description-only path used by the homepage series; galleries are attached after ERP details.
+  return items.map((item) => {
+    const description = overrides.get(item.barcode)?.printDescription;
+    return description ? { ...item, printDescription: description } : item;
+  });
+}
+
+/**
+ * Applies website description and gallery overrides AFTER `withEcommerceDetails`, so the gallery
+ * primary is the final storefront image (barcode photo, or the ERP e-commerce image when the
+ * barcode photo is missing). Website images come first; ERP `ecommerceproduct.additionalImages`
+ * follow and are de-duplicated. Five images maximum.
+ */
+async function withProductWebOverrides(items: BarcodeProduct[]) {
+  if (!items.length) return items;
+  const overrides = await loadProductWebOverrides(items);
+  if (!overrides) return items;
+  return items.map((item) => {
+    const meta = overrides.get(item.barcode);
+    const extras = [...(meta?.extraImages ?? []), ...(item.erpAdditionalImages ?? [])];
+    const images = buildGalleryImages(meta?.galleryPrimaryImage, extras, item.image);
+    return {
+      ...item,
+      ...(meta?.printDescription ? { printDescription: meta.printDescription } : {}),
+      ...(images.length ? { images } : {}),
+    };
+  });
+}
+
+function ecommerceImages(refs: unknown[]): string[] {
   const spaces = env.DO_SPACES_KEY && env.DO_SPACES_SECRET
     ? { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET }
     : undefined;
   const options = { base: env.ERP_IMAGE_BASE, spacesHosts: env.ERP_IMAGE_SPACES_HOSTS, spaces };
+  const urls: string[] = [];
+  const seen = new Set<string>();
   for (const ref of refs) {
     const normalized = normalizeImageRef(ref, options);
-    if (normalized && "url" in normalized && isAllowedImageUrl(normalized.url, options)) return normalized.url;
+    if (!normalized || !("url" in normalized) || !isAllowedImageUrl(normalized.url, options)) continue;
+    if (seen.has(normalized.url)) continue;
+    seen.add(normalized.url);
+    urls.push(normalized.url);
   }
-  return undefined;
+  return urls;
+}
+
+function ecommerceImage(refs: unknown[]): string | undefined {
+  return ecommerceImages(refs)[0];
 }
 
 /** null (host unreachable) counts as loading, so the browser still gets to try the barcode's own photo. */
@@ -507,6 +557,9 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
     const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
       ...[raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
     ]);
+    // Real alternate views maintained on the ERP product. Empty across current ERP data, but this
+    // is the correct source once the merchandising team adds more photos.
+    const additionalImages = ecommerceImages(toImages(raw.additionalImages));
     const ecommerce = {
       displayName: catalog.displayName,
       itemCode: catalog.ecommItemCode,
@@ -522,6 +575,7 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
     return {
       ...item,
       ...(image ? { image } : {}),
+      ...(additionalImages.length ? { erpAdditionalImages: additionalImages } : {}),
       ...(hasEcommerceDetails ? { ecommerce } : {}),
     };
   });
@@ -621,7 +675,8 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     limit: detailView ? 1 : limit,
   });
   return {
-    items: await withEcommerceDetails(await withPrintDescriptionOverrides(catalog.items)),
+    // ERP details first (they may replace the primary image), then description + gallery overrides.
+    items: await withProductWebOverrides(await withEcommerceDetails(catalog.items)),
     total: detailView ? Number(catalog.items.length > 0) : catalog.total,
     page: detailView ? 1 : catalog.page,
     pages: detailView ? Number(catalog.items.length > 0) : catalog.pages,

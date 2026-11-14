@@ -1328,16 +1328,21 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const subgroups = await connection.db!.collection<{ _id: ErpId; name?: unknown; subgroupName?: unknown }>("productgroup")
       .find({ _id: { $in: subgroupIds } }, { projection: { _id: 1, name: 1, subgroupName: 1 } })
       .toArray();
-    const names = new Map(subgroups.map((subgroup) => [
-      String(subgroup._id),
-      typeof subgroup.name === "string" && subgroup.name.trim()
+    const names = new Map(subgroups.flatMap((subgroup) => {
+      const name = typeof subgroup.name === "string" && subgroup.name.trim()
         ? subgroup.name.trim()
         : typeof subgroup.subgroupName === "string" && subgroup.subgroupName.trim()
           ? subgroup.subgroupName.trim()
-          : String(subgroup._id),
-    ]));
-    return [...counts].map(([value, count]) => ({ value, label: names.get(value) ?? value, count }))
-      .sort((a, b) => a.label.localeCompare(b.label));
+          : "";
+      return name ? [[String(subgroup._id), name] as const] : [];
+    }));
+    // A subgroup id with no productgroup name (deleted in the ERP) is not offered as a
+    // filter, same as unnamed classification values — the raw id is never shown to shoppers.
+    // The id stays usable internally: ?subgroup=<id> still filters the listing.
+    return [...counts].flatMap(([value, count]) => {
+      const label = names.get(value);
+      return label ? [{ value, label, count }] : [];
+    }).sort((a, b) => a.label.localeCompare(b.label));
   }
 
   /**
@@ -1396,11 +1401,14 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const groups: Row[] = (res?.group ?? []).filter((r: Row) => r.label);
     const nameUses = new Map<string, number>();
     for (const r of groups) nameUses.set(r.label!, (nameUses.get(r.label!) ?? 0) + 1);
+    // Internal record ids are never shown to shoppers: an option whose only "label" is a
+    // Mongo-style id is not offered as a filter (the id still works via the URL param).
+    const noRawId = (o: FacetOption) => !/^[a-f0-9]{24}$/i.test(o.label);
     return {
-      status: (res?.status ?? []).map((r: Row) => opt(r)),
-      uomType: (res?.uomType ?? []).map((r: Row) => opt(r)),
-      group: groups.map((r) => opt(r, nameUses.get(r.label!)! > 1 ? `${r.label} · ${r.business ?? "unlisted business"}` : r.label)).sort(byLabel),
-      business: (res?.business ?? []).map((r: Row) => opt(r, r.label ?? `Unlisted business ·${String(r._id).slice(-6)}`)).sort(byLabel),
+      status: (res?.status ?? []).map((r: Row) => opt(r)).filter(noRawId),
+      uomType: (res?.uomType ?? []).map((r: Row) => opt(r)).filter(noRawId),
+      group: groups.map((r) => opt(r, nameUses.get(r.label!)! > 1 ? `${r.label} · ${r.business ?? "unlisted business"}` : r.label)).filter(noRawId).sort(byLabel),
+      business: (res?.business ?? []).map((r: Row) => opt(r, r.label ?? "Unlisted business")).filter(noRawId).sort(byLabel),
       total: res?.total?.[0]?.n ?? 0,
     };
   }

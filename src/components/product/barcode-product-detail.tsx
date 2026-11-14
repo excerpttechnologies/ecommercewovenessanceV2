@@ -1,17 +1,18 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  BadgeCheck, Banknote, Check, ChevronLeft, ChevronRight, Grid3x3, Heart, Image as ImageIcon, Layers, Minus, Palette,
-  Brush, Plus, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2, X, ZoomIn,
+  BadgeCheck, Banknote, Check, ChevronLeft, ChevronRight, Grid3x3, Heart, Layers, Minus, Palette,
+  Brush, Plus, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2,
 } from "lucide-react";
+import { ImageGallery } from "@/components/product/image-gallery";
 import { PincodeCheck } from "@/components/product/pincode-check";
 import { ProductInformationTabs, type ProductOverviewRow } from "@/components/product/info-tabs";
 import { COUNTRY_OF_ORIGIN, type CustomerCareInfo, type ShippingReturnsInfo } from "@/lib/product-info";
 import type { BarcodeProduct } from "@/domain/types";
 import { useCart, useWishlist } from "@/hooks/useCart";
+import { galleryViewLabel } from "@/lib/product-gallery";
 import { swatchColor } from "@/lib/colour";
 import { cn, formatINR } from "@/lib/utils";
 
@@ -21,59 +22,6 @@ const ATTR_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
 const ATTR_LABELS: Record<string, string> = { weave: "Weave", fabric: "Fabric", craft: "Craft", occasion: "Occasion", color: "Colour" };
 
 const sentence = (s: string) => (s === s.toUpperCase() ? s.charAt(0) + s.slice(1).toLowerCase() : s);
-
-/** Photo with hover zoom (follows the pointer) and a full-screen view. */
-function ZoomImage({ src, alt, discount }: { src?: string; alt: string; discount: number }) {
-  const [failed, setFailed] = useState(!src);
-  const [origin, setOrigin] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <div
-        className="group relative aspect-[4/3] overflow-hidden rounded-2xl bg-line sm:aspect-[5/4]"
-        onMouseMove={(e) => {
-          const r = e.currentTarget.getBoundingClientRect();
-          setOrigin(`${((e.clientX - r.left) / r.width) * 100}% ${((e.clientY - r.top) / r.height) * 100}%`);
-        }}
-        onMouseLeave={() => setOrigin(null)}
-      >
-        {failed || !src ? (
-          <div role="img" aria-label={`Photo unavailable for ${alt}`} className="absolute inset-0 flex items-end justify-center bg-[#fbe3ea] bg-[url('/placeholders/photo-unavailable.webp')] bg-cover bg-center pb-[12%]">
-            <span className="flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-maroon"><ImageIcon className="h-4 w-4" /> Photo unavailable</span>
-          </div>
-        ) : (
-          <button type="button" onClick={() => setOpen(true)} aria-label="View photo full screen" className="absolute inset-0 cursor-zoom-in">
-            <Image
-              src={src}
-              alt={alt}
-              fill
-              priority
-              unoptimized
-              sizes="(min-width: 1024px) 50vw, 100vw"
-              onError={() => setFailed(true)}
-              style={origin ? { transformOrigin: origin } : undefined}
-              className={cn("object-cover transition-transform duration-300", origin && "scale-[1.8]")}
-            />
-          </button>
-        )}
-        {discount > 0 && <span className="pointer-events-none absolute left-4 top-4 rounded-full bg-maroon px-3 py-1 text-xs font-semibold text-white">{discount}% OFF</span>}
-        {!failed && src && (
-          <span className="pointer-events-none absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-olive shadow-card">
-            <ZoomIn className="h-3.5 w-3.5" /> Hover to zoom · click to enlarge
-          </span>
-        )}
-      </div>
-      {open && src && (
-        <div role="dialog" aria-modal="true" aria-label={alt} className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4" onClick={() => setOpen(false)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)}>
-          <button type="button" autoFocus onClick={() => setOpen(false)} aria-label="Close" className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-olive"><X className="h-5 w-5" /></button>
-          <div className="relative h-full w-full max-w-5xl">
-            <Image src={src} alt={alt} fill unoptimized sizes="100vw" className="object-contain" />
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previous, next, freeShippingAbove, codEnabled, customerCare, shippingReturns }: {
   item: BarcodeProduct;
@@ -112,6 +60,11 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
     { label: "Country of origin", value: COUNTRY_OF_ORIGIN },
   ].filter((row) => row.value.trim());
   const colour = item.ecommerce?.attributes?.color;
+  const galleryContext = [categoryTitle, item.ecommerce?.productType, item.group].filter(Boolean).join(" ");
+  const gallery = (item.images?.length ? item.images : item.image ? [item.image] : []).map((src, index) => ({
+    src,
+    label: galleryViewLabel(index, galleryContext),
+  }));
   const wished = has(item.barcode);
   const busy = add.isPending;
 
@@ -148,7 +101,12 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
       <div className="grid gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
         {/* Gallery */}
         <div className="min-w-0 lg:sticky lg:top-40 lg:self-start">
-          <ZoomImage src={item.image} alt={name} discount={discount} />
+          <ImageGallery
+            images={gallery}
+            alt={name}
+            discount={discount}
+            mainAspectClassName="aspect-[4/3] sm:aspect-[5/4]"
+          />
           <div className="mt-3 rounded-xl border border-line bg-white px-3 py-2.5 sm:px-4 sm:py-3">
             <p className="text-[13px] font-semibold text-olive sm:text-sm">Why you&apos;ll love it</p>
             <ul className="we-scroller -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 text-[11px] text-ink/75 sm:grid sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:text-xs">

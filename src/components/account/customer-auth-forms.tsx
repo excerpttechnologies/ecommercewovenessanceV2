@@ -66,19 +66,20 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <form className="mt-7 space-y-5" onSubmit={(e) => { e.preventDefault(); submit("/api/v1/auth/login", { email, password }); }}>
-      <Field label="Email address"><IconInput icon={Mail} type="email" required autoComplete="email" placeholder="Enter your email address" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-      <Field label="Password"><PasswordInput required autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
-      {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>}
-      <Button type="submit" size="lg" className={submitClass} loading={busy}>Log in {!busy && <ArrowRight className="h-4 w-4" />}</Button>
+      {/* WhatsApp OTP first: the requested first login option, immediately visible on open. */}
+      <Button type="button" variant="outline" size="lg" className="h-12 w-full rounded-full text-[15px]" onClick={() => setMode("whatsapp")}>
+        <MessageCircle className="h-4 w-4" /> Login with WhatsApp code
+      </Button>
 
       <div className="relative py-1 text-center">
         <span aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-line" />
         <span className="relative bg-white px-3 text-[10px] uppercase tracking-widest text-muted">or</span>
       </div>
 
-      <Button type="button" variant="outline" size="lg" className="h-12 w-full rounded-full text-[15px]" onClick={() => setMode("whatsapp")}>
-        <MessageCircle className="h-4 w-4" /> Login with WhatsApp OTP
-      </Button>
+      <Field label="Email address"><IconInput icon={Mail} type="email" required autoComplete="email" placeholder="Enter your email address" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+      <Field label="Password"><PasswordInput required autoComplete="current-password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+      {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>}
+      <Button type="submit" size="lg" className={submitClass} loading={busy}>Log in {!busy && <ArrowRight className="h-4 w-4" />}</Button>
     </form>
   );
 }
