@@ -625,7 +625,7 @@ import {
   mapBarcodeLabel,
   toImages,
 } from "@/lib/erp-mapping";
-import { barcodeImageUrl, mapLimit, resolveRecordImage } from "@/lib/erp-images";
+import { barcodeImageUrl, legacyBarcodeImageUrl, mapLimit, resolveRecordImage } from "@/lib/erp-images";
 import { env } from "@/lib/env";
 import { escapeRegex } from "@/lib/utils";
 import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
@@ -983,16 +983,15 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       ? await mapLimit(hydratedItems, 8, async (item) => {
           const raw = docsById.get(item.id);
           if (!raw) return item;
-          const fallback = barcodeImageUrl(item.barcode);
-          const fallbackFromConfiguredBase = fallback && env.ERP_IMAGE_BASE
-            ? new URL(new URL(fallback).pathname, `${env.ERP_IMAGE_BASE}/`).toString()
-            : fallback;
+          const fallbackUrls = [barcodeImageUrl(item.barcode), legacyBarcodeImageUrl(item.barcode)]
+            .filter((url): url is string => Boolean(url))
+            .map((url) => env.ERP_IMAGE_BASE ? new URL(new URL(url).pathname, `${env.ERP_IMAGE_BASE}/`).toString() : url);
           const resolved = await resolveRecordImage(
             [
               ...[raw.image, raw[B.imageUrl], raw[B.filePath], raw.images].flatMap((value) =>
                 toImages(Array.isArray(value) ? value : [value]),
               ),
-              fallbackFromConfiguredBase,
+              ...fallbackUrls,
             ],
             {
               base: env.ERP_IMAGE_BASE,

@@ -8,8 +8,8 @@ import type { ImageIssue } from "@/domain/types";
  *  - https://<bucket>.<region>.digitaloceanspaces.com/<key>?X-Amz-…  — presigned with a 5-minute
  *    expiry at import time, so every stored signature is dead. The object URL without the query
  *    works for public-read objects; private objects need DO_SPACES_KEY/SECRET to presign afresh.
- *  - /august_8A_images/<barcode>.jpg (relative)                     — lives on the deployed
- *    RetailERP web app, i.e. ERP_IMAGE_BASE + path.
+ *  - /images/<prefix>/<barcode>.jpg (relative)                      — barcode-specific photo
+ *    served by RetailERP; a legacy /august_8A_images path is tried second.
  *  - data:image/jpeg;base64,…                                        — one identical grey "image"
  *    icon on thousands of records: a placeholder, not a product photo. Other data URIs are kept.
  *  - anything else absolute                                          — only if its host is allowed.
@@ -23,10 +23,18 @@ export const ERP_PLACEHOLDER_IMAGE_SHA256 = "ec0d918142dc57872c203df5a7073da46e7
 const DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp|avif);base64,/i;
 const SPACES_HOST = /^([a-z0-9.-]+)\.([a-z0-9-]+)\.digitaloceanspaces\.com$/i;
 const BARCODE_IMAGE_ORIGIN = "https://erp.wovenessence.in";
-const BARCODE_IMAGE_PATH = /^\/august_8A_images\/[a-z0-9_-]+\.jpg$/i;
+const BARCODE_IMAGE_PATH = /^\/images\/\d+[a-z]+\/[a-z0-9_-]+\.jpg$/i;
+const LEGACY_BARCODE_IMAGE_PATH = /^\/august_8A_images\/[a-z0-9_-]+\.jpg$/i;
 const ERP_FILES_PATH = /^\/api\/files\/[a-z0-9]+\/[a-z0-9]+\.[a-z]+$/i;
 
 export function barcodeImageUrl(barcode: string): string | undefined {
+  if (!/^[a-z0-9_-]+$/i.test(barcode)) return undefined;
+  const prefix = /^(\d+[a-z]+)/i.exec(barcode)?.[1];
+  if (!prefix) return undefined;
+  return `${BARCODE_IMAGE_ORIGIN}/images/${encodeURIComponent(prefix)}/${encodeURIComponent(barcode)}.jpg`;
+}
+
+export function legacyBarcodeImageUrl(barcode: string): string | undefined {
   if (!/^[a-z0-9_-]+$/i.test(barcode)) return undefined;
   return `${BARCODE_IMAGE_ORIGIN}/august_8A_images/${encodeURIComponent(barcode)}.jpg`;
 }
@@ -103,7 +111,7 @@ export function isAllowedImageUrl(url: string, opts: Pick<ImageResolveOptions, "
   if (url.startsWith("data:")) return true;
   try {
     const u = new URL(url);
-    if (u.protocol === "https:" && u.origin === BARCODE_IMAGE_ORIGIN && BARCODE_IMAGE_PATH.test(u.pathname)) return true;
+    if (u.protocol === "https:" && u.origin === BARCODE_IMAGE_ORIGIN && (BARCODE_IMAGE_PATH.test(u.pathname) || LEGACY_BARCODE_IMAGE_PATH.test(u.pathname))) return true;
     if (u.protocol === "https:" && u.origin === BARCODE_IMAGE_ORIGIN && ERP_FILES_PATH.test(u.pathname)) return true;
     if (u.protocol === "https:" && isSpacesHostAllowed(u.hostname, opts)) return true;
     if (!opts.base) return false;
@@ -221,7 +229,7 @@ function candidates(refs: unknown[], opts: ImageResolveOptions): { urls: string[
     if ("placeholder" in n) sawPlaceholder = true;
     else if (isAllowedImageUrl(n.url, opts)) {
       const sourceUrl = new URL(n.url);
-      const barcodeImage = sourceUrl.pathname.match(/^\/august_8A_images\/([a-z0-9_-]+\.(?:jpe?g|png|webp))$/i);
+      const barcodeImage = sourceUrl.pathname.match(/^(?:\/images\/\d+[a-z]+|\/august_8A_images)\/([a-z0-9_-]+\.(?:jpe?g|png|webp))$/i);
       if (barcodeImage && sourceUrl.origin !== BARCODE_IMAGE_ORIGIN) {
         for (const host of opts.spacesHosts ?? []) {
           const spacesImage = normalizeImageRef(

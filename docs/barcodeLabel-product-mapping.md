@@ -68,20 +68,22 @@ Empty values are omitted from the API response, so the UI never prints `undefine
 
 For storefront category cards, the matching `barcodeLabel.imageUrl` and `barcodeLabel.filePath`
 are resolved first, using the configured ERP image base/Spaces settings and allowed-host checks.
-If neither field contains a loadable image, the barcode fallback
-`https://erp.wovenessence.in/august_8A_images/<barcode>.jpg` is tried. The matching active
-`ecommerceproduct` image (`image`, `images` or `imageUrl`), joined by the exact `itemId` and
-`businessId`, is used when the barcode-label image cannot be loaded. The card shows its
-photo-unavailable state if none of these sources can load.
+If neither field contains a loadable image, the barcode-specific fallback
+`https://erp.wovenessence.in/images/<prefix>/<barcode>.jpg` is tried, followed by the legacy
+`/august_8A_images/<barcode>.jpg` path. Item-level `ecommerceproduct` images and galleries are
+used only when that record explicitly maps to exactly one barcode; they are not assigned to every
+barcode sharing an item. Barcode-keyed `ProductWebMeta` galleries remain barcode-specific. The
+card shows its photo-unavailable state if none of these sources can load.
 
 | Stored ERP image value | Docs | Storefront handling |
 | --- | ---: | --- |
 | `https://templeimg.blr1.digitaloceanspaces.com/<key>?X-Amz-…` | 15,593 | Expired signatures are removed; the configured Spaces host and credentials are used when available |
 | `/august_8A_images/<barcode>.jpg` | 3,136 | Resolved against the configured ERP image base |
+| `/images/<prefix>/<barcode>.jpg` | — | Current barcode-specific ERP path; prefix is derived from the barcode |
 | `data:image/jpeg;base64,…` | 4,768 | Known placeholder data is rejected; other supported data images are retained |
 | `/api/files/<hash>.jpg` | 5 | Resolved against the configured ERP image base |
 | `http://wovenessencemobile.etpl.ai/uploads/…` | 11 | Rejected as a disallowed legacy host; remaining image sources are tried |
-| empty | 3,975 | URL is generated from the label barcode |
+| empty | 3,975 | Current barcode-specific path is generated from the label barcode; legacy path is second |
 
 Barcode product cards load the resolved image directly; they do not use `next/image` optimization
 or redirect through an image proxy.

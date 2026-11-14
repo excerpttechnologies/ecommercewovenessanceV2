@@ -496,10 +496,9 @@ async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
 }
 
 /**
- * Applies website description and gallery overrides AFTER `withEcommerceDetails`, so the gallery
- * primary is the final storefront image (barcode photo, or the ERP e-commerce image when the
- * barcode photo is missing). Website images come first; ERP `ecommerceproduct.additionalImages`
- * follow and are de-duplicated. Five images maximum.
+ * Applies website description and gallery overrides AFTER `withEcommerceDetails`. Website images
+ * are keyed by barcode; ERP product images are included only when that product maps to one barcode.
+ * Five images maximum.
  */
 async function withProductWebOverrides(items: BarcodeProduct[]) {
   if (!items.length) return items;
@@ -538,6 +537,17 @@ function ecommerceImage(refs: unknown[]): string | undefined {
   return ecommerceImages(refs)[0];
 }
 
+function catalogImagesBelongToBarcode(raw: Record<string, unknown>, item: BarcodeProduct): boolean {
+  const values = Array.isArray(raw.publishedBarcodes)
+    ? raw.publishedBarcodes
+    : [raw.barcode, ...(Array.isArray(raw.barcodes) ? raw.barcodes : [])];
+  const barcodes = [...new Set(values
+    .map((value) => (typeof value === "string" || typeof value === "number" ? String(value).trim().toUpperCase() : ""))
+    .filter(Boolean))];
+  if (barcodes.length) return barcodes.length === 1 && barcodes[0] === item.barcode.toUpperCase();
+  return String(raw.erpDocumentId ?? "") === item.id;
+}
+
 /** null (host unreachable) counts as loading, so the browser still gets to try the barcode's own photo. */
 async function ownPhotoLoads(image?: string): Promise<boolean> {
   return Boolean(image) && (await probeImage(image!)) !== false;
@@ -552,14 +562,12 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
     const catalog = (key ? catalogs.get(key) : undefined) ?? catalogs.get(`label:${item.id}`);
     if (!catalog) return item;
     const raw = catalog.raw ?? {};
-    // One ERP product covers every barcode saved on it but holds a single image, so each barcode
-    // keeps its own photo; the product image only fills in when that photo does not load.
-    const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
+    // Product-level images are safe only when the ERP record explicitly maps to this one barcode.
+    const barcodeScoped = catalogImagesBelongToBarcode(raw, item);
+    const image = barcodeScoped && !(await ownPhotoLoads(item.image)) ? ecommerceImage([
       ...[raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
-    ]);
-    // Real alternate views maintained on the ERP product. Empty across current ERP data, but this
-    // is the correct source once the merchandising team adds more photos.
-    const additionalImages = ecommerceImages(toImages(raw.additionalImages));
+    ]) : undefined;
+    const additionalImages = barcodeScoped ? ecommerceImages(toImages(raw.additionalImages)) : [];
     const ecommerce = {
       displayName: catalog.displayName,
       itemCode: catalog.ecommItemCode,
