@@ -128,7 +128,7 @@ export default async function Home() {
         { key: "categories", title: "Shop by category", subtitle: null, config: {} },
         { key: "featuredCollections", title: "Curated collections", subtitle: null, config: {} },
       ]);
-  const homeContact = { ...settings.contact, phone: "099163 11500" };
+  const homeContact = settings.contact;
   const configuredHeroSlides = heroBanners
     .filter((banner) => banner.image?.desktop?.trim())
     .map((banner) => {

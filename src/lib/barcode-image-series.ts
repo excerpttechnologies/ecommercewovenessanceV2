@@ -496,9 +496,10 @@ async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
 }
 
 /**
- * Applies website description and gallery overrides AFTER `withEcommerceDetails`. Website images
- * are keyed by barcode; ERP product images are included only when that product maps to one barcode.
- * Five images maximum.
+ * Applies website description and gallery overrides AFTER `withEcommerceDetails`, so the gallery
+ * primary is the final storefront image (barcode photo, or the ERP e-commerce image when the
+ * barcode photo is missing). Website images come first; ERP `ecommerceproduct.additionalImages`
+ * follow and are de-duplicated. Five images maximum.
  */
 async function withProductWebOverrides(items: BarcodeProduct[]) {
   if (!items.length) return items;
@@ -537,20 +538,9 @@ function ecommerceImage(refs: unknown[]): string | undefined {
   return ecommerceImages(refs)[0];
 }
 
-function catalogImagesBelongToBarcode(raw: Record<string, unknown>, item: BarcodeProduct): boolean {
-  const values = Array.isArray(raw.publishedBarcodes)
-    ? raw.publishedBarcodes
-    : [raw.barcode, ...(Array.isArray(raw.barcodes) ? raw.barcodes : [])];
-  const barcodes = [...new Set(values
-    .map((value) => (typeof value === "string" || typeof value === "number" ? String(value).trim().toUpperCase() : ""))
-    .filter(Boolean))];
-  if (barcodes.length) return barcodes.length === 1 && barcodes[0] === item.barcode.toUpperCase();
-  return String(raw.erpDocumentId ?? "") === item.id;
-}
-
-/** null (host unreachable) counts as loading, so the browser still gets to try the barcode's own photo. */
+/** Only verified barcode photos should prevent the ERP e-commerce image from being used as fallback. */
 async function ownPhotoLoads(image?: string): Promise<boolean> {
-  return Boolean(image) && (await probeImage(image!)) !== false;
+  return Boolean(image) && (await probeImage(image!)) === true;
 }
 
 async function withEcommerceDetails(items: BarcodeProduct[]) {
@@ -562,12 +552,14 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
     const catalog = (key ? catalogs.get(key) : undefined) ?? catalogs.get(`label:${item.id}`);
     if (!catalog) return item;
     const raw = catalog.raw ?? {};
-    // Product-level images are safe only when the ERP record explicitly maps to this one barcode.
-    const barcodeScoped = catalogImagesBelongToBarcode(raw, item);
-    const image = barcodeScoped && !(await ownPhotoLoads(item.image)) ? ecommerceImage([
+    // One ERP product covers every barcode saved on it but holds a single image, so each barcode
+    // keeps its own photo; the product image only fills in when that photo does not load.
+    const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
       ...[raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
-    ]) : undefined;
-    const additionalImages = barcodeScoped ? ecommerceImages(toImages(raw.additionalImages)) : [];
+    ]);
+    // Real alternate views maintained on the ERP product. Empty across current ERP data, but this
+    // is the correct source once the merchandising team adds more photos.
+    const additionalImages = ecommerceImages(toImages(raw.additionalImages));
     const ecommerce = {
       displayName: catalog.displayName,
       itemCode: catalog.ecommItemCode,
@@ -587,6 +579,14 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
       ...(hasEcommerceDetails ? { ecommerce } : {}),
     };
   });
+}
+
+async function withAvailableImages(items: BarcodeProduct[]): Promise<BarcodeProduct[]> {
+  const checked = await mapLimit(items, 8, async (item) => {
+    if (!item.image || (await probeImage(item.image)) !== true) return undefined;
+    return item;
+  });
+  return checked.filter((item): item is BarcodeProduct => Boolean(item));
 }
 
 async function inactiveBarcodes() {
@@ -682,12 +682,17 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     page: detailView ? 1 : page,
     limit: detailView ? 1 : limit,
   });
+  // ERP details first (they may replace the primary image), then description + gallery overrides.
+  // A product the ERP holds no loadable photo for is not shown at all (no "Photo unavailable" cards).
+  const items = await withAvailableImages(
+    await withProductWebOverrides(await withEcommerceDetails(catalog.items)),
+  );
   return {
-    // ERP details first (they may replace the primary image), then description + gallery overrides.
-    items: await withProductWebOverrides(await withEcommerceDetails(catalog.items)),
-    total: detailView ? Number(catalog.items.length > 0) : catalog.total,
+    items,
+    // Paging stays the database's: probing every barcode would cost a request per SKU.
+    total: detailView ? Number(items.length > 0) : catalog.total,
     page: detailView ? 1 : catalog.page,
-    pages: detailView ? Number(catalog.items.length > 0) : catalog.pages,
+    pages: detailView ? Number(items.length > 0) : catalog.pages,
   };
 }
 
@@ -741,7 +746,7 @@ export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
       availableOnly: true,
       limit: 12,
     });
-    const items = result.items
+    const items = (await withAvailableImages(result.items))
       .filter((item): item is typeof item & { image: string } => {
         if (!item.image) return false;
         const imageUrl = item.image.split("?")[0];

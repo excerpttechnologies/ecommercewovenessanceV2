@@ -6,7 +6,9 @@ import { Markdown } from "@/components/ui/markdown";
 import { OG_DEFAULTS } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const p = await getSite().page((await params).slug);
+  const { slug } = await params;
+  if (slug.toLowerCase() === "faq") return {};
+  const p = await getSite().page(slug);
   if (!p) return {};
   const title = p.seoTitle ?? p.title;
   const description = p.seoDescription ?? p.excerpt ?? `${p.title} – Woven Essence by Temple Fabrics, Bengaluru.`;
@@ -19,7 +21,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 export default async function CmsPage({ params }: { params: Promise<{ slug: string }> }) {
-  const p = await getSite().page((await params).slug);
+  const { slug } = await params;
+  if (slug.toLowerCase() === "faq") notFound();
+  const p = await getSite().page(slug);
   if (!p) notFound();
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">

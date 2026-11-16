@@ -7,7 +7,7 @@ import { breadcrumbJsonLd } from "@/lib/seo";
 import { getSettings } from "@/lib/site-data";
 
 /** Shown on the policy pages; update when the wording below changes. */
-export const POLICY_LAST_UPDATED = "13 November 2026";
+export const POLICY_LAST_UPDATED = "16 November 2026";
 
 /** Page shell for About Us and the policy pages: same container, breadcrumbs and prose as the CMS pages. */
 export async function LegalPage({

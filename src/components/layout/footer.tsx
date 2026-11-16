@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BadgeCheck, ChevronRight, Clock, CreditCard, Facebook, Headphones, Instagram, Mail, MapPin, Phone, Truck, Youtube } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { businessInfo } from "@/lib/business";
+import { businessInfo, e164 } from "@/lib/business";
 import { getCategoryTree, getFooterPages, getSettings } from "@/lib/site-data";
 import { NewsletterForm } from "@/components/home/newsletter-form";
 import { LeafSpray, Lotus } from "@/components/ui/ornaments";
@@ -10,7 +10,7 @@ import { BackToTop } from "./back-to-top";
 const socialClass = "flex h-12 w-12 items-center justify-center rounded-full border border-olive/15 bg-white/50 text-olive max-md:border-white/40 max-md:bg-white/15 max-md:text-white backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-maroon hover:bg-maroon hover:text-white hover:shadow-[0_10px_20px_-10px_rgba(219,26,114,0.8)]";
 
 /** The five compliance pages are linked directly, so their CMS copies are skipped and each footer link appears once. */
-const LEGAL_SLUGS = new Set(["about", "about-us", "contact", "contact-us", "terms", "terms-and-conditions", "returns", "return-policy", "refunds", "refund-policy"]);
+const LEGAL_SLUGS = new Set(["about", "about-us", "contact", "contact-us", "terms", "terms-and-conditions", "returns", "return-policy", "refunds", "refund-policy", "privacy", "privacy-policy", "shipping", "shipping-policy", "pricing", "faq"]);
 
 export async function Footer() {
   const [settings, pages, categories] = await Promise.all([getSettings(), getFooterPages().catch(() => []), getCategoryTree().catch(() => [])]);
@@ -44,7 +44,7 @@ export async function Footer() {
             <p className="mt-6 max-w-sm text-[15px] leading-relaxed text-ink/75 max-md:font-semibold max-md:text-white">{settings.seo?.defaultDescription ?? "Handloom sarees and fabrics from Temple Fabrics, Bengaluru — woven with tradition, delivered anywhere."}</p>
             <address className="mt-6 space-y-3 text-sm not-italic text-ink/80 max-md:font-semibold max-md:text-white">
               <ContactRow Icon={MapPin}>{address}</ContactRow>
-              <ContactRow Icon={Phone}><a href="tel:+919916311500" className="hover:text-maroon">{phone}</a></ContactRow>
+              <ContactRow Icon={Phone}><a href={`tel:${e164(phone)}`} className="hover:text-maroon">{phone}</a></ContactRow>
               <ContactRow Icon={Mail}><a href={`mailto:${email}`} className="hover:text-maroon">{email}</a></ContactRow>
               <ContactRow Icon={Clock}>{hours}</ContactRow>
             </address>
@@ -60,12 +60,12 @@ export async function Footer() {
             links={dedupe([
               { label: "About Us", href: "/about-us" },
               { label: "Contact Us", href: "/contact-us" },
+              { label: "Privacy Policy", href: "/privacy-policy" },
               { label: "Terms & Conditions", href: "/terms-and-conditions" },
               { label: "Refund Policy", href: "/refund-policy" },
               { label: "Return Policy", href: "/return-policy" },
               { label: "Track Order", href: "/track-order" },
               { label: "My Account", href: "/account" },
-              { label: "Store Locator", href: "/stores" },
               ...info.map((p) => ({ label: p.title, href: `/pages/${p.slug}` })),
               ...policies.map((p) => ({ label: p.title, href: `/pages/${p.slug}` })),
             ])}

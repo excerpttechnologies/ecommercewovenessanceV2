@@ -8,8 +8,9 @@ import { parseBarcodeListParams } from "@/lib/api/query";
 import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
-import { ERP_BARCODE_COLLECTIONS } from "@/lib/erp-mapping";
+import { ERP_BARCODE_COLLECTIONS, toImages } from "@/lib/erp-mapping";
 import { env } from "@/lib/env";
+import { mapLimit, resolveRecordImage } from "@/lib/erp-images";
 import { GALLERY_SLOT_LIMIT, isAllowedGalleryUrl } from "@/lib/product-gallery";
 import { pruneProductUploads } from "@/lib/product-upload";
 import { ProductWebMetaModel } from "@/models/web/content.models";
@@ -36,7 +37,7 @@ export const GET = handler(async (req: NextRequest) => {
 
   let r;
   try {
-    r = await getBarcodeLabels().list(parsed.params);
+    r = await getBarcodeLabels().list({ ...parsed.params, resolveImages: true });
   } catch (e) {
     console.error("[admin/products] barcodeLabel query failed:", redactMongoUri(String((e as Error)?.message ?? e)));
     return fail("ERP_UNAVAILABLE", ERP_UNAVAILABLE, 503);
@@ -107,12 +108,35 @@ export const GET = handler(async (req: NextRequest) => {
   }
 
   const { items, ...meta } = r;
+  const imageOptions = {
+    base: env.ERP_IMAGE_BASE,
+    spacesHosts: env.ERP_IMAGE_SPACES_HOSTS,
+    ...(env.DO_SPACES_KEY && env.DO_SPACES_SECRET
+      ? { spaces: { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET } }
+      : {}),
+  };
+  const rows = await mapLimit(items, 8, async (product) => {
+    const catalog = erpEcommerce.get(product.id);
+    if (product.image || !catalog?.raw) {
+      return { ...product, web: web.get(product.barcode) ?? null, erpEcommerce: catalog ?? null };
+    }
+
+    const raw = catalog.raw;
+    const resolved = await resolveRecordImage(
+      [raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) =>
+        toImages(Array.isArray(value) ? value : [value]),
+      ),
+      { ...imageOptions, barcode: product.barcode },
+    );
+    return {
+      ...product,
+      ...(resolved.image ? { image: resolved.image, imageIssue: undefined } : {}),
+      web: web.get(product.barcode) ?? null,
+      erpEcommerce: catalog,
+    };
+  });
   return ok(
-    items.map((p) => ({
-      ...p,
-      web: web.get(p.barcode) ?? null,
-      erpEcommerce: erpEcommerce.get(p.id) ?? null,
-    })),
+    rows,
     { ...meta, source: "erp", collection: ERP_BARCODE_COLLECTIONS.labels, readOnly: true },
   );
 });

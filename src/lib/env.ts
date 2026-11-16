@@ -4,6 +4,8 @@ import { z } from "zod";
  * Server-only env. Never import from a client component.
  */
 const blankToUndefined = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
+/** Values copied from a shell/ERP .env often carry a trailing `# comment`; it is not part of the value. */
+const urlEnv = (v: string | undefined) => blankToUndefined(v?.replace(/\s+#.*$/, ""));
 
 const schema = z
   .object({
@@ -45,7 +47,7 @@ const schema = z
     ERP_MONGODB_URI: blankToUndefined(e.ERP_MONGODB_URI) ?? blankToUndefined(e.ERP_MONGO_URI) ?? e.MONGODB_URI,
     ERP_ECOMMERCE_BUSINESS_ID: blankToUndefined(e.ERP_ECOMMERCE_BUSINESS_ID),
     LEGACY_BRIDGE_BRANCH_ID: blankToUndefined(e.LEGACY_BRIDGE_BRANCH_ID),
-    ERP_IMAGE_BASE: blankToUndefined(e.ERP_IMAGE_BASE)?.replace(/\/+$/, ""),
+    ERP_IMAGE_BASE: urlEnv(e.ERP_IMAGE_BASE)?.replace(/\/+$/, ""),
     ERP_IMAGE_SPACES_HOSTS: e.ERP_IMAGE_SPACES_HOSTS.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean),
     DO_SPACES_KEY: blankToUndefined(e.DO_SPACES_KEY),
     DO_SPACES_SECRET: blankToUndefined(e.DO_SPACES_SECRET),

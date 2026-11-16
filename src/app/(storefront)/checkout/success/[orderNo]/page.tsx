@@ -435,6 +435,8 @@ import { notFound } from "next/navigation";
 import { BadgeCheck, Check, ChevronDown, Clock, Lock, MapPin, Package, PackageCheck, ShieldCheck, Truck, X, Home } from "lucide-react";
 import { getCustomerSession } from "@/lib/auth";
 import { getOrders } from "@/repositories";
+import { businessInfo, e164 } from "@/lib/business";
+import { getSettings } from "@/lib/site-data";
 import { formatINR, isRemoteImageSource } from "@/lib/utils";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { ComingSoonImage } from "@/components/ui/coming-soon-image";
@@ -500,6 +502,7 @@ export default async function Success({ params }: { params: Promise<{ orderNo: s
   const order = await getOrders().getByOrderNo((await params).orderNo);
   if (!order) notFound();
 
+  const info = businessInfo(await getSettings());
   const session = await getCustomerSession();
   const isOwner = session?.sub === order.customerId; // full address only for the logged-in owner
   const a = order.shippingAddress;
@@ -682,11 +685,11 @@ export default async function Success({ params }: { params: Promise<{ orderNo: s
         {/* Cancel / refund policy */}
         <Collapsible title="Cancellation, returns & refunds">
           <ul className="grid gap-3 text-sm text-[#374151]">
-            <li><b className="block text-[#111827]">Cancel</b>Free before dispatch. Call 099163 11500 or write to hello@wovenessence.in.</li>
+            <li><b className="block text-[#111827]">Cancel</b>Free before dispatch. Call <a href={`tel:${e164(info.phone)}`} className="text-[#1d4ed8] underline">{info.phone}</a> or write to <a href={`mailto:${info.email}`} className="text-[#1d4ed8] underline">{info.email}</a>.</li>
             <li><b className="block text-[#111827]">Exchange / return</b>Within 7 days of delivery, unused with tags. Blouse-stitched sarees are not returnable.</li>
             <li><b className="block text-[#111827]">Refund</b>{online ? "To your original payment method" : "By bank transfer or UPI"} within 5–7 working days after approval.</li>
           </ul>
-          <p className="mt-3 text-xs"><Link href="/return-policy" className="text-[#1d4ed8] underline">Full returns & refund policy</Link> · <Link href="/pages/shipping-policy" className="text-[#1d4ed8] underline">Shipping policy</Link></p>
+          <p className="mt-3 text-xs"><Link href="/return-policy" className="text-[#1d4ed8] underline">Full returns & refund policy</Link></p>
         </Collapsible>
 
         {/* Actions */}

@@ -1,7 +1,7 @@
 import type { SiteSettings } from "@/repositories/web/site.repository";
 
 const DEFAULT_ADDRESS = "1ST FLOOR 4T, BLOCK 34, 27th Cross, 4th T Block East, 4th Block, Jayanagar, Bengaluru, Karnataka 560011";
-const DEFAULT_PHONE = "099163 11500";
+const DEFAULT_PHONE = "9945158629";
 const DEFAULT_EMAIL = "hello@wovenessence.in";
 const DEFAULT_HOURS = "Mon–Sat, 10:30 am – 8:30 pm";
 const DEFAULT_INSTAGRAM = "https://www.instagram.com/templefabrics?vrfl=eXoyOXo5MzQyamNu";
@@ -39,9 +39,14 @@ export function businessInfo(settings: Pick<SiteSettings, "contact" | "social">)
   };
 }
 
-/** "099163 11500" → "+919916311500" (E.164, India). */
+/** "9945158629" → "+919945158629" (E.164, India). */
 export function e164(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   const local = digits.length > 10 ? digits.slice(-10) : digits;
   return `+91${local}`;
+}
+
+/** WhatsApp deep link for the configured support number, e.g. https://wa.me/919945158629 */
+export function whatsAppHref(phone: string): string {
+  return `https://wa.me/${e164(phone).slice(1)}`;
 }

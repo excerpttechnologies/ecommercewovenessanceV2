@@ -625,7 +625,7 @@ import {
   mapBarcodeLabel,
   toImages,
 } from "@/lib/erp-mapping";
-import { barcodeImageUrl, legacyBarcodeImageUrl, mapLimit, resolveRecordImage } from "@/lib/erp-images";
+import { barcodeImageUrl, mapLimit, resolveRecordImage } from "@/lib/erp-images";
 import { env } from "@/lib/env";
 import { escapeRegex } from "@/lib/utils";
 import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
@@ -983,19 +983,16 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       ? await mapLimit(hydratedItems, 8, async (item) => {
           const raw = docsById.get(item.id);
           if (!raw) return item;
-          const fallbackUrls = [barcodeImageUrl(item.barcode), legacyBarcodeImageUrl(item.barcode)]
-            .filter((url): url is string => Boolean(url))
-            .map((url) => env.ERP_IMAGE_BASE ? new URL(new URL(url).pathname, `${env.ERP_IMAGE_BASE}/`).toString() : url);
           const resolved = await resolveRecordImage(
-            [
-              ...[raw.image, raw[B.imageUrl], raw[B.filePath], raw.images].flatMap((value) =>
-                toImages(Array.isArray(value) ? value : [value]),
-              ),
-              ...fallbackUrls,
-            ],
+            [raw.image, raw[B.imageUrl], raw[B.filePath], raw.images].flatMap((value) =>
+              toImages(Array.isArray(value) ? value : [value]),
+            ),
             {
               base: env.ERP_IMAGE_BASE,
               spacesHosts: env.ERP_IMAGE_SPACES_HOSTS,
+              // Session-gated /api/files/… references never load in a browser; the barcode's own
+              // public Spaces photo is tried after the stored refs (see barcodeImageCandidates).
+              barcode: item.barcode,
               ...(env.DO_SPACES_KEY && env.DO_SPACES_SECRET
                 ? { spaces: { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET } }
                 : {}),
