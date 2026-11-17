@@ -761,6 +761,8 @@ export interface BarcodeListParams {
   availableOnly?: boolean;
   /** Public category listings retain IN_STOCK labels with zero quantity as unavailable products. */
   inStockStatusOnly?: boolean;
+  /** Hide labels whose quantity (fabric length in metres) is not above this value. */
+  minFabricLength?: number;
   /** Resolve images from this barcodeLabel's own image fields before the barcode fallback. */
   resolveImages?: boolean;
   status?: string;

@@ -100,7 +100,7 @@ export const DEFAULT_MENU: MenuNode[] = [
       ], "/collections/dupatta"),
     ],
   },
-  { id: "default-ready-bits", label: "READY BITS", kind: "top", href: "/collections/ready-bits", children: [] },
+  { id: "default-ready-bits", label: "PRE-CUT FABRICS", kind: "top", href: "/collections/pre-cut-fabrics", children: [] },
   { id: "default-unstitched-suits", label: "UNSTITCHED SUITS", kind: "top", href: "/collections/unstitched-suits", children: [] },
   { id: "default-pavada", label: "PAVADA", kind: "top", href: "/collections/pavada", children: [] },
   { id: "default-inskirt", label: "INSKIRT", kind: "top", href: "/collections/inskirt", children: [] },

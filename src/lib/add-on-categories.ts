@@ -16,7 +16,7 @@ export const ADD_ON_CATEGORIES: Record<AddOnCategorySlug, { name: string; groupI
   pavada: { name: "Pavada", groupIds: ["6ae2ee67eb54c4ea4fd9b4c3"] },
   dhotis: { name: "Dhotis", groupIds: ["6ae2ee48eb54c4ea4fd9b451"] },
   "ready-made": { name: "Ready Made", groupIds: ["6ae2ee3aeb54c4ea4fd9b400"] },
-  "ready-bits": { name: "Ready Bits", groupIds: ["6ae2ee2ceb54c4ea4fd9b3b7"] },
+  "ready-bits": { name: "Pre-Cut Fabrics", groupIds: ["6ae2ee2ceb54c4ea4fd9b3b7"] },
   "unstitched-suits": { name: "Unstitched Suits", groupIds: ["6ae2ee1deb54c4ea4fd9b387"] },
 };
 

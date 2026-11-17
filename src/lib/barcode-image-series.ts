@@ -286,6 +286,11 @@ export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: str
 
 export type StorefrontCategoryGroup = EcommerceCategoryGroup | AddOnCategorySlug;
 
+/** Fabrics and Plain Fabrics only list pieces longer than this (metres, ERP label quantity). */
+const FABRIC_MIN_LENGTH = 4.5;
+const minFabricLengthFor = (group: StorefrontCategoryGroup) =>
+  group === "fabrics" || group === "plain-fabrics" ? FABRIC_MIN_LENGTH : undefined;
+
 const ADD_ON_TITLE_MAP: Record<AddOnCategorySlug, string> = Object.fromEntries(
   ADD_ON_CATEGORY_SLUGS.map((slug) => [slug, ADD_ON_CATEGORIES[slug].name]),
 ) as Record<AddOnCategorySlug, string>;
@@ -567,7 +572,8 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
       description: catalog.printDescription,
       attributes: catalog.attributes,
       // when the product was added in the ERP, for the "1 day / 2 days" launch badge
-      launchedAt: typeof raw.createdAt === "string" ? raw.createdAt : undefined,
+      // Use barcode label's createdAt (actual product creation) instead of ecommerceproduct's createdAt (publish date)
+      launchedAt: item.createdAt,
     };
     const hasEcommerceDetails = Object.values(ecommerce).some((value) =>
       typeof value === "string" ? Boolean(value) : value && Object.values(value).some(Boolean),
@@ -671,6 +677,8 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     q: searchByEcommerceCode ? undefined : q,
   };
   const detailView = Boolean(barcode?.trim());
+  // Category listings hide short fabric cuts; their product pages remain reachable.
+  const minFabricLength = detailView ? undefined : minFabricLengthFor(group);
   // Only labels currently available for purchase are part of the storefront catalog.
   const catalog = await barcodeLabels.list({
     labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
@@ -678,6 +686,7 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     availableOnly: true,
     resolveImages: true,
     ...listFilters,
+    ...(minFabricLength != null ? { minFabricLength } : {}),
     ...(detailView ? { barcodes: [barcode!.trim()] } : { sort: filters.sort }),
     page: detailView ? 1 : page,
     limit: detailView ? 1 : limit,
@@ -711,8 +720,14 @@ export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGrou
   }
   const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group as EcommerceCategoryGroup), inactiveBarcodes()]);
   if (!scopes.labelIds.length) return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
+  const minFabricLength = minFabricLengthFor(group);
   const [facets, subgroup, classifications] = await Promise.all([
-    getBarcodeLabels().facets({ ...scopes, excludedBarcodes, availableOnly: true }),
+    getBarcodeLabels().facets({
+      ...scopes,
+      excludedBarcodes,
+      availableOnly: true,
+      ...(minFabricLength != null ? { minFabricLength } : {}),
+    }),
     getBarcodeLabels().getProductTypeSubgroups(scopes.productTypes, scopes.businessId),
     getStorefrontClassificationFacets(group),
   ]);
@@ -738,6 +753,7 @@ export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
   const seenImages = new Set<string>();
   const series = [];
   for (const prefix of ["8A", "9A"] as const) {
+    const minFabricLength = minFabricLengthFor(group);
     const result = await barcodeLabels.list({
       labelIds,
       resolveImages: true,
@@ -745,6 +761,7 @@ export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
       excludedBarcodes,
       availableOnly: true,
       limit: 12,
+      ...(minFabricLength != null ? { minFabricLength } : {}),
     });
     const items = (await withAvailableImages(result.items))
       .filter((item): item is typeof item & { image: string } => {

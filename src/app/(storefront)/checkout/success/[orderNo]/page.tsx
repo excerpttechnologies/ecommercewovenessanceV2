@@ -580,11 +580,10 @@ export default async function Success({ params }: { params: Promise<{ orderNo: s
             {order.items.map((it) => (
               <li key={it.sku} className="flex items-start gap-4 py-3 first:pt-0">
                 <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-[#e5e7eb] bg-[#f6f7f8]">
-                  {it.image ? <Image src={it.image} alt={it.name ?? it.sku} fill unoptimized={isRemoteImageSource(it.image)} sizes="72px" className="object-cover" /> : <ComingSoonImage compact className="absolute inset-0" />}
+                  {it.image ? <Image src={it.image} alt={`Code ${it.sku}`} fill unoptimized={isRemoteImageSource(it.image)} sizes="72px" className="object-cover" /> : <ComingSoonImage compact className="absolute inset-0" />}
                 </div>
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="font-medium text-[#111827]">{it.name ?? it.sku}</p>
-                  <p className="mt-1 text-xs text-[#6b7280]">SKU {it.sku}</p>
+                  <p className="font-medium uppercase tracking-wide text-[#111827]">Code {it.sku}</p>
                   <p className="mt-1 text-xs text-[#6b7280]">Qty: {it.qty}</p>
                 </div>
                 <p className="shrink-0 text-sm font-semibold text-[#111827]">{formatINR(it.amount)}</p>
