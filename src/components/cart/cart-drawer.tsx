@@ -35,10 +35,11 @@ export function CartDrawer() {
           {lines.map((l) => (
             <li key={l.sku} className="flex gap-4 py-4">
               <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-line">
-                {l.product.images[0] ? <Image src={l.product.images[0]} alt={`Code ${l.sku}`} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="80px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
+                {l.product.images[0] ? <Image src={l.product.images[0]} alt={l.product.name} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="80px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
               </Link>
               <div className="flex min-w-0 flex-1 flex-col">
-                <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="line-clamp-2 text-sm uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
+                <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="line-clamp-2 text-sm hover:text-maroon">{l.product.name}</Link>
+                <p className="mt-0.5 text-xs text-muted">{l.sku}</p>
                 <div className="mt-auto flex items-center justify-between">
                   <QtyStepper value={l.qty} max={l.product.stock.qty} onChange={(qty) => update.mutate({ sku: l.sku, qty })} />
                   <Price amount={l.product.pricing.sellingPrice * l.qty} size="sm" />

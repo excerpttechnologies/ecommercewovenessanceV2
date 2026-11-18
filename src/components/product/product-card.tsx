@@ -1,13 +1,13 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import { ShoppingBag } from "lucide-react";
 import type { ProductCard as Card } from "@/domain/types";
 import { useCart } from "@/hooks/useCart";
 import { isRemoteImageSource } from "@/lib/utils";
 import { ComingSoonImage } from "@/components/ui/coming-soon-image";
 import { Price } from "@/components/ui/price";
 import { WishlistButton } from "./wishlist-button";
-import { ProductCardQuantitySelector } from "./ProductCardQuantitySelector";
 
 export function ProductCard({ p, priority }: { p: Card; priority?: boolean }) {
   const { add } = useCart();
@@ -34,19 +34,17 @@ export function ProductCard({ p, priority }: { p: Card; priority?: boolean }) {
       <div className="absolute right-2 top-2">
         <WishlistButton sku={p.sku} />
       </div>
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div className="flex flex-1 items-start justify-between gap-2 p-3">
         <div className="min-w-0">
           <Link href={productHref} className="line-clamp-2 text-sm font-medium leading-snug text-olive hover:text-maroon">{p.web?.cardTitle || p.name}</Link>
           <p className="mt-0.5 line-clamp-1 text-xs text-muted">{p.web?.cardDescription || [p.fabric, p.color].filter(Boolean).join(" · ")}</p>
           <Price amount={p.pricing.sellingPrice} mrp={p.pricing.mrp} size="sm" className="mt-1.5" />
         </div>
-        <ProductCardQuantitySelector
-          sku={p.sku}
-          maxQty={p.stock.qty > 0 ? p.stock.qty : undefined}
-          onAdd={(qty) => add.mutate({ sku: p.sku, qty })}
-          disabled={out}
-          adding={add.isPending && add.variables?.sku === p.sku}
-        />
+        {!out && (
+          <button onClick={() => add.mutate({ sku: p.sku })} aria-label="Add to bag" className="mt-0.5 shrink-0 rounded-full bg-maroon/10 p-2 text-maroon opacity-0 transition-all hover:bg-maroon hover:text-white group-hover:opacity-100 focus:opacity-100 md:opacity-0 max-md:opacity-100">
+            <ShoppingBag className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </article>
   );

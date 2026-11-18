@@ -132,11 +132,11 @@ export const CATEGORY_SEO: Record<StorefrontCategoryGroup, { title: string; desc
     keywords: ["ready made clothing", "ready-made"],
   },
   "ready-bits": {
-    title: "Pre-Cut Fabrics Online | Woven Essence",
-    description: "Shop Pre-Cut Fabrics from Woven Essence by Temple Fabrics, Bengaluru.",
-    intro: "Browse Pre-Cut Fabrics from the Temple Fabrics collection.",
-    about: ["Explore Pre-Cut Fabrics listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
-    keywords: ["pre-cut fabrics", "pre cut fabrics"],
+    title: "Ready Bits Online | Woven Essence",
+    description: "Shop Ready Bits from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse Ready Bits from the Temple Fabrics collection.",
+    about: ["Explore Ready Bits listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    keywords: ["ready bits"],
   },
   "unstitched-suits": {
     title: "Unstitched Suits Online | Woven Essence",
@@ -175,18 +175,18 @@ export { barcodeProductPath } from "@/lib/paths";
 export function barcodeProductFacts(item: BarcodeProduct) {
   const price = item.price ?? 0;
   const sellingPrice = item.offerPrice && item.offerPrice < price ? item.offerPrice : price;
-  // Storefront titles are barcode-based; ERP item names are never shown to customers.
-  const name = `Code ${item.barcode}`;
-  // Only the print description may be presented as the product description.
-  const detail = item.printDescription?.trim() || undefined;
+  const name = item.ecommerce?.displayName || item.itemName || item.name;
+  const detail = [item.ecommerce?.description, item.printDescription].find((d) => d && d.trim() && d !== name)?.trim();
   const inStock = item.status === "IN_STOCK" && !(item.qty != null && item.qty <= 0);
   return { price, sellingPrice, name, detail, inStock };
 }
 
+const titleCaseWords = (s: string) => (s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s(/-])([a-z])/g, (_m, lead: string, letter: string) => lead + letter.toUpperCase()) : s);
+
 /** "15-SA-PURE – Silk by Kadyal (Faux Border…) | Sarees" style page title for an ERP product. */
 export function barcodeProductTitle(item: BarcodeProduct, categoryTitle: string): string {
   const { name, detail } = barcodeProductFacts(item);
-  const lead = detail ? `${name} – ${detail}` : name;
+  const lead = detail ? `${name} – ${titleCaseWords(detail)}` : name;
   return `${lead.length > 70 ? `${lead.slice(0, 67).trimEnd()}…` : lead} | ${categoryTitle}`;
 }
 
@@ -194,7 +194,7 @@ export function barcodeProductDescription(item: BarcodeProduct, categoryTitle: s
   const { name, detail, sellingPrice, inStock } = barcodeProductFacts(item);
   const attrs = Object.entries(item.ecommerce?.attributes ?? {}).filter(([, v]) => Boolean(v)).map(([k, v]) => `${k === "color" ? "Colour" : k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`);
   const parts = [
-    `${name}${detail ? ` – ${detail}` : ""}.`,
+    `${name}${detail ? ` – ${titleCaseWords(detail)}` : ""}.`,
     attrs.length ? `${attrs.join(", ")}.` : "",
     sellingPrice > 0 ? `₹${sellingPrice.toLocaleString("en-IN")}${inStock ? "" : " (currently unavailable)"}.` : "",
     `Shop ${categoryTitle.toLowerCase()} online at Woven Essence by Temple Fabrics, Bengaluru.`,

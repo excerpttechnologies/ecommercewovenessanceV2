@@ -10,17 +10,14 @@
   `ProductWebMeta.extraImages` existed but the gallery assembly ignored it; ERP
   `ecommerceproduct.additionalImages` were not read or merged; there was no way to
   add real photos beyond the ERP default.
-- After: gallery is assembled from barcode-keyed website
-  `ProductWebMeta.extraImages` and, only when an ERP product maps to one barcode,
-  ERP `ecommerceproduct.additionalImages` (dedup, order preserved, capped at five).
-  Multi-barcode ERP products do not share their item-level primary or gallery images
-  across barcode cards.
+- After: gallery is assembled from ERP `ecommerceproduct.additionalImages` merged
+  with website-owned `ProductWebMeta.extraImages` (dedup, order preserved, capped at
+  five, primary = first / selected primary).
 
 ## 2. Modified components / APIs / DB (e-commerce repo: `deploy/ecommercewovenessanceV2`)
 
 - `src/lib/barcode-image-series.ts` — gallery assembly after `withEcommerceDetails`;
-  applies barcode-specific web overrides and only uses ERP images when the barcode
-  relationship is unambiguous; dedupes and caps at 5.
+  reads ERP `additionalImages`, applies web overrides, dedupes, caps at 5.
 - `src/lib/product-gallery.ts` — category labels and gallery builder
   (Saree: Full Drape / Pallu / Border / Texture / Blouse Piece; Fabric: Full View /
   Texture / Pattern / Border / Folded View; Men’s Wear: Front / Side / Back / Detail / Styling).

@@ -190,7 +190,6 @@ import { cn, formatINR } from "@/lib/utils";
 import { swatchColor } from "@/lib/colour";
 import { barcodeProductPath } from "@/lib/paths";
 import { WishlistButton } from "./wishlist-button";
-import { ProductCardQuantitySelector } from "./ProductCardQuantitySelector";
 
 /** "1 Day" / "2 Days" for a product added by ERP in the last 48 hours. */
 function launchBadge(launchedAt?: string): string | undefined {
@@ -317,15 +316,16 @@ export function BarcodeProductGrid({
             item.status !== "IN_STOCK" ||
             (item.qty != null && item.qty <= 0);
 
-          // Customer-facing cards show the barcode/code only; item names stay internal.
-          const codeLabel = `Code ${item.barcode}`;
+          const productTitle =
+            item.ecommerce?.displayName || item.itemName || item.name;
 
-          const printDescription =
-            item.printDescription && item.printDescription.trim()
-              ? item.printDescription
-              : undefined;
+          const ecommerceDescription = item.ecommerce?.description;
+          const printDescription = item.printDescription;
 
-          const subtitle = printDescription;
+          const subtitle = [
+            ecommerceDescription,
+            printDescription,
+          ].find((d) => d && d !== productTitle);
 
           const colour = item.ecommerce?.attributes?.color;
 
@@ -365,7 +365,7 @@ export function BarcodeProductGrid({
               {detailHref ? (
                 <Link
                   href={detailHref}
-                  aria-label={`View ${codeLabel}`}
+                  aria-label={`View ${productTitle}`}
                   className={cn(
                     "absolute inset-0 block",
                     zoomOnHover && "group/image"
@@ -373,7 +373,7 @@ export function BarcodeProductGrid({
                 >
                   <BarcodeProductImage
                     src={item.image}
-                    alt={codeLabel}
+                    alt={productTitle}
                     sizes={sizes}
                     zoomOnHover={zoomOnHover}
                   />
@@ -387,7 +387,7 @@ export function BarcodeProductGrid({
                 >
                   <BarcodeProductImage
                     src={item.image}
-                    alt={codeLabel}
+                    alt={productTitle}
                     sizes={sizes}
                     zoomOnHover={zoomOnHover}
                   />
@@ -454,7 +454,7 @@ export function BarcodeProductGrid({
             </p>
           );
 
-          // Add to bag button (detail view only)
+          // Add to bag button
           const addButton = (
             <button
               type="button"
@@ -462,7 +462,9 @@ export function BarcodeProductGrid({
               onClick={() => add.mutate({ sku: item.barcode })}
               className={cn(
                 "inline-flex w-full shrink-0 items-center justify-center gap-2.5 rounded-full bg-maroon px-5 font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold active:translate-y-0 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none",
-                "mt-2 h-12 text-sm"
+                detailView
+                  ? "mt-2 h-12 text-sm"
+                  : "h-8 gap-1.5 px-2 text-[11px] sm:h-9 sm:gap-2 sm:px-4 sm:text-xs"
               )}
             >
               <ShoppingBag className="h-4 w-4" />
@@ -484,20 +486,28 @@ export function BarcodeProductGrid({
                 {image}
 
                 <div className="space-y-3">
-                  <h1 className="font-display text-3xl font-semibold uppercase tracking-wide text-olive sm:text-4xl">
-                    {codeLabel}
+                  <p className="text-xs uppercase tracking-wider text-muted">
+                    Code {item.barcode}
+                  </p>
+
+                  <h1 className="font-display text-3xl font-semibold sm:text-4xl">
+                    {productTitle}
                   </h1>
 
-                  {printDescription && (
-                    <p className="text-[15px] leading-relaxed text-ink/80">
-                      <span className="font-semibold text-olive">Print Description: </span>
-                      {printDescription}
-                    </p>
-                  )}
+                  {ecommerceDescription &&
+                    ecommerceDescription !== productTitle && (
+                      <p className="text-[15px] leading-relaxed text-ink/80">
+                        {ecommerceDescription}
+                      </p>
+                    )}
 
-                  <p className="text-xs text-muted">
-                    Available Qty: {item.qty ?? 0} {item.uom ?? "Pc(s)"}
-                  </p>
+                  {printDescription &&
+                    printDescription !== productTitle &&
+                    printDescription !== ecommerceDescription && (
+                      <p className="text-sm text-muted">
+                        {printDescription}
+                      </p>
+                    )}
 
                   {classifications.length > 0 && (
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl border border-line bg-white p-4 text-sm">
@@ -523,6 +533,12 @@ export function BarcodeProductGrid({
                     </dl>
                   )}
 
+                  {item.ecommerce?.itemCode && (
+                    <p className="text-xs uppercase tracking-wider text-muted">
+                      E-com {item.ecommerce.itemCode}
+                    </p>
+                  )}
+
                   {priceRow}
                   {addButton}
                 </div>
@@ -546,6 +562,24 @@ export function BarcodeProductGrid({
                 <p className="line-clamp-1 break-words text-[15px] font-bold uppercase leading-tight tracking-wide text-olive sm:text-base">
                   Code {item.barcode}
                 </p>
+
+                <span
+                  aria-hidden
+                  className="my-1.5 block h-px w-full bg-[#e5e5e5]"
+                />
+
+                {detailHref ? (
+                  <Link
+                    href={detailHref}
+                    className="mt-0.5 line-clamp-1 font-display text-sm font-semibold uppercase leading-tight text-olive hover:text-maroon sm:text-base"
+                  >
+                    {productTitle}
+                  </Link>
+                ) : (
+                  <p className="mt-0.5 line-clamp-1 font-display text-sm font-semibold uppercase leading-tight text-olive sm:text-base">
+                    {productTitle}
+                  </p>
+                )}
 
                 {subtitle ? (
                   <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-muted sm:text-xs">
@@ -582,14 +616,7 @@ export function BarcodeProductGrid({
                 <span aria-hidden className="flex-1" />
 
                 <div className="mt-2.5 sm:mt-3">
-                  <ProductCardQuantitySelector
-                    sku={item.barcode}
-                    maxQty={item.qty ?? undefined}
-                    uom={item.uom ?? undefined}
-                    onAdd={(qty) => add.mutate({ sku: item.barcode, qty })}
-                    disabled={outOfStock}
-                    adding={adding}
-                  />
+                  {addButton}
                 </div>
               </div>
             </article>
