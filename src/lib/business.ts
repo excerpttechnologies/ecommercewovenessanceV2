@@ -47,3 +47,7 @@ export function e164(phone: string): string {
   const local = digits.length > 10 ? digits.slice(-10) : digits;
   return `+91${local}`;
 }
+
+export function whatsAppHref(phone: string): string {
+  return `https://wa.me/${e164(phone).replace(/\D/g, "")}`;
+}
