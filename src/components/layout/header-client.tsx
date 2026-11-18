@@ -464,6 +464,8 @@ import { MegaMenu } from "./mega-menu";
 import { AccountMenu } from "./account-menu";
 
 import {
+  ADD_ON_CATEGORIES,
+  ADD_ON_CATEGORY_SLUGS,
   isAddOnCategorySlug,
 } from "@/lib/add-on-categories";
 
@@ -526,49 +528,37 @@ function activeItemId(
 
 const ADD_ON_ITEM_PREFIX = "storefront-add-on-";
 
-/**
- * The published customer-facing navigation: exactly these ten categories, in
- * this order. Ready Made, Border and Dhotis stay live as collection pages but
- * are kept out of the header.
- */
-const STOREFRONT_NAV: { label: string; href: string; badge?: string }[] = [
-  { label: "FABRICS", href: "/collections/fabrics" },
-  { label: "PLAIN FABRICS", href: "/collections/plain-fabrics" },
-  { label: "READY BITS", href: "/collections/ready-bits" },
-  { label: "SAREES", href: "/collections/sarees" },
-  { label: "UNSTITCHED SUITS", href: "/collections/unstitched-suits" },
-  { label: "DUPATTA", href: "/collections/dupatta" },
-  { label: "PAVADA", href: "/collections/pavada" },
-  { label: "INSKIRT", href: "/collections/inskirt" },
-  { label: "NEW ARRIVALS", href: "/new-arrivals", badge: "New" },
-  { label: "BEST BUY", href: "/collections/best-buy" },
-];
+/** Add-on categories are inserted after Dupatta. */
+function withAddOnMenu(items: MenuNode[]): MenuNode[] {
+  const menu = items.filter(
+    (item) =>
+      !item.id.startsWith(ADD_ON_ITEM_PREFIX) &&
+      item.id !== "storefront-add-on" &&
+      item.label.trim().toLowerCase().replace(/\s+/g, " ") !== "add on" &&
+      item.href !== "/collections/add-on",
+  );
 
-/** Category slug of a stored menu item, falling back to its label. */
-function navSlug(item: { href?: string | null; label: string }): string {
-  const fromHref = item.href?.match(/\/collections\/([^/?#]+)/)?.[1];
-  if (fromHref) return fromHref.toLowerCase();
-  return item.label.trim().toLowerCase().replace(/\s+/g, "-");
-}
+  const addOnItems: MenuNode[] = ADD_ON_CATEGORY_SLUGS.map((slug) => ({
+    id: `${ADD_ON_ITEM_PREFIX}${slug}`,
+    label: ADD_ON_CATEGORIES[slug].name,
+    kind: "top",
+    href: `/collections/${slug}`,
+    children: [],
+  }));
 
-/**
- * Rebuilds the stored/CMS menu as the published ten-item navigation. Columns
- * configured for a category are kept; anything not on the list is dropped from
- * the header (its route, ERP group and products are untouched).
- */
-function storefrontNav(items: MenuNode[]): MenuNode[] {
-  return STOREFRONT_NAV.map(({ label, href, badge }) => {
-    const slug = navSlug({ href, label });
-    const stored = items.find((item) => navSlug(item) === slug);
-    return {
-      id: stored?.id ?? `${ADD_ON_ITEM_PREFIX}${slug}`,
-      label,
-      kind: "top" as const,
-      href,
-      badge: stored?.badge ?? badge,
-      children: stored?.children ?? [],
-    };
-  });
+  const dupattaIndex = menu.findIndex(
+    (item) =>
+      item.href?.split("?")[0] === "/collections/dupatta" ||
+      /dupatta/i.test(item.label),
+  );
+
+  const insertAt = dupattaIndex < 0 ? menu.length : dupattaIndex + 1;
+
+  return [
+    ...menu.slice(0, insertAt),
+    ...addOnItems,
+    ...menu.slice(insertAt),
+  ];
 }
 
 export function HeaderClient({
@@ -580,7 +570,9 @@ export function HeaderClient({
   defaultCurrency,
   logo,
 }: Props) {
-  const navItems = storefrontNav(menu.length ? menu : DEFAULT_MENU);
+  const navItems = withAddOnMenu(
+    menu.length ? menu : DEFAULT_MENU,
+  );
 
   const hasHome = navItems.some((item) => item.href === "/");
 
@@ -779,6 +771,15 @@ export function HeaderClient({
       content: (
         <Link href="/track-order" className={linkClass}>
           Track Order
+        </Link>
+      ),
+    },
+    {
+      key: "stores",
+      icon: MapPin,
+      content: (
+        <Link href="/stores" className={linkClass}>
+          Store Locator
         </Link>
       ),
     },
@@ -1103,6 +1104,9 @@ export function HeaderClient({
                 My account
               </Link>
 
+              <Link href="/stores" className={linkClass}>
+                Store locator
+              </Link>
 
               <Link href="/track-order" className={linkClass}>
                 Track order

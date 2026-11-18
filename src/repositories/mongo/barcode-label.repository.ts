@@ -957,6 +957,38 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     return { items: rows.filter((r): r is BarcodeProduct => r !== null), skipped };
   }
 
+  private resolveImages(items: BarcodeProduct[], docs: AnyDoc[]): Promise<BarcodeProduct[]> {
+    const docsById = new Map(docs.map((doc) => [String(doc._id), doc]));
+    return mapLimit(items, 8, async (item) => {
+      const raw = docsById.get(item.id);
+      if (!raw) return item;
+      const fallback = barcodeImageUrl(item.barcode);
+      const fallbackFromConfiguredBase = fallback && env.ERP_IMAGE_BASE
+        ? new URL(new URL(fallback).pathname, `${env.ERP_IMAGE_BASE}/`).toString()
+        : fallback;
+      const resolved = await resolveRecordImage(
+        [
+          ...[raw.image, raw[B.imageUrl], raw[B.filePath], raw.images].flatMap((value) =>
+            toImages(Array.isArray(value) ? value : [value]),
+          ),
+          fallbackFromConfiguredBase,
+        ],
+        {
+          base: env.ERP_IMAGE_BASE,
+          spacesHosts: env.ERP_IMAGE_SPACES_HOSTS,
+          ...(env.DO_SPACES_KEY && env.DO_SPACES_SECRET
+            ? { spaces: { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET } }
+            : {}),
+        },
+      );
+      return {
+        ...item,
+        ...(resolved.image ? { image: resolved.image } : { image: undefined }),
+        ...(resolved.imageIssue ? { imageIssue: resolved.imageIssue } : { imageIssue: undefined }),
+      };
+    });
+  }
+
   async list(params: BarcodeListParams): Promise<Paginated<BarcodeProduct> & { skipped: number }> {
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(MAX_LIMIT, Math.max(1, params.limit ?? 40));
@@ -978,32 +1010,8 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       Promise.resolve(this.hydrate(docs)),
       this.labelsPerBarcode(M, docs),
     ]);
-    const docsById = new Map(docs.map((doc) => [String(doc._id), doc]));
     const items = params.resolveImages
-      ? await mapLimit(hydratedItems, 8, async (item) => {
-          const raw = docsById.get(item.id);
-          if (!raw) return item;
-          const resolved = await resolveRecordImage(
-            [raw.image, raw[B.imageUrl], raw[B.filePath], raw.images].flatMap((value) =>
-              toImages(Array.isArray(value) ? value : [value]),
-            ),
-            {
-              base: env.ERP_IMAGE_BASE,
-              spacesHosts: env.ERP_IMAGE_SPACES_HOSTS,
-              // Session-gated /api/files/… references never load in a browser; the barcode's own
-              // public Spaces photo is tried after the stored refs (see barcodeImageCandidates).
-              barcode: item.barcode,
-              ...(env.DO_SPACES_KEY && env.DO_SPACES_SECRET
-                ? { spaces: { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET } }
-                : {}),
-            },
-          );
-          return {
-            ...item,
-            ...(resolved.image ? { image: resolved.image } : { image: undefined }),
-            ...(resolved.imageIssue ? { imageIssue: resolved.imageIssue } : { imageIssue: undefined }),
-          };
-        })
+      ? await this.resolveImages(hydratedItems, docs)
       : hydratedItems;
     for (const p of items) {
       const n = shared.get(p.barcode);
@@ -1433,9 +1441,10 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const { items } = this.hydrate(docs);
     const byBarcode = new Map<string, BarcodeProduct>();
     for (const item of items) if (!byBarcode.has(item.barcode)) byBarcode.set(item.barcode, item);
-    return uniqueBarcodes.flatMap((barcode) => {
+    const selected = uniqueBarcodes.flatMap((barcode) => {
       const item = byBarcode.get(barcode);
       return item ? [item] : [];
     });
+    return this.resolveImages(selected, docs);
   }
 }

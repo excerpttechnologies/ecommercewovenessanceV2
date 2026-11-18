@@ -4,8 +4,6 @@ import { z } from "zod";
  * Server-only env. Never import from a client component.
  */
 const blankToUndefined = (v: string | undefined) => (v && v.trim() ? v.trim() : undefined);
-/** Values copied from a shell/ERP .env often carry a trailing `# comment`; it is not part of the value. */
-const urlEnv = (v: string | undefined) => blankToUndefined(v?.replace(/\s+#.*$/, ""));
 
 const schema = z
   .object({
@@ -27,6 +25,8 @@ const schema = z
     /** Optional DigitalOcean Spaces keys. When set, private ERP images in those buckets are served via fresh presigned URLs. */
     DO_SPACES_KEY: z.string().optional(),
     DO_SPACES_SECRET: z.string().optional(),
+    /** FASHN API key for customer virtual try-on; server-only. */
+    FASHN_API_KEY: z.string().optional(),
     /** Directory for website-owned uploads (served by /api/v1/uploads/…). Keep outside public/. */
     UPLOAD_ROOT: z.string().default("uploads"),
     /** Maximum size of one uploaded product photo, in MB. */
@@ -47,10 +47,11 @@ const schema = z
     ERP_MONGODB_URI: blankToUndefined(e.ERP_MONGODB_URI) ?? blankToUndefined(e.ERP_MONGO_URI) ?? e.MONGODB_URI,
     ERP_ECOMMERCE_BUSINESS_ID: blankToUndefined(e.ERP_ECOMMERCE_BUSINESS_ID),
     LEGACY_BRIDGE_BRANCH_ID: blankToUndefined(e.LEGACY_BRIDGE_BRANCH_ID),
-    ERP_IMAGE_BASE: urlEnv(e.ERP_IMAGE_BASE)?.replace(/\/+$/, ""),
+    ERP_IMAGE_BASE: blankToUndefined(e.ERP_IMAGE_BASE)?.replace(/\/+$/, ""),
     ERP_IMAGE_SPACES_HOSTS: e.ERP_IMAGE_SPACES_HOSTS.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean),
     DO_SPACES_KEY: blankToUndefined(e.DO_SPACES_KEY),
     DO_SPACES_SECRET: blankToUndefined(e.DO_SPACES_SECRET),
+    FASHN_API_KEY: blankToUndefined(e.FASHN_API_KEY),
     NVIDIA_API_KEY: blankToUndefined(e.NVIDIA_API_KEY),
     NVIDIA_MODEL: blankToUndefined(e.NVIDIA_MODEL) ?? "nvidia/nemotron-3-super-120b-a12b",
     NVIDIA_BASE_URL: blankToUndefined(e.NVIDIA_BASE_URL)?.replace(/\/+$/, "") ?? "https://integrate.api.nvidia.com/v1",

@@ -337,7 +337,7 @@ export function barcodeProductToProduct(item: BarcodeProduct): Product {
       qty,
       status: qty <= 0 ? "out_of_stock" : qty <= 3 ? "low_stock" : "in_stock",
     },
-    images: item.image ? [item.image] : [],
+    images: item.images?.length ? item.images : item.image ? [item.image] : [],
     tags: [],
     isNewArrival: false,
     isActive: item.status === "IN_STOCK" && qty > 0,

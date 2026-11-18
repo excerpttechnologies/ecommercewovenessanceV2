@@ -486,17 +486,17 @@ export function BarcodeProductGrid({
                 {image}
 
                 <div className="space-y-3">
-                  <p className="text-xs uppercase tracking-wider text-muted">
+                  <p className="text-xl font-semibold uppercase tracking-wider text-muted sm:text-2xl">
                     Code {item.barcode}
                   </p>
 
-                  <h1 className="font-display text-3xl font-semibold sm:text-4xl">
+                  <h1 className="font-sans text-xl font-semibold uppercase leading-tight tracking-wide text-olive sm:text-2xl">
                     {productTitle}
                   </h1>
 
                   {ecommerceDescription &&
                     ecommerceDescription !== productTitle && (
-                      <p className="text-[15px] leading-relaxed text-ink/80">
+                      <p className="text-base font-medium leading-relaxed text-ink/80 sm:text-lg">
                         {ecommerceDescription}
                       </p>
                     )}
@@ -504,7 +504,7 @@ export function BarcodeProductGrid({
                   {printDescription &&
                     printDescription !== productTitle &&
                     printDescription !== ecommerceDescription && (
-                      <p className="text-sm text-muted">
+                      <p className="text-base font-medium leading-relaxed text-muted sm:text-lg">
                         {printDescription}
                       </p>
                     )}
@@ -534,7 +534,7 @@ export function BarcodeProductGrid({
                   )}
 
                   {item.ecommerce?.itemCode && (
-                    <p className="text-xs uppercase tracking-wider text-muted">
+                    <p className="font-sans text-xs font-medium tracking-wide text-muted">
                       E-com {item.ecommerce.itemCode}
                     </p>
                   )}
@@ -559,7 +559,7 @@ export function BarcodeProductGrid({
               {image}
 
               <div className="flex min-w-0 flex-1 flex-col px-2.5 pb-2.5 pt-2 sm:px-3 sm:pb-3 sm:pt-2.5">
-                <p className="line-clamp-1 break-words text-[15px] font-bold uppercase leading-tight tracking-wide text-olive sm:text-base">
+                <p className="line-clamp-1 break-words text-base font-bold uppercase leading-tight tracking-wide text-olive sm:text-lg">
                   Code {item.barcode}
                 </p>
 
@@ -571,18 +571,18 @@ export function BarcodeProductGrid({
                 {detailHref ? (
                   <Link
                     href={detailHref}
-                    className="mt-0.5 line-clamp-1 font-display text-sm font-semibold uppercase leading-tight text-olive hover:text-maroon sm:text-base"
+                    className="mt-0.5 line-clamp-1 font-sans text-base font-semibold uppercase leading-tight tracking-wide text-olive hover:text-maroon sm:text-lg"
                   >
                     {productTitle}
                   </Link>
                 ) : (
-                  <p className="mt-0.5 line-clamp-1 font-display text-sm font-semibold uppercase leading-tight text-olive sm:text-base">
+                  <p className="mt-0.5 line-clamp-1 font-sans text-base font-semibold uppercase leading-tight tracking-wide text-olive sm:text-lg">
                     {productTitle}
                   </p>
                 )}
 
                 {subtitle ? (
-                  <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-muted sm:text-xs">
+                  <p className="mt-1 line-clamp-2 break-words text-sm font-medium leading-snug text-muted sm:text-base">
                     {subtitle}
                   </p>
                 ) : (

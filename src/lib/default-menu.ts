@@ -100,10 +100,6 @@ export const DEFAULT_MENU: MenuNode[] = [
       ], "/collections/dupatta"),
     ],
   },
-  { id: "default-ready-bits", label: "READY BITS", kind: "top", href: "/collections/ready-bits", children: [] },
-  { id: "default-unstitched-suits", label: "UNSTITCHED SUITS", kind: "top", href: "/collections/unstitched-suits", children: [] },
-  { id: "default-pavada", label: "PAVADA", kind: "top", href: "/collections/pavada", children: [] },
-  { id: "default-inskirt", label: "INSKIRT", kind: "top", href: "/collections/inskirt", children: [] },
-  { id: "default-new-arrivals", label: "NEW ARRIVALS", kind: "top", href: "/new-arrivals", badge: "New", children: [] },
+  { id: "default-new-arrivals", label: "NEW ARRIVALS", kind: "top", href: "/collections/sarees?sort=newest", badge: "New", children: [] },
   { id: "default-best-buy", label: "BEST BUY", kind: "top", href: "/collections/best-buy", children: [] },
 ];

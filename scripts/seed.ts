@@ -421,7 +421,7 @@ async function main() {
     key: "default",
     defaultStoreId: String(storeId),
     contact: {
-      phone: "099163 11500",
+      phone: "9945158629",
       email: "hello@wovenessence.in",
       address: "1ST FLOOR 4T, BLOCK 34, 27th Cross, 4th T Block East, 4th Block, Jayanagar, Bengaluru, Karnataka 560011",
       hours: "Mon–Sat, 10:30 am – 8:30 pm",

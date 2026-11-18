@@ -4,7 +4,6 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbJsonLd, pageMetadata, storeJsonLd } from "@/lib/seo";
 import { ContactForm } from "@/components/account/contact-form";
-import { e164 } from "@/lib/business";
 
 export const metadata: Metadata = pageMetadata({
   title: "Contact Us",
@@ -30,7 +29,7 @@ export default async function ContactPage() {
           <p className="mt-2 text-sm font-semibold text-olive">{businessName}</p>
           <div className="mt-5 space-y-2 text-sm text-ink/80">
             {s.contact?.address && <p>{s.contact.address}</p>}
-            {s.contact?.phone && <p><a href={`tel:${e164(s.contact.phone)}`} className="hover:text-maroon">{s.contact.phone}</a></p>}
+            {s.contact?.phone && <p><a href={`tel:${s.contact.phone}`} className="hover:text-maroon">{s.contact.phone}</a></p>}
             <p><a href={`mailto:${contactEmail}`} className="hover:text-maroon">{contactEmail}</a></p>
             <p className="text-muted">{contactHours}</p>
             {s.whatsappNumber && <p><a href={`https://wa.me/${s.whatsappNumber}`} target="_blank" rel="noreferrer" className="text-olive underline underline-offset-4">Chat on WhatsApp</a></p>}

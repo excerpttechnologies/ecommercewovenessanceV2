@@ -9,6 +9,7 @@ import {
 import { ImageGallery } from "@/components/product/image-gallery";
 import { PincodeCheck } from "@/components/product/pincode-check";
 import { ProductInformationTabs, type ProductOverviewRow } from "@/components/product/info-tabs";
+import { VirtualTryOn } from "@/components/product/virtual-try-on";
 import { COUNTRY_OF_ORIGIN, type CustomerCareInfo, type ShippingReturnsInfo } from "@/lib/product-info";
 import type { BarcodeProduct } from "@/domain/types";
 import { useCart, useWishlist } from "@/hooks/useCart";
@@ -65,6 +66,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
     src,
     label: galleryViewLabel(index, galleryContext),
   }));
+  const tryOnImage = item.images?.[0] || item.image;
   const wished = has(item.barcode);
   const busy = add.isPending;
 
@@ -107,6 +109,12 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
             discount={discount}
             mainAspectClassName="aspect-[4/3] sm:aspect-[5/4]"
           />
+          {tryOnImage && (
+            <VirtualTryOn
+              productImage={tryOnImage}
+              productName={name}
+            />
+          )}
           <div className="mt-3 rounded-xl border border-line bg-white px-3 py-2.5 sm:px-4 sm:py-3">
             <p className="text-[13px] font-semibold text-olive sm:text-sm">Why you&apos;ll love it</p>
             <ul className="we-scroller -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 text-[11px] text-ink/75 sm:grid sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:text-xs">
@@ -127,9 +135,9 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
         <div className="min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <span className="inline-block rounded-full bg-maroon/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-maroon">Code {item.barcode}</span>
-              <h1 className="mt-3 font-display text-3xl font-semibold leading-tight sm:text-4xl">{name}</h1>
-              {subtitle && <p className="mt-1 text-base text-muted">{sentence(subtitle)}</p>}
+              <span className="inline-block rounded-full bg-maroon/10 px-3 py-1 text-lg font-semibold uppercase tracking-wide text-maroon sm:text-xl">Code {item.barcode}</span>
+              <h1 className="mt-3 font-sans text-lg font-semibold leading-tight tracking-wide text-olive sm:text-xl">{name}</h1>
+              {subtitle && <p className="mt-1 text-lg font-medium leading-relaxed text-muted sm:text-xl">{sentence(subtitle)}</p>}
             </div>
             <div className="flex shrink-0 gap-3">
               <button type="button" onClick={share} className="flex flex-col items-center gap-1 text-xs text-muted hover:text-maroon">
@@ -178,7 +186,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
               <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold", inStock ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
                 {inStock ? <><Check className="h-4 w-4" /> In Stock</> : "Unavailable"}
               </span>
-              <span className="leading-relaxed">
+              <span className="font-sans text-xs font-medium leading-relaxed tracking-wide text-muted">
                 {item.itemCode && <>SKU: {item.itemCode}<br /></>}
                 Category: <Link href={categoryHref} className="hover:text-maroon">{categoryTitle}</Link>
               </span>

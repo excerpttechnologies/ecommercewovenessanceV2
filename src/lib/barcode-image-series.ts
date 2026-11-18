@@ -538,7 +538,7 @@ function ecommerceImage(refs: unknown[]): string | undefined {
   return ecommerceImages(refs)[0];
 }
 
-/** Only verified barcode photos should prevent the ERP e-commerce image from being used as fallback. */
+/** null (host unreachable) counts as loading, so the browser still gets to try the barcode's own photo. */
 async function ownPhotoLoads(image?: string): Promise<boolean> {
   return Boolean(image) && (await probeImage(image!)) === true;
 }
@@ -581,12 +581,9 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
   });
 }
 
-async function withAvailableImages(items: BarcodeProduct[]): Promise<BarcodeProduct[]> {
-  const checked = await mapLimit(items, 8, async (item) => {
-    if (!item.image || (await probeImage(item.image)) !== true) return undefined;
-    return item;
-  });
-  return checked.filter((item): item is BarcodeProduct => Boolean(item));
+/** Uses the same resolved primary image and gallery overrides on cart and other hydrated views. */
+export async function resolveBarcodeProductImages(items: BarcodeProduct[]) {
+  return withProductWebOverrides(await withEcommerceDetails(items));
 }
 
 async function inactiveBarcodes() {
@@ -682,17 +679,12 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     page: detailView ? 1 : page,
     limit: detailView ? 1 : limit,
   });
-  // ERP details first (they may replace the primary image), then description + gallery overrides.
-  // A product the ERP holds no loadable photo for is not shown at all (no "Photo unavailable" cards).
-  const items = await withAvailableImages(
-    await withProductWebOverrides(await withEcommerceDetails(catalog.items)),
-  );
   return {
-    items,
-    // Paging stays the database's: probing every barcode would cost a request per SKU.
-    total: detailView ? Number(items.length > 0) : catalog.total,
+    // ERP details first (they may replace the primary image), then description + gallery overrides.
+    items: await withProductWebOverrides(await withEcommerceDetails(catalog.items)),
+    total: detailView ? Number(catalog.items.length > 0) : catalog.total,
     page: detailView ? 1 : catalog.page,
-    pages: detailView ? Number(items.length > 0) : catalog.pages,
+    pages: detailView ? Number(catalog.items.length > 0) : catalog.pages,
   };
 }
 
@@ -746,7 +738,7 @@ export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
       availableOnly: true,
       limit: 12,
     });
-    const items = (await withAvailableImages(result.items))
+    const items = result.items
       .filter((item): item is typeof item & { image: string } => {
         if (!item.image) return false;
         const imageUrl = item.image.split("?")[0];

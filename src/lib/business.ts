@@ -26,7 +26,9 @@ export interface BusinessInfo {
 export function businessInfo(settings: Pick<SiteSettings, "contact" | "social">): BusinessInfo {
   const contact = settings.contact;
   const address = contact?.address && !PLACEHOLDER_ADDRESSES.has(contact.address) ? contact.address : DEFAULT_ADDRESS;
-  const phone = contact?.phone && contact.phone !== "+91 80 4000 0000" ? contact.phone : DEFAULT_PHONE;
+  const configuredPhoneDigits = contact?.phone?.replace(/\D/g, "");
+  const isPreviousPhone = configuredPhoneDigits?.slice(-10) === "9916311500";
+  const phone = contact?.phone && !isPreviousPhone && contact.phone !== "+91 80 4000 0000" ? contact.phone : DEFAULT_PHONE;
   const instagram = settings.social?.instagram && settings.social.instagram !== "https://instagram.com/wovenessence" ? settings.social.instagram : DEFAULT_INSTAGRAM;
   return {
     address,
@@ -39,14 +41,9 @@ export function businessInfo(settings: Pick<SiteSettings, "contact" | "social">)
   };
 }
 
-/** "9945158629" → "+919945158629" (E.164, India). */
+/** Converts an Indian phone number to E.164 format. */
 export function e164(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   const local = digits.length > 10 ? digits.slice(-10) : digits;
   return `+91${local}`;
-}
-
-/** WhatsApp deep link for the configured support number, e.g. https://wa.me/919945158629 */
-export function whatsAppHref(phone: string): string {
-  return `https://wa.me/${e164(phone).slice(1)}`;
 }

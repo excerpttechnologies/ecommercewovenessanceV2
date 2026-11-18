@@ -31,26 +31,6 @@ export function barcodeImageUrl(barcode: string): string | undefined {
   return `${BARCODE_IMAGE_ORIGIN}/august_8A_images/${encodeURIComponent(barcode)}.jpg`;
 }
 
-/**
- * Public copies of ONE barcode's photo, most reliable first. RetailERP stores an uploaded photo as a
- * session-gated `/api/files/…` reference, which no browser can load from the storefront; the same
- * photo is public-read in Spaces under the barcode itself (`<barcode>.jpg` at the bucket root), which
- * is what the deployed ERP barcode report serves. The old `/august_8A_images/…` path only exists for
- * the 8A/9A series, so it comes last. Values are raw references — normalizeImageRef/probeImage decide.
- */
-export function barcodeImageCandidates(barcode: string, opts: ImageResolveOptions = {}): string[] {
-  if (!/^[a-z0-9_-]+$/i.test(barcode)) return [];
-  const name = `${encodeURIComponent(barcode)}.jpg`;
-  const urls: string[] = [];
-  for (const host of opts.spacesHosts ?? []) {
-    urls.push(`https://${host}/${name}`, `https://${host}/1/1/barcodes/${name}`);
-  }
-  const erp = barcodeImageUrl(barcode);
-  if (erp) urls.push(erp);
-  if (opts.base) urls.push(`${opts.base}/august_8A_images/${name}`);
-  return [...new Set(urls)];
-}
-
 export interface SpacesCredentials {
   accessKeyId: string;
   secretAccessKey: string;
@@ -61,8 +41,6 @@ export interface ImageResolveOptions {
   base?: string;
   /** ERP_IMAGE_SPACES_HOSTS — the only Spaces buckets images may come from. */
   spacesHosts?: string[];
-  /** Barcode of the record being resolved; adds its own public photo as a fallback. */
-  barcode?: string;
   spaces?: SpacesCredentials;
   now?: Date;
 }
@@ -274,12 +252,6 @@ function candidates(refs: unknown[], opts: ImageResolveOptions): { urls: string[
  */
 export async function resolveRecordImage(refs: unknown[], opts: ImageResolveOptions, fetchImpl?: typeof fetch, deadlineAt?: number): Promise<ResolvedImage> {
   const { urls, sawPlaceholder, sawDisallowed } = candidates(refs, opts);
-  // Stored references first, then the barcode's own public photo (same piece, same barcode only).
-  if (opts.barcode) {
-    for (const url of barcodeImageCandidates(opts.barcode, opts)) {
-      if (!urls.includes(url)) urls.push(url);
-    }
-  }
   if (!urls.length) return { imageIssue: sawDisallowed ? "unavailable" : sawPlaceholder ? "placeholder" : "none" };
 
   const check = async (): Promise<ResolvedImage> => {
