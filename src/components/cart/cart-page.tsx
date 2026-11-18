@@ -29,17 +29,16 @@ export function CartPage() {
           <ul className="divide-y divide-line">
             {cart.unavailable.length > 0 && (
               <li className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                {cart.unavailable.length} item(s) are no longer available and were left out: {cart.unavailable.map((u) => u.sku).join(", ")}.
+                {cart.unavailable.length} item(s) are no longer available and have been removed from your bag.
               </li>
             )}
             {cart.lines.map((l) => (
               <li key={l.sku} className="flex gap-5 py-5">
                 <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
-                  {l.product.images[0] ? <Image src={l.product.images[0]} alt={l.product.name} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="112px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
+                  {l.product.images[0] ? <Image src={l.product.images[0]} alt={`Code ${l.sku}`} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="112px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
                 </Link>
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="text-base hover:text-maroon">{l.product.name}</Link>
-                  <p className="text-xs text-muted">SKU {l.sku}</p>
+                  <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="text-base uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
                   <Price amount={l.product.pricing.sellingPrice} mrp={l.product.pricing.mrp} size="sm" className="mt-1" />
                   {l.product.stock.qty <= 3 && <p className="mt-1 text-xs text-gold">Only {l.product.stock.qty} left</p>}
                   <div className="mt-auto flex items-center justify-between pt-3">

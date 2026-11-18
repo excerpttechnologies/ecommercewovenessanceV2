@@ -6,7 +6,6 @@ import { cookies } from "next/headers";
 import { getWebConnection } from "@/lib/db";
 import { CART_COOKIE, cookieOptions, getCustomerSession } from "@/lib/auth";
 import { computeTotals, type CartLine, type CartTotals, type CouponLike } from "@/lib/pricing";
-import { resolveBarcodeProductImages } from "@/lib/barcode-image-series";
 import { CartModel, CouponModel, WishlistModel } from "@/models/web/commerce.models";
 import { getBarcodeLabels, getMasterData, getSite } from "@/repositories";
 import { barcodeProductToProduct, stockStatus } from "@/lib/erp-mapping";
@@ -22,7 +21,7 @@ export interface CartView {
 }
 
 async function getBarcodeProduct(sku: string) {
-  const item = await getBarcodeLabels().getByBarcode(sku);
+  const [item] = await getBarcodeLabels().getByBarcodes([sku]);
   return item ? barcodeProductToProduct(item) : null;
 }
 
@@ -114,10 +113,9 @@ export async function getCartView(token?: string | null): Promise<CartView> {
   const products = items.length ? await applyHeldStock(await getMasterData().products.getBySkus(items.map((i) => i.sku))) : [];
   const bySku = new Map(products.map((p) => [p.sku, p]));
   const missingSkus = items.map((item) => item.sku).filter((sku) => !bySku.has(sku));
-  const barcodeItems = missingSkus.length
-    ? await resolveBarcodeProductImages(await getBarcodeLabels().getByBarcodes(missingSkus))
+  const barcodeProducts = missingSkus.length
+    ? await applyHeldStock((await getBarcodeLabels().getByBarcodes(missingSkus)).map(barcodeProductToProduct))
     : [];
-  const barcodeProducts = await applyHeldStock(barcodeItems.map(barcodeProductToProduct));
   for (const item of barcodeProducts) bySku.set(item.barcode ?? item.sku, item);
   const lines: CartLine[] = [];
   const unavailable: { sku: string; qty: number }[] = [];

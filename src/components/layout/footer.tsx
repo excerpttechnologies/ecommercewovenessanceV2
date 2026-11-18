@@ -9,15 +9,14 @@ import { BackToTop } from "./back-to-top";
 
 const socialClass = "flex h-12 w-12 items-center justify-center rounded-full border border-olive/15 bg-white/50 text-olive max-md:border-white/40 max-md:bg-white/15 max-md:text-white backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-maroon hover:bg-maroon hover:text-white hover:shadow-[0_10px_20px_-10px_rgba(219,26,114,0.8)]";
 
+/** The five compliance pages are linked directly, so their CMS copies are skipped and each footer link appears once. */
+const LEGAL_SLUGS = new Set(["about", "about-us", "contact", "contact-us", "terms", "terms-and-conditions", "returns", "return-policy", "refunds", "refund-policy", "privacy", "privacy-policy", "shipping", "shipping-policy", "pricing", "faq"]);
+
 export async function Footer() {
   const [settings, pages, categories] = await Promise.all([getSettings(), getFooterPages().catch(() => []), getCategoryTree().catch(() => [])]);
   const { address, phone, email, hours, instagram } = businessInfo(settings);
-  const privacyPage = pages.find(
-    (page) =>
-      page.slug.toLowerCase() === "privacy" ||
-      page.slug.toLowerCase() === "privacy-policy" ||
-      page.title.trim().toLowerCase() === "privacy policy",
-  );
+  const policies = pages.filter((p) => p.type === "policy" && !LEGAL_SLUGS.has(p.slug));
+  const info = pages.filter((p) => (p.type === "page" || p.type === "faq") && !LEGAL_SLUGS.has(p.slug));
   const onlinePayments = settings.commerce?.razorpayEnabled === true;
   const codEnabled = settings.commerce?.codEnabled !== false;
   const freeAbove = settings.commerce?.freeShippingAbove;
@@ -58,14 +57,18 @@ export async function Footer() {
           <FooterCol title="Quick Links" links={[{ label: "Home", href: "/" }, ...categories.map((c) => ({ label: c.name, href: `/collections/${c.slug}` })), { label: "New Arrivals", href: "/collections/new-arrivals" }, { label: "All Collections", href: "/collections" }, { label: "Wishlist", href: "/wishlist" }]} />
           <FooterCol
             title="Customer Information"
-            links={[
+            links={dedupe([
               { label: "About Us", href: "/about-us" },
               { label: "Contact Us", href: "/contact-us" },
+              { label: "Privacy Policy", href: "/privacy-policy" },
               { label: "Terms & Conditions", href: "/terms-and-conditions" },
               { label: "Refund Policy", href: "/refund-policy" },
               { label: "Return Policy", href: "/return-policy" },
-              { label: "Privacy policy", href: `/pages/${privacyPage?.slug ?? "privacy-policy"}` },
-            ]}
+              { label: "Track Order", href: "/track-order" },
+              { label: "My Account", href: "/account" },
+              ...info.map((p) => ({ label: p.title, href: `/pages/${p.slug}` })),
+              ...policies.map((p) => ({ label: p.title, href: `/pages/${p.slug}` })),
+            ])}
           />
           <div className="md:col-span-2 lg:col-span-1 lg:border-l lg:border-olive/10 lg:pl-8 xl:pl-10">
             <FooterHeading>Newsletter</FooterHeading>
@@ -139,6 +142,17 @@ function PaymentBadges() {
       <span className={`${base} bg-[#1f72cd] not-italic text-white`}>AMEX</span>
     </>
   );
+}
+
+/** CMS pages can repeat a built-in link ("Contact us"); keep the first of each label. */
+function dedupe(links: { label: string; href: string }[]) {
+  const seen = new Set<string>();
+  return links.filter((l) => {
+    const key = l.label.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function FooterCol({ title, links }: { title: string; links: { label: string; href: string }[] }) {

@@ -126,7 +126,7 @@ export const GET = handler(async (req: NextRequest) => {
       [raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) =>
         toImages(Array.isArray(value) ? value : [value]),
       ),
-      imageOptions,
+      { ...imageOptions, barcode: product.barcode },
     );
     return {
       ...product,

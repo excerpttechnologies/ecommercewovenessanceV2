@@ -9,7 +9,6 @@ import {
 import { ImageGallery } from "@/components/product/image-gallery";
 import { PincodeCheck } from "@/components/product/pincode-check";
 import { ProductInformationTabs, type ProductOverviewRow } from "@/components/product/info-tabs";
-import { VirtualTryOn } from "@/components/product/virtual-try-on";
 import { COUNTRY_OF_ORIGIN, type CustomerCareInfo, type ShippingReturnsInfo } from "@/lib/product-info";
 import type { BarcodeProduct } from "@/domain/types";
 import { useCart, useWishlist } from "@/hooks/useCart";
@@ -21,8 +20,6 @@ type Neighbour = { href: string; name: string } | null;
 
 const ATTR_ICONS: Record<string, React.ComponentType<{ className?: string }>> = { weave: Grid3x3, fabric: Layers, craft: Brush, occasion: Tag, color: Palette };
 const ATTR_LABELS: Record<string, string> = { weave: "Weave", fabric: "Fabric", craft: "Craft", occasion: "Occasion", color: "Colour" };
-
-const sentence = (s: string) => (s === s.toUpperCase() ? s.charAt(0) + s.slice(1).toLowerCase() : s);
 
 export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previous, next, freeShippingAbove, codEnabled, customerCare, shippingReturns }: {
   item: BarcodeProduct;
@@ -38,7 +35,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const router = useRouter();
   const { add } = useCart();
   const { has, toggle } = useWishlist();
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(0);
   const [shared, setShared] = useState(false);
 
   const price = item.price ?? 0;
@@ -46,13 +43,14 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const discount = selling < price && price > 0 ? Math.round(((price - selling) / price) * 100) : 0;
   const inStock = item.status === "IN_STOCK" && !(item.qty != null && item.qty <= 0);
   const maxQty = Math.max(1, Math.min(10, item.qty ?? 1));
-  const name = item.ecommerce?.displayName || item.itemName || item.name;
-  const subtitle = [item.ecommerce?.description, item.printDescription].find((d) => d && d.trim() && d !== name);
+  // The storefront shows the barcode as the product title; item names stay internal.
+  const codeLabel = `Code ${item.barcode}`;
+  // Exact Excel/ERP print description — never rewritten or used as a fallback title.
+  const printDescription = item.printDescription?.trim() ? item.printDescription : undefined;
+  const availableQty = `${item.qty ?? 0} ${item.uom?.trim() || "Pc(s)"}`;
   const attrs = Object.entries(item.ecommerce?.attributes ?? {}).filter((e): e is [string, string] => Boolean(e[1]));
   const overview: ProductOverviewRow[] = [
-    { label: "Product name", value: name },
-    { label: "Item code", value: item.itemCode ?? item.barcode },
-    { label: "Barcode", value: item.barcode },
+    { label: "Product code", value: item.barcode },
     { label: "Category", value: categoryTitle },
     ...attrs.map(([key, value]) => ({ label: ATTR_LABELS[key] ?? key, value })),
     { label: "Group", value: item.group ?? "" },
@@ -66,14 +64,13 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
     src,
     label: galleryViewLabel(index, galleryContext),
   }));
-  const tryOnImage = item.images?.[0] || item.image;
   const wished = has(item.barcode);
   const busy = add.isPending;
 
   const share = async () => {
     const url = window.location.href;
     try {
-      if (navigator.share) await navigator.share({ title: name, url });
+      if (navigator.share) await navigator.share({ title: codeLabel, url });
       else {
         await navigator.clipboard.writeText(url);
         setShared(true);
@@ -105,16 +102,10 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
         <div className="min-w-0 lg:sticky lg:top-40 lg:self-start">
           <ImageGallery
             images={gallery}
-            alt={name}
+            alt={codeLabel}
             discount={discount}
             mainAspectClassName="aspect-[4/3] sm:aspect-[5/4]"
           />
-          {tryOnImage && (
-            <VirtualTryOn
-              productImage={tryOnImage}
-              productName={name}
-            />
-          )}
           <div className="mt-3 rounded-xl border border-line bg-white px-3 py-2.5 sm:px-4 sm:py-3">
             <p className="text-[13px] font-semibold text-olive sm:text-sm">Why you&apos;ll love it</p>
             <ul className="we-scroller -mx-1 mt-2 flex gap-2 overflow-x-auto px-1 text-[11px] text-ink/75 sm:grid sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:text-xs">
@@ -135,9 +126,14 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
         <div className="min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <span className="inline-block rounded-full bg-maroon/10 px-3 py-1 text-lg font-semibold uppercase tracking-wide text-maroon sm:text-xl">Code {item.barcode}</span>
-              <h1 className="mt-3 font-sans text-lg font-semibold leading-tight tracking-wide text-olive sm:text-xl">{name}</h1>
-              {subtitle && <p className="mt-1 text-lg font-medium leading-relaxed text-muted sm:text-xl">{sentence(subtitle)}</p>}
+              <h1 className="mt-3 font-display text-3xl font-semibold uppercase leading-tight tracking-wide text-olive sm:text-4xl">{codeLabel}</h1>
+              {printDescription && (
+                <p className="mt-2 max-w-xl text-base leading-relaxed text-ink/80">
+                  <span className="font-medium text-olive">Print Description: </span>
+                  {printDescription}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted">Available Qty: {availableQty}</p>
             </div>
             <div className="flex shrink-0 gap-3">
               <button type="button" onClick={share} className="flex flex-col items-center gap-1 text-xs text-muted hover:text-maroon">
@@ -186,8 +182,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
               <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold", inStock ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
                 {inStock ? <><Check className="h-4 w-4" /> In Stock</> : "Unavailable"}
               </span>
-              <span className="font-sans text-xs font-medium leading-relaxed tracking-wide text-muted">
-                {item.itemCode && <>SKU: {item.itemCode}<br /></>}
+              <span className="leading-relaxed">
                 Category: <Link href={categoryHref} className="hover:text-maroon">{categoryTitle}</Link>
               </span>
             </div>
@@ -201,18 +196,18 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
           )}
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            {maxQty > 1 && (
+            {inStock && (
               <div className="flex h-12 items-center rounded-full border border-line bg-white">
-                <button type="button" aria-label="Decrease quantity" disabled={qty <= 1} onClick={() => setQty((q) => q - 1)} className="flex h-12 w-11 items-center justify-center text-olive disabled:opacity-30"><Minus className="h-4 w-4" /></button>
+                <button type="button" aria-label="Decrease quantity" disabled={qty <= 0} onClick={() => setQty((q) => Math.max(0, q - 1))} className="flex h-12 w-11 items-center justify-center text-olive disabled:opacity-30"><Minus className="h-4 w-4" /></button>
                 <span className="w-8 text-center text-sm font-semibold" aria-live="polite"><span key={qty} className="we-pop">{qty}</span></span>
-                <button type="button" aria-label="Increase quantity" disabled={qty >= maxQty} onClick={() => setQty((q) => q + 1)} className="flex h-12 w-11 items-center justify-center text-olive disabled:opacity-30"><Plus className="h-4 w-4" /></button>
+                <button type="button" aria-label="Increase quantity" disabled={qty >= maxQty} onClick={() => setQty((q) => Math.min(maxQty, q + 1))} className="flex h-12 w-11 items-center justify-center text-olive disabled:opacity-30"><Plus className="h-4 w-4" /></button>
               </div>
             )}
-            <button type="button" disabled={!inStock || busy} onClick={() => add.mutate({ sku: item.barcode, qty })} className="inline-flex h-12 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-full bg-maroon px-6 text-[15px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none">
+            <button type="button" disabled={!inStock || busy || qty <= 0} onClick={() => add.mutate({ sku: item.barcode, qty })} className="inline-flex h-12 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-full bg-maroon px-6 text-[15px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none">
               <ShoppingBag className="h-5 w-5" /> {inStock ? (busy ? "Adding…" : "Add to Bag") : "Unavailable"}
             </button>
             {inStock && (
-              <button type="button" disabled={busy} onClick={buyNow} className="inline-flex h-12 min-w-[150px] flex-1 items-center justify-center gap-2 rounded-full border-2 border-maroon bg-white px-6 text-[15px] font-semibold text-maroon transition-colors hover:bg-maroon/5 disabled:opacity-60">
+              <button type="button" disabled={busy || qty <= 0} onClick={buyNow} className="inline-flex h-12 min-w-[150px] flex-1 items-center justify-center gap-2 rounded-full border-2 border-maroon bg-white px-6 text-[15px] font-semibold text-maroon transition-colors hover:bg-maroon/5 disabled:opacity-60">
                 <ShoppingCart className="h-5 w-5" /> Buy Now
               </button>
             )}
@@ -229,7 +224,8 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
           </ul>
 
           <ProductInformationTabs
-            productName={name}
+            productName={codeLabel}
+            description={printDescription}
             overview={overview}
             material={item.ecommerce?.attributes?.fabric}
             silkMark={null}

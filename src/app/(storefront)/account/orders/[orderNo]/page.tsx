@@ -261,15 +261,15 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNo:
                 </span>
                 <div className="min-w-0 text-sm">
                   {slug ? (
-                    <Link href={`/products/${slug}`} className="line-clamp-2 text-base font-semibold text-maroon hover:underline">{it.name}</Link>
+                    <Link href={`/products/${slug}`} className="line-clamp-2 text-base font-semibold uppercase tracking-wide text-maroon hover:underline">Code {it.sku}</Link>
                   ) : (
-                    <p className="line-clamp-2 text-base font-semibold text-maroon">{it.name}</p>
+                    <p className="line-clamp-2 text-base font-semibold uppercase tracking-wide text-maroon">Code {it.sku}</p>
                   )}
                   <p className="mt-1.5 text-muted">
-                    {[size && `Size: ${size}`, colour && `Colour: ${colour}`].filter(Boolean).join("  |  ") || `SKU: ${it.sku}`}
+                    {[size && `Size: ${size}`, colour && `Colour: ${colour}`].filter(Boolean).join("  |  ")}
                   </p>
                   {soldBy && <p className="mt-1 text-muted">Sold by: {soldBy}</p>}
-                  <p className="mt-1 text-xs text-muted">SKU: {it.sku} · Qty {it.qty}</p>
+                  <p className="mt-1 text-xs text-muted">Qty {it.qty}</p>
                   <p className="mt-2 text-lg font-bold text-ink">{formatINR(it.amount)}</p>
                   <div className="mt-3 flex flex-wrap gap-2.5">
                     <Link href={slug ? `/products/${slug}` : `/search?q=${encodeURIComponent(it.sku)}`} className={chip}>
