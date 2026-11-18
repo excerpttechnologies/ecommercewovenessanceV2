@@ -77,7 +77,7 @@ describe("GET /api/v1/admin/products", () => {
     expect(res.status).toBe(200);
     expect(body.data).toEqual([{ id: "1", barcode: "OU5886", name: "DU-P", slug: "du-p-ou5886", web: null, erpEcommerce: null }]);
     expect(body.meta).toMatchObject({ total: 1, pages: 1, source: "erp", collection: "barcodeLabel", readOnly: true });
-    expect(list).toHaveBeenCalledWith({ q: "OU5886", page: 1, limit: 40 });
+    expect(list).toHaveBeenCalledWith({ q: "OU5886", page: 1, limit: 40, resolveImages: true });
     spy.mockRestore();
   });
 
@@ -150,6 +150,31 @@ describe("GET /api/v1/admin/products", () => {
       byWeave: ["64a000000000000000000001"],
       additionalImages: ["image-1.jpg"],
     });
+  });
+
+  it("uses a resolvable ERP e-commerce image when a 5A barcode has no label image", async () => {
+    const image = "data:image/png;base64,AA==";
+    list.mockResolvedValue({
+      items: [{ id: "label-5a", barcode: "5A1234", name: "Product", itemId: "item-5a", businessId: "business-1" }],
+      total: 1,
+      page: 1,
+      limit: 40,
+      pages: 1,
+      skipped: 0,
+    });
+    ecommerceRows.push({
+      _id: "catalog-5a",
+      itemId: "item-5a",
+      businessId: "business-1",
+      image,
+    });
+
+    const response = await GET(req("?q=5A1234"));
+    const body = await response.json();
+
+    expect(list).toHaveBeenCalledWith({ q: "5A1234", page: 1, limit: 40, resolveImages: true });
+    expect(body.data[0].image).toBe(image);
+    expect(body.data[0].imageIssue).toBeUndefined();
   });
 
   it("rejects malformed queries before touching the database", async () => {

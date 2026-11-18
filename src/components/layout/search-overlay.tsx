@@ -63,13 +63,13 @@ export function SearchOverlay() {
               key={p.id}
               href={p.source === "erp" && p.images[0]
                 ? `/products/${p.slug}`
-                : `/products/${p.slug}?comingSoon=1&code=${encodeURIComponent(p.sku)}`}
+                : `/products/${p.slug}?comingSoon=1&name=${encodeURIComponent(p.name)}`}
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-lg p-2 hover:bg-maroon/5"
             >
               <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-line">{p.images[0] ? <Image src={p.images[0]} alt="" fill unoptimized={isRemoteImageSource(p.images[0])} sizes="48px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}</div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium uppercase tracking-wide">Code {p.sku}</p>
+                <p className="truncate text-sm font-medium">{p.web?.cardTitle || p.name}</p>
                 <p className="text-xs text-muted">{p.fabric}</p>
               </div>
               <Price amount={p.pricing.sellingPrice} size="sm" />

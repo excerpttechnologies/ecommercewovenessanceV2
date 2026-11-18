@@ -837,7 +837,7 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
           {cart.lines.map((l) => (
             <li key={l.sku} className="flex items-center gap-3 py-3 text-sm">
               <span className="relative h-16 w-12 shrink-0 overflow-hidden rounded-sm bg-line">{l.product.images[0] && <Image src={l.product.images[0]} alt="" fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="48px" className="object-cover" />}</span>
-              <span className="min-w-0 flex-1"><span className="line-clamp-2 uppercase tracking-wide">Code {l.sku}</span><span className="text-xs text-muted">× {l.qty}</span></span>
+              <span className="min-w-0 flex-1"><span className="line-clamp-2">{l.product.name}</span><span className="text-xs text-muted">× {l.qty}</span></span>
               <span>{formatMoney(l.product.pricing.sellingPrice * l.qty, currency)}</span>
             </li>
           ))}

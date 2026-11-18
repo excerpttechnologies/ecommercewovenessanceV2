@@ -61,7 +61,18 @@ vi.mock("@/models/web/content.models", () => ({
   }),
 }));
 
-const { getBarcodeImageCatalog } = await import("@/lib/barcode-image-series");
+const { getBarcodeImageCatalog, getBarcodeImageSeries } = await import("@/lib/barcode-image-series");
+
+function mockImageAvailability(availableUrlParts: string[] = []) {
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+    const url = String(input);
+    const available = availableUrlParts.some((part) => url.includes(part));
+    return new Response(null, {
+      status: available ? 206 : 404,
+      headers: { "content-type": "image/jpeg" },
+    });
+  }));
+}
 
 describe("getBarcodeImageCatalog", () => {
   let erpConnection: { db: { collection: ReturnType<typeof vi.fn> } };
@@ -97,8 +108,13 @@ describe("getBarcodeImageCatalog", () => {
     getProductTypeSubgroups.mockResolvedValue([]);
     facets.mockResolvedValue({ status: [], group: [], business: [], uomType: [], total: 0 });
     list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 48, pages: 0, skipped: 0 });
+    const imageProbe = (globalThis as typeof globalThis & {
+      __erpImageProbe?: { cache: Map<string, unknown>; inflight: Map<string, unknown>; hostDownUntil: Map<string, number> };
+    }).__erpImageProbe;
+    imageProbe?.cache.clear();
+    imageProbe?.hostDownUntil.clear();
     // Photo checks never leave the test: barcode photos are missing unless a test says otherwise.
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
+    mockImageAvailability();
   });
 
   it("searches e-commerce item codes and requests only available barcode labels", async () => {
@@ -162,6 +178,7 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("includes published products by their configured Product Type when a legacy group ID no longer matches", async () => {
+    mockImageAvailability(["8A2837.jpg"]);
     productTypeDocs = [{
       value: "UNSTITCHED SUITS",
       label: "unstitched suits",
@@ -170,7 +187,8 @@ describe("getBarcodeImageCatalog", () => {
     }];
     getLabelIdsForProductTypes.mockResolvedValue(["published-product-type-label"]);
     list.mockResolvedValue({
-      items: [{ id: "label-8a2837", barcode: "8A2837", itemId: "item-1", businessId: "business-1" }],
+      // A real storefront row always carries a loadable photo; scope tests only check which labels are listed.
+      items: [{ id: "label-8a2837", barcode: "8A2837", itemId: "item-1", businessId: "business-1", image: "https://erp.wovenessence.in/august_8A_images/8A2837.jpg" }],
       total: 1,
       page: 1,
       limit: 48,
@@ -201,29 +219,30 @@ describe("getBarcodeImageCatalog", () => {
       itemId: "item-dup",
       businessId: "business-1",
       barcode,
-      image: `https://erp.wovenessence.in/images/8A/${barcode}.jpg`,
+      image: `https://erp.wovenessence.in/august_8A_images/${barcode}.jpg`,
     });
     list.mockResolvedValue({ items: [label("8A1927"), label("8A1929")], total: 2, page: 1, limit: 48, pages: 1, skipped: 0 });
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
-      ["item-dup:business-1", { displayName: "DU-P", raw: { barcode: "8A1927", barcodes: ["8A1929"], image: "https://erp.wovenessence.in/images/8A/8A1927.jpg" } }],
+      ["item-dup:business-1", { displayName: "DU-P", raw: { image: "https://erp.wovenessence.in/august_8A_images/8A1927.jpg" } }],
     ]));
 
     const result = await getBarcodeImageCatalog("sarees", 1);
 
     expect(result.items.map((item) => item.image)).toEqual([
-      "https://erp.wovenessence.in/images/8A/8A1927.jpg",
-      "https://erp.wovenessence.in/images/8A/8A1929.jpg",
+      "https://erp.wovenessence.in/august_8A_images/8A1927.jpg",
+      "https://erp.wovenessence.in/august_8A_images/8A1929.jpg",
     ]);
     expect(result.items[1].ecommerce?.displayName).toBe("DU-P");
   });
 
-  it("uses the ERP e-commerce image when the record maps to only that barcode", async () => {
+  it("uses the ERP e-commerce image when the barcode has no photo that loads", async () => {
+    mockImageAvailability(["brocade.jpg"]);
     const item = {
       id: "label-1",
       itemId: "item-1",
       businessId: "business-1",
       barcode: "8A2524",
-      image: "https://erp.wovenessence.in/images/8A/8A2524.jpg",
+      image: "https://erp.wovenessence.in/august_8A_images/8A2524.jpg",
     };
     list.mockResolvedValue({ items: [item], total: 1, page: 1, limit: 48, pages: 1, skipped: 0 });
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
@@ -233,7 +252,7 @@ describe("getBarcodeImageCatalog", () => {
         productType: "SAREES",
         printDescription: "Traditional brocade design",
         attributes: { weave: "Brocade" },
-        raw: { barcode: "8A2524", image: "https://templeimg.blr1.digitaloceanspaces.com/brocade.jpg?X-Amz-Signature=expired" },
+        raw: { image: "https://templeimg.blr1.digitaloceanspaces.com/brocade.jpg?X-Amz-Signature=expired" },
       }],
     ]));
 
@@ -251,40 +270,14 @@ describe("getBarcodeImageCatalog", () => {
     });
   });
 
-  it("does not reuse a shared ERP product image or gallery for multiple barcodes", async () => {
-    const item = {
-      id: "label-1",
-      itemId: "item-1",
-      businessId: "business-1",
-      barcode: "8A2524",
-      image: "https://erp.wovenessence.in/images/8A/8A2524.jpg",
-    };
-    list.mockResolvedValue({ items: [item], total: 1, page: 1, limit: 48, pages: 1 });
-    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
-      ["item-1:business-1", {
-        raw: {
-          barcode: "8A2524",
-          barcodes: ["8A2525"],
-          image: "https://erp.wovenessence.in/images/8A/8A2525.jpg",
-          additionalImages: ["https://erp.wovenessence.in/images/8A/8A2526.jpg"],
-        },
-      }],
-    ]));
-
-    const result = await getBarcodeImageCatalog("sarees", 1);
-
-    expect(result.items[0].image).toBe(item.image);
-    expect(result.items[0].erpAdditionalImages).toBeUndefined();
-    expect(result.items[0].images).toEqual([item.image]);
-  });
-
   it("keeps the generated barcode image when the ERP e-commerce image host is not allowed", async () => {
+    mockImageAvailability(["8A2524.jpg"]);
     const item = {
       id: "label-1",
       itemId: "item-1",
       businessId: "business-1",
       barcode: "8A2524",
-      image: "https://erp.wovenessence.in/images/8A/8A2524.jpg",
+      image: "https://erp.wovenessence.in/august_8A_images/8A2524.jpg",
     };
     list.mockResolvedValue({ items: [item], total: 1, page: 1, limit: 48, pages: 1, skipped: 0 });
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
@@ -293,11 +286,12 @@ describe("getBarcodeImageCatalog", () => {
 
     const result = await getBarcodeImageCatalog("sarees", 1);
 
-    expect(result.items[0].image).toBe("https://erp.wovenessence.in/images/8A/8A2524.jpg");
+    expect(result.items[0].image).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
   });
 
   it("attaches the saved gallery in order with the barcode photo as the default primary", async () => {
-    const image = "https://erp.wovenessence.in/images/8A/8A2524.jpg";
+    mockImageAvailability(["8A2524.jpg"]);
+    const image = "https://erp.wovenessence.in/august_8A_images/8A2524.jpg";
     list.mockResolvedValue({
       items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524", image }],
       total: 1,
@@ -321,7 +315,8 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("uses the saved gallery primary override without overwriting the ERP barcode photo", async () => {
-    const image = "https://erp.wovenessence.in/images/8A/8A2524.jpg";
+    mockImageAvailability(["8A2524.jpg"]);
+    const image = "https://erp.wovenessence.in/august_8A_images/8A2524.jpg";
     list.mockResolvedValue({
       items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524", image }],
       total: 1,
@@ -346,6 +341,7 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("builds the saved gallery after the ERP e-commerce image replaces a missing barcode photo", async () => {
+    mockImageAvailability(["4A1287.jpg"]);
     const erpImage = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287.jpg";
     list.mockResolvedValue({
       items: [{
@@ -353,7 +349,7 @@ describe("getBarcodeImageCatalog", () => {
         itemId: "item-1",
         businessId: "business-1",
         barcode: "4A1277",
-        image: "https://erp.wovenessence.in/images/4A/4A1277.jpg",
+        image: "https://erp.wovenessence.in/august_8A_images/4A1277.jpg",
       }],
       total: 1,
       page: 1,
@@ -366,7 +362,7 @@ describe("getBarcodeImageCatalog", () => {
         displayName: "4-M.DECOR",
         productType: "FABRICS",
         attributes: {},
-        raw: { barcode: "4A1277", image: `${erpImage}?X-Amz-Signature=expired` },
+        raw: { image: `${erpImage}?X-Amz-Signature=expired` },
       }],
     ]));
     productMetaDocs = [{
@@ -384,6 +380,7 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("merges ERP additionalImages after website extras and removes duplicates", async () => {
+    mockImageAvailability(["4A1287.jpg"]);
     const main = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287.jpg";
     const side = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287-side.jpg";
     const detail = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287-detail.jpg";
@@ -400,7 +397,6 @@ describe("getBarcodeImageCatalog", () => {
         displayName: "4-M.DECOR",
         attributes: {},
         raw: {
-          barcode: "4A1277",
           image: main,
           additionalImages: [main, side, detail, side],
         },
@@ -422,6 +418,7 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("supports ERP additionalImages when no website gallery metadata exists", async () => {
+    mockImageAvailability(["8A2524.jpg"]);
     const main = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/8A2524.jpg";
     const pallu = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/8A2524-pallu.jpg";
     list.mockResolvedValue({
@@ -433,7 +430,7 @@ describe("getBarcodeImageCatalog", () => {
       skipped: 0,
     });
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
-      ["item-1:business-1", { attributes: {}, raw: { barcode: "8A2524", image: main, additionalImages: [pallu] } }],
+      ["item-1:business-1", { attributes: {}, raw: { image: main, additionalImages: [pallu] } }],
     ]));
 
     const result = await getBarcodeImageCatalog("sarees", 1);
@@ -443,6 +440,7 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("keeps a one-photo product as a one-image gallery", async () => {
+    mockImageAvailability(["4A1287.jpg"]);
     const main = "https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/4A1287.jpg";
     list.mockResolvedValue({
       items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "4A1277" }],
@@ -453,7 +451,7 @@ describe("getBarcodeImageCatalog", () => {
       skipped: 0,
     });
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
-      ["item-1:business-1", { displayName: "4-M.DECOR", attributes: {}, raw: { barcode: "4A1277", image: main, additionalImages: [] } }],
+      ["item-1:business-1", { displayName: "4-M.DECOR", attributes: {}, raw: { image: main, additionalImages: [] } }],
     ]));
 
     const result = await getBarcodeImageCatalog("fabrics", 1);
@@ -462,6 +460,7 @@ describe("getBarcodeImageCatalog", () => {
   });
 
   it("caps the combined website and ERP gallery at five images", async () => {
+    mockImageAvailability(["extra-0.jpg"]);
     const erpExtras = Array.from({ length: 6 }, (_, index) => `https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/extra-${index}.jpg`);
     list.mockResolvedValue({
       items: [{ id: "label-1", itemId: "item-1", businessId: "business-1", barcode: "8A2524" }],
@@ -472,7 +471,7 @@ describe("getBarcodeImageCatalog", () => {
       skipped: 0,
     });
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
-      ["item-1:business-1", { attributes: {}, raw: { barcode: "8A2524", image: erpExtras[0], additionalImages: erpExtras } }],
+      ["item-1:business-1", { attributes: {}, raw: { image: erpExtras[0], additionalImages: erpExtras } }],
     ]));
     productMetaDocs = [{
       sku: "8A2524",
@@ -486,6 +485,51 @@ describe("getBarcodeImageCatalog", () => {
       erpExtras[0],
       "https://cdn.example.com/side.jpg",
       "https://cdn.example.com/back.jpg",
+    ]);
+  });
+
+  it("omits a barcode when its final storefront photo cannot be loaded", async () => {
+    loadErpEcommerceCatalogs.mockResolvedValue(new Map([
+      ["item-no-photo:business-1", {
+        raw: { image: "https://templeimg.blr1.digitaloceanspaces.com/no-photo.jpg" },
+      }],
+    ]));
+    list.mockResolvedValue({
+      items: [{
+        id: "label-no-photo",
+        itemId: "item-no-photo",
+        businessId: "business-1",
+        barcode: "8A9999",
+        image: "https://erp.wovenessence.in/august_8A_images/8A9999.jpg",
+      }],
+      total: 1,
+      page: 1,
+      limit: 48,
+      pages: 1,
+      skipped: 0,
+    });
+
+    const result = await getBarcodeImageCatalog("sarees", 1);
+
+    expect(result.items).toEqual([]);
+  });
+
+  it("omits unavailable photos from the legacy category series too", async () => {
+    mockImageAvailability(["9A9999.jpg"]);
+    const makeLabel = (barcode: string) => ({
+      id: `label-${barcode}`,
+      barcode,
+      image: `https://erp.wovenessence.in/august_8A_images/${barcode}.jpg`,
+    });
+    list
+      .mockResolvedValueOnce({ items: [makeLabel("8A9998")], total: 1 })
+      .mockResolvedValueOnce({ items: [makeLabel("9A9999")], total: 1 });
+
+    const result = await getBarcodeImageSeries("sarees");
+
+    expect(result.map((series) => series.items.map((item) => item.barcode))).toEqual([
+      [],
+      ["9A9999"],
     ]);
   });
 });

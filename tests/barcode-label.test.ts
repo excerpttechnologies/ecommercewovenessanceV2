@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { parseBarcodeListParams } from "@/lib/api/query";
 import { applyPrintDescriptionOverrides, ERP_CATEGORY_PRODUCT_TYPES } from "@/lib/barcode-image-series";
 import { CODE128_PATTERNS, encodeCode128B } from "@/lib/barcode/code128";
-import { barcodeImageUrl, isAllowedImageUrl, legacyBarcodeImageUrl, normalizeImageRef, presignS3Get, resolveRecordImage } from "@/lib/erp-images";
+import { barcodeImageCandidates, barcodeImageUrl, isAllowedImageUrl, normalizeImageRef, presignS3Get, resolveRecordImage } from "@/lib/erp-images";
 import { BARCODE_JOINED, barcodeProductToProduct, mapBarcodeLabel } from "@/lib/erp-mapping";
 
 const BASE = "https://wovenessence.etpl.ai";
@@ -165,7 +165,6 @@ describe("isAllowedImageUrl", () => {
     expect(isAllowedImageUrl("https://templeimg.blr1.digitaloceanspaces.com/a.jpg", opts)).toBe(true);
     expect(isAllowedImageUrl(`${BASE}/august_8A_images/a.jpg`, opts)).toBe(true);
     expect(isAllowedImageUrl("https://erp.wovenessence.in/august_8A_images/8A2524.jpg")).toBe(true);
-    expect(isAllowedImageUrl("https://erp.wovenessence.in/images/10A/10A2524.jpg")).toBe(true);
     expect(isAllowedImageUrl("https://erp.wovenessence.in/private/a.jpg")).toBe(false);
     expect(isAllowedImageUrl("http://erp.wovenessence.in/august_8A_images/8A2524.jpg")).toBe(false);
     expect(isAllowedImageUrl("data:image/jpeg;base64,AA==", opts)).toBe(true);
@@ -177,12 +176,38 @@ describe("isAllowedImageUrl", () => {
 });
 
 describe("barcodeImageUrl", () => {
-  it("builds the current ERP path from the barcode's own prefix", () => {
-    expect(barcodeImageUrl("8A2524")).toBe("https://erp.wovenessence.in/images/8A/8A2524.jpg");
-    expect(barcodeImageUrl("10A2524")).toBe("https://erp.wovenessence.in/images/10A/10A2524.jpg");
+  it("builds the ERP photo URL from a safe barcode", () => {
+    expect(barcodeImageUrl("8A2524")).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
     expect(barcodeImageUrl("../private")).toBeUndefined();
-    expect(barcodeImageUrl("SKU_2524")).toBeUndefined();
-    expect(legacyBarcodeImageUrl("8A2524")).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
+  });
+});
+
+describe("barcodeImageCandidates", () => {
+  it("offers the public Spaces copy of a barcode before the ERP app's barcode series", () => {
+    expect(barcodeImageCandidates("5A2081", { base: BASE, spacesHosts: SPACES })).toEqual([
+      `https://${SPACES[0]}/5A2081.jpg`,
+      `https://${SPACES[0]}/1/1/barcodes/5A2081.jpg`,
+      "https://erp.wovenessence.in/august_8A_images/5A2081.jpg",
+      `${BASE}/august_8A_images/5A2081.jpg`,
+    ]);
+    expect(barcodeImageCandidates("../private", { spacesHosts: SPACES })).toEqual([]);
+  });
+
+  it("rescues a session-gated /api/files/ photo with the same barcode's public Spaces photo", async () => {
+    const gated = `${BASE}/api/files/d8/d809b9af37beffb1ae121dfbf31f1c7f0aaa9125152ded0c0583aad8536579de.jpg`;
+    const own = `https://${SPACES[0]}/5A2081.jpg`;
+    const seenUrls: string[] = [];
+    const fake = (async (url: string) => {
+      seenUrls.push(url);
+      const ok = url === own;
+      return new Response(ok ? "x" : JSON.stringify({ error: "Unauthorized" }), {
+        status: ok ? 206 : 401,
+        headers: { "content-type": ok ? "image/jpeg" : "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    expect(await resolveRecordImage([gated], { base: BASE, spacesHosts: SPACES, barcode: "5A2081" }, fake)).toEqual({ image: own });
+    expect(seenUrls).toEqual([gated, own]);
   });
 });
 
@@ -216,7 +241,7 @@ describe("resolveRecordImage", () => {
   });
 
   it("uses the exact barcode image in Spaces before trying the unavailable ERP image host", async () => {
-    const original = `${BASE}/images/8A/8A4001.jpg`;
+    const original = `${BASE}/august_8A_images/8A4001.jpg`;
     const spaces = `https://${SPACES[0]}/1/1/barcodes/8A4001.jpg`;
 
     expect(await resolveRecordImage([original], OPTS, fakeFetch({ [spaces]: 206 }))).toEqual({ image: spaces });

@@ -84,7 +84,7 @@
 //           <p className="border-b border-line px-4 py-3 text-xs uppercase tracking-widest text-muted">Liked items ({items.length})</p>
 //           <ul className="max-h-80 divide-y divide-line overflow-y-auto">
 //             {items.map((p) => (
-//               <li key={p.sku}><Link href={p.href} className="flex gap-3 px-4 py-3 hover:bg-olive/5"><Thumb src={p.image} alt={`Code ${p.sku}`} /><span className="min-w-0 text-sm"><span className="line-clamp-2 uppercase tracking-wide leading-snug">Code {p.sku}</span><Price amount={p.price} mrp={p.mrp} size="sm" className="mt-1" /></span></Link></li>
+//               <li key={p.sku}><Link href={p.href} className="flex gap-3 px-4 py-3 hover:bg-olive/5"><Thumb src={p.image} alt={p.name} /><span className="min-w-0 text-sm"><span className="line-clamp-2 leading-snug">{p.name}</span><Price amount={p.price} mrp={p.mrp} size="sm" className="mt-1" /></span></Link></li>
 //             ))}
 //           </ul>
 //           <Link href="/wishlist" className="block border-t border-line px-4 py-3 text-center text-xs uppercase tracking-widest text-maroon hover:bg-olive/5">View all</Link>
@@ -237,7 +237,7 @@ export function WishlistMenu({ count }: { count: number }) {
           <p className="border-b border-line px-4 py-3 text-xs uppercase tracking-widest text-muted">Liked items ({items.length})</p>
           <ul className="max-h-80 divide-y divide-line overflow-y-auto">
             {items.map((p) => (
-              <li key={p.sku}><Link href={p.href} className="flex gap-3 px-4 py-3 hover:bg-olive/5"><Thumb src={p.image} alt={`Code ${p.sku}`} /><span className="min-w-0 text-sm"><span className="line-clamp-2 uppercase tracking-wide leading-snug">Code {p.sku}</span><Price amount={p.price} mrp={p.mrp} size="sm" className="mt-1" /></span></Link></li>
+              <li key={p.sku}><Link href={p.href} className="flex gap-3 px-4 py-3 hover:bg-olive/5"><Thumb src={p.image} alt={p.name} /><span className="min-w-0 text-sm"><span className="line-clamp-2 leading-snug">{p.name}</span><Price amount={p.price} mrp={p.mrp} size="sm" className="mt-1" /></span></Link></li>
             ))}
           </ul>
           <Link href="/wishlist" className="block border-t border-line px-4 py-3 text-center text-xs uppercase tracking-widest text-maroon hover:bg-olive/5">View all</Link>
