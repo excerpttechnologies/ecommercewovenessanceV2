@@ -36,6 +36,8 @@ const schema = z
     /** Chat model served by the NVIDIA API; it must support tool calling. */
     NVIDIA_MODEL: z.string().optional(),
     NVIDIA_BASE_URL: z.string().optional(),
+    /** FASHN API key (https://fashn.ai) for the Virtual Try-On endpoint. Server-only. */
+    FASHN_API_KEY: z.string().optional(),
     JWT_SECRET: z.string().min(16).default("dev-only-secret-change-me-please-now"),
     JWT_EXPIRES_IN: z.string().default("7d"),
     NEXT_PUBLIC_SITE_URL: z.string().default("http://localhost:3000"),
@@ -54,6 +56,7 @@ const schema = z
     NVIDIA_API_KEY: blankToUndefined(e.NVIDIA_API_KEY),
     NVIDIA_MODEL: blankToUndefined(e.NVIDIA_MODEL) ?? "nvidia/nemotron-3-super-120b-a12b",
     NVIDIA_BASE_URL: blankToUndefined(e.NVIDIA_BASE_URL)?.replace(/\/+$/, "") ?? "https://integrate.api.nvidia.com/v1",
+    FASHN_API_KEY: blankToUndefined(e.FASHN_API_KEY),
     RAZORPAY_KEY_ID: blankToUndefined(e.RAZORPAY_KEY_ID),
     RAZORPAY_KEY_SECRET: blankToUndefined(e.RAZORPAY_KEY_SECRET),
   }));

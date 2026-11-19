@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearCache } from "@/lib/cache";
 
 const {
   getLabelIdsForProductTypes,
@@ -79,6 +80,8 @@ describe("getBarcodeImageCatalog", () => {
   let productTypeDocs: Record<string, unknown>[];
 
   beforeEach(() => {
+    // The ERP metadata cache is process-wide; each case must start from a cold cache.
+    clearCache();
     getLabelIdsForProductTypes.mockReset();
     getLabelIdsForProductGroups.mockReset().mockResolvedValue(["group-label"]);
     list.mockReset();
@@ -258,7 +261,9 @@ describe("getBarcodeImageCatalog", () => {
 
     const result = await getBarcodeImageCatalog("sarees", 1);
 
-    expect(getErpConnection).toHaveBeenCalledTimes(3);
+    // The product-type config scan is now shared (60s cache) instead of re-read by the
+    // catalog scope, so only the config read and the ERP e-commerce catalog lookup connect.
+    expect(getErpConnection).toHaveBeenCalledTimes(2);
     expect(loadErpEcommerceCatalogs).toHaveBeenCalledWith(erpConnection, [item]);
     expect(result.items[0].image).toBe("https://templeimg.blr1.digitaloceanspaces.com/brocade.jpg");
     expect(result.items[0].ecommerce).toEqual({
