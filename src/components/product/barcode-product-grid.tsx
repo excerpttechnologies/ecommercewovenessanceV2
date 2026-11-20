@@ -209,12 +209,10 @@ function BarcodeProductImage({
   src,
   alt,
   sizes,
-  zoomOnHover = false,
 }: {
   src?: string;
   alt: string;
   sizes: string;
-  zoomOnHover?: boolean;
 }) {
   const [imageFailed, setImageFailed] = useState(!src);
 
@@ -240,12 +238,7 @@ function BarcodeProductImage({
       fill
       unoptimized
       sizes={sizes}
-      className={cn(
-        "object-cover transition-transform duration-300",
-        zoomOnHover
-          ? "group-hover/image:scale-[4]"
-          : "group-hover:scale-105"
-      )}
+      className="object-cover"
       onError={() => setImageFailed(true)}
     />
   );
@@ -278,8 +271,8 @@ export function BarcodeProductGrid({
 
   if (!items.length) return null;
 
-  const list = !detailView && layout === "list";
-  const zoomOnHover = !detailView && !list;
+ const list = !detailView && layout === "list";
+   const zoomOnHover = !detailView && !list;
 
   return (
     <>
@@ -359,37 +352,29 @@ export function BarcodeProductGrid({
                   ? "aspect-[4/5]"
                   : list
                     ? "aspect-[4/3] w-40 shrink-0 sm:w-64"
-                    : "aspect-[3/2]"
+                    : "aspect-[4/5]"
               )}
             >
               {detailHref ? (
                 <Link
                   href={detailHref}
                   aria-label={`View ${codeLabel}`}
-                  className={cn(
-                    "absolute inset-0 block",
-                    zoomOnHover && "group/image"
-                  )}
+                  className="absolute inset-0 block"
                 >
                   <BarcodeProductImage
                     src={item.image}
                     alt={codeLabel}
                     sizes={sizes}
-                    zoomOnHover={zoomOnHover}
                   />
                 </Link>
               ) : (
                 <div
-                  className={cn(
-                    "absolute inset-0",
-                    zoomOnHover && "group/image"
-                  )}
+                  className="absolute inset-0"
                 >
                   <BarcodeProductImage
                     src={item.image}
                     alt={codeLabel}
                     sizes={sizes}
-                    zoomOnHover={zoomOnHover}
                   />
                 </div>
               )}

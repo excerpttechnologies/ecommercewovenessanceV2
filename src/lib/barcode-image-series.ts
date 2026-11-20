@@ -1,3 +1,827 @@
+// // // src\lib\barcode-image-series.ts
+
+// // import { cache } from "react";
+// // import { getBarcodeLabels } from "@/repositories";
+// // import type { BarcodeProduct, BarcodeSort } from "@/domain/types";
+// // import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
+// // import { env } from "@/lib/env";
+// // import { erpEcommerceKey, loadErpEcommerceCatalogs } from "@/lib/admin/erp-ecommerce-catalog";
+// // import { isAllowedImageUrl, mapLimit, normalizeImageRef, probeImage } from "@/lib/erp-images";
+// // import { toImages } from "@/lib/erp-mapping";
+// // import { ProductWebMetaModel } from "@/models/web/content.models";
+
+// // export type BarcodeSeriesGroup = "sarees" | "fabrics";
+// // export type EcommerceClassification = "weave" | "fabric" | "craft" | "occasion" | "color";
+// // export type EcommerceClassificationFilters = Partial<Record<EcommerceClassification, string>>;
+// // export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string; sort?: BarcodeSort };
+
+// // export type StorefrontCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "simple";
+
+// // export const ERP_CATEGORY_TITLES: Record<StorefrontCategoryGroup, string> = {
+// //   sarees: "Sarees",
+// //   fabrics: "Fabrics",
+// //   "plain-fabrics": "Plain Fabrics",
+// //   dupatta: "Dupatta",
+// //   simple: "Simple",
+// // };
+
+// // /** Public storefront categories use RetailERP's product-ecom classification. */
+// // export const ERP_CATEGORY_PRODUCT_TYPES: Record<StorefrontCategoryGroup, readonly string[]> = {
+// //   sarees: ["SAREES"],
+// //   fabrics: ["FABRICS"],
+// //   "plain-fabrics": ["PLAIN FABRICS"],
+// //   dupatta: ["DUPATTA"],
+// //   // The ERP product-eccom form saves an item's Item Type ("Simple") when no product type matches.
+// //   simple: ["Simple", "SIMPLE"],
+// // };
+
+// // export function applyPrintDescriptionOverrides(items: BarcodeProduct[], overrides: Map<string, string>) {
+// //   return items.map((item) => {
+// //     const description = overrides.get(item.barcode)?.trim();
+// //     return description ? { ...item, printDescription: description } : item;
+// //   });
+// // }
+
+// // async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
+// //   if (!items.length) return items;
+// //   try {
+// //     const metas = await ProductWebMetaModel(await getWebConnection())
+// //       .find({ sku: { $in: [...new Set(items.map((item) => item.barcode))] } })
+// //       .select({ sku: 1, printDescriptionOverride: 1 })
+// //       .lean();
+// //     const overrides = new Map(
+// //       metas
+// //         .filter((meta) => typeof meta.printDescriptionOverride === "string" && meta.printDescriptionOverride.trim())
+// //         .map((meta) => [meta.sku, meta.printDescriptionOverride as string]),
+// //     );
+// //     return applyPrintDescriptionOverrides(items, overrides);
+// //   } catch (error) {
+// //     console.error("[barcode-image-series] product description lookup failed:", redactMongoUri(String((error as Error)?.message ?? error)));
+// //     return items;
+// //   }
+// // }
+
+// // function ecommerceImage(refs: unknown[]): string | undefined {
+// //   const spaces = env.DO_SPACES_KEY && env.DO_SPACES_SECRET
+// //     ? { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET }
+// //     : undefined;
+// //   const options = { base: env.ERP_IMAGE_BASE, spacesHosts: env.ERP_IMAGE_SPACES_HOSTS, spaces };
+// //   for (const ref of refs) {
+// //     const normalized = normalizeImageRef(ref, options);
+// //     if (normalized && "url" in normalized && isAllowedImageUrl(normalized.url, options)) return normalized.url;
+// //   }
+// //   return undefined;
+// // }
+
+// // /** null (host unreachable) counts as loading, so the browser still gets to try the barcode's own photo. */
+// // async function ownPhotoLoads(image?: string): Promise<boolean> {
+// //   return Boolean(image) && (await probeImage(image!)) !== false;
+// // }
+
+// // async function withEcommerceDetails(items: BarcodeProduct[]) {
+// //   if (!items.length) return items;
+
+// //   const catalogs = await loadErpEcommerceCatalogs(await getErpConnection(), items);
+// //   return mapLimit(items, 8, async (item) => {
+// //     const key = erpEcommerceKey(item.itemId ?? "", item.businessId ?? "");
+// //     const catalog = (key ? catalogs.get(key) : undefined) ?? catalogs.get(`label:${item.id}`);
+// //     if (!catalog) return item;
+// //     const raw = catalog.raw ?? {};
+// //     // One ERP product covers every barcode saved on it but holds a single image, so each barcode
+// //     // keeps its own photo; the product image only fills in when that photo does not load.
+// //     const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
+// //       ...[raw.image, raw.images, raw.imageUrl].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
+// //     ]);
+// //     const ecommerce = {
+// //       displayName: catalog.displayName,
+// //       itemCode: catalog.ecommItemCode,
+// //       productType: catalog.productType,
+// //       description: catalog.printDescription,
+// //       attributes: catalog.attributes,
+// //     };
+// //     const hasEcommerceDetails = Object.values(ecommerce).some((value) =>
+// //       typeof value === "string" ? Boolean(value) : value && Object.values(value).some(Boolean),
+// //     );
+// //     return {
+// //       ...item,
+// //       ...(image ? { image } : {}),
+// //       ...(hasEcommerceDetails ? { ecommerce } : {}),
+// //     };
+// //   });
+// // }
+
+// // async function inactiveBarcodes() {
+// //   const metas = await ProductWebMetaModel(await getWebConnection())
+// //     .find({ isActive: false }, { sku: 1, _id: 0 })
+// //     .lean();
+// //   return metas.map((meta) => meta.sku);
+// // }
+
+// // const getBarcodeImageScopes = cache(async (
+// //   group: StorefrontCategoryGroup,
+// //   subgroupId?: string,
+// //   classifications: EcommerceClassificationFilters = {},
+// // ) => {
+// //   const productTypes = [...ERP_CATEGORY_PRODUCT_TYPES[group]];
+// //   const hasClassifications = Object.values(classifications).some(Boolean);
+// //   const labelIds = hasClassifications
+// //     ? await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications)
+// //     : await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId);
+// //   return { labelIds };
+// // });
+
+// // /** All ERP barcode-label images for a clothing category, paged and filtered for the storefront. */
+// // export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
+// //   const barcodeLabels = getBarcodeLabels();
+// //   const { subgroup, q, barcode } = filters;
+// //   const classifications: EcommerceClassificationFilters = {
+// //     weave: filters.weave,
+// //     fabric: filters.fabric,
+// //     craft: filters.craft,
+// //     occasion: filters.occasion,
+// //     color: filters.color,
+// //   };
+// //   const [{ labelIds }, excludedBarcodes] = await Promise.all([
+// //     getBarcodeImageScopes(group, subgroup, classifications),
+// //     inactiveBarcodes(),
+// //   ]);
+// //   if (!labelIds.length) return { items: [], total: 0, page, pages: 0 };
+// //   const hasClassifications = Object.values(classifications).some(Boolean);
+// //   const ecommerceMatches = q?.trim()
+// //     ? hasClassifications
+// //       ? await barcodeLabels.getLabelIdsForProductTypes(
+// //           [...ERP_CATEGORY_PRODUCT_TYPES[group]],
+// //           subgroup,
+// //           q,
+// //           classifications,
+// //         )
+// //       : await barcodeLabels.getLabelIdsForProductTypes([...ERP_CATEGORY_PRODUCT_TYPES[group]], subgroup, q)
+// //     : [];
+// //   const searchByEcommerceCode = ecommerceMatches.length > 0;
+// //   const listFilters = {
+// //     group: filters.group,
+// //     business: filters.business,
+// //     status: filters.status,
+// //     uomType: filters.uomType,
+// //     q: searchByEcommerceCode ? undefined : q,
+// //   };
+// //   const detailView = Boolean(barcode?.trim());
+// //   // Every barcode saved on a published ecommerceproduct is listed, sold ones included:
+// //   // the card marks a piece that is not IN_STOCK as "Unavailable" and it cannot be added to the bag.
+// //   const catalog = await barcodeLabels.list({
+// //     labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
+// //     excludedBarcodes,
+// //     ...listFilters,
+// //     ...(detailView ? { barcodes: [barcode!.trim()] } : { sort: filters.sort }),
+// //     page: detailView ? 1 : page,
+// //     limit: detailView ? 1 : limit,
+// //   });
+// //   return {
+// //     items: await withEcommerceDetails(await withPrintDescriptionOverrides(catalog.items)),
+// //     total: detailView ? Number(catalog.items.length > 0) : catalog.total,
+// //     page: detailView ? 1 : catalog.page,
+// //     pages: detailView ? Number(catalog.items.length > 0) : catalog.pages,
+// //   };
+// // }
+
+// // export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
+// //   const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group), inactiveBarcodes()]);
+// //   if (!scopes.labelIds.length) return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
+// //   const [facets, subgroup, classifications] = await Promise.all([
+// //     getBarcodeLabels().facets({ ...scopes, excludedBarcodes }),
+// //     getBarcodeLabels().getProductTypeSubgroups([...ERP_CATEGORY_PRODUCT_TYPES[group]]),
+// //     getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[group]]),
+// //   ]);
+// //   return { ...facets, ...classifications, subgroup };
+// // }
+
+// // export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
+// //   const barcodeLabels = getBarcodeLabels();
+// //   const [{ labelIds }, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group), inactiveBarcodes()]);
+// //   if (!labelIds.length) {
+// //     return (["8A", "9A"] as const).map((prefix) => ({ title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`, items: [] as BarcodeProduct[] }));
+// //   }
+
+// //   const seenImages = new Set<string>();
+// //   const series = [];
+// //   for (const prefix of ["8A", "9A"] as const) {
+// //     const result = await barcodeLabels.list({ labelIds, seriesPrefix: prefix, excludedBarcodes, limit: 12 });
+// //     const items = result.items
+// //       .filter((item): item is typeof item & { image: string } => {
+// //         if (!item.image) return false;
+// //         const imageUrl = item.image.split("?")[0];
+// //         if (seenImages.has(imageUrl)) return false;
+// //         seenImages.add(imageUrl);
+// //         return true;
+// //       });
+// //     series.push({
+// //       title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`,
+// //       items,
+// //     });
+// //   }
+// //   const items = await withPrintDescriptionOverrides(series.flatMap((group) => group.items));
+// //   const descriptionsById = new Map(items.map((item) => [item.id, item.printDescription]));
+// //   return series.map((group) => ({
+// //     ...group,
+// //     items: group.items.map((item) => {
+// //       const printDescription = descriptionsById.get(item.id);
+// //       return printDescription ? { ...item, printDescription } : item;
+// //     }),
+// //   }));
+// // }
+
+// // const STOREFRONT_GROUPS = Object.keys(ERP_CATEGORY_PRODUCT_TYPES) as StorefrontCategoryGroup[];
+
+// // /** The homepage shows ERP products only: per storefront category, its published products, newest first. */
+// // export const getErpHomeSections = cache(async (limitPerGroup = 8) => {
+// //   const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+// //     const result = await getBarcodeImageCatalog(group, 1, {}, limitPerGroup);
+// //     return { group, title: ERP_CATEGORY_TITLES[group], items: result.items, total: result.total };
+// //   }));
+// //   return sections.filter((section) => section.items.length);
+// // });
+
+// // /**
+// //  * One chip per classification value (occasion, fabric…) that published ERP products carry, linking to
+// //  * the first storefront category where it is used.
+// //  */
+// // export async function getErpFilterChips(key: EcommerceClassification): Promise<{ label: string; href: string }[]> {
+// //   const facets = await Promise.all(STOREFRONT_GROUPS.map(async (group) => ({
+// //     group,
+// //     options: (await getBarcodeLabels().getProductTypeClassifications([...ERP_CATEGORY_PRODUCT_TYPES[group]]))[key] ?? [],
+// //   })));
+// //   const chips = new Map<string, { label: string; href: string }>();
+// //   for (const { group, options } of facets) {
+// //     for (const option of options) {
+// //       const id = option.value.toLowerCase();
+// //       if (!chips.has(id)) chips.set(id, { label: option.label, href: `/collections/${group}?${key}=${encodeURIComponent(option.value)}` });
+// //     }
+// //   }
+// //   return [...chips.values()];
+// // }
+
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// // src\lib\barcode-image-series.ts
+
+// import { cache } from "react";
+// import { getBarcodeLabels } from "@/repositories";
+// import type { BarcodeFacets, BarcodeProduct, BarcodeSort } from "@/domain/types";
+// import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
+// import { env } from "@/lib/env";
+// import { erpEcommerceKey, loadErpEcommerceCatalogs } from "@/lib/admin/erp-ecommerce-catalog";
+// import { isAllowedImageUrl, mapLimit, normalizeImageRef, probeImage } from "@/lib/erp-images";
+// import { ERP_BEST_BUY_PRODUCT_TYPE, ERP_NEW_ARRIVAL_PRODUCT_TYPE, toImages } from "@/lib/erp-mapping";
+// import { ProductWebMetaModel } from "@/models/web/content.models";
+// import { buildGalleryImages } from "@/lib/product-gallery";
+// import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
+
+// export type BarcodeSeriesGroup = "sarees" | "fabrics";
+// type EcommerceCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
+// export type EcommerceClassification = "weave" | "fabric" | "craft" | "occasion" | "color";
+// export type EcommerceClassificationFilters = Partial<Record<EcommerceClassification, string | string[]>>;
+// // NEW (price filter): priceMin / priceMax added to the end of this type.
+// export type BarcodeImageFilters = EcommerceClassificationFilters & { group?: string; business?: string; status?: string; uomType?: string; subgroup?: string; q?: string; barcode?: string; sort?: BarcodeSort; priceMin?: number; priceMax?: number };
+
+// export type StorefrontCategoryGroup = EcommerceCategoryGroup | AddOnCategorySlug;
+
+// /** Fabrics and Plain Fabrics only list pieces longer than this (metres, ERP label quantity). */
+// const FABRIC_MIN_LENGTH = 4.5;
+// const minFabricLengthFor = (group: StorefrontCategoryGroup) =>
+//   group === "fabrics" || group === "plain-fabrics" ? FABRIC_MIN_LENGTH : undefined;
+
+// const ADD_ON_TITLE_MAP: Record<AddOnCategorySlug, string> = Object.fromEntries(
+//   ADD_ON_CATEGORY_SLUGS.map((slug) => [slug, ADD_ON_CATEGORIES[slug].name]),
+// ) as Record<AddOnCategorySlug, string>;
+
+// const ADD_ON_PRODUCT_TYPES: Record<AddOnCategorySlug, readonly string[]> = Object.fromEntries(
+//   ADD_ON_CATEGORY_SLUGS.map((slug) => [slug, [] as readonly string[]]),
+// ) as Record<AddOnCategorySlug, readonly string[]>;
+
+// export const ERP_CATEGORY_TITLES: Record<StorefrontCategoryGroup, string> = {
+//   sarees: "Sarees",
+//   fabrics: "Fabrics",
+//   "plain-fabrics": "Plain Fabrics",
+//   dupatta: "Dupatta",
+//   "best-buy": "Best Buy",
+//   "new-arrivals": "New Arrivals",
+//   ...ADD_ON_TITLE_MAP,
+// };
+
+// /** Public storefront categories use RetailERP's product-ecom classification. */
+// export const ERP_CATEGORY_PRODUCT_TYPES: Record<StorefrontCategoryGroup, readonly string[]> = {
+//   sarees: ["SAREES"],
+//   fabrics: ["FABRICS"],
+//   "plain-fabrics": ["PLAIN FABRICS"],
+//   dupatta: ["DUPATTA"],
+//   // Products with the ERP's Best Buy tick, of any product type (29-10-2026).
+//   "best-buy": [ERP_BEST_BUY_PRODUCT_TYPE],
+//   // Published products added in the last 48 hours, of any product type (29-10-2026).
+//   "new-arrivals": [ERP_NEW_ARRIVAL_PRODUCT_TYPE],
+//   ...ADD_ON_PRODUCT_TYPES,
+// };
+
+// const CLASSIFICATION_FIELDS = {
+//   byWeave: "weave",
+//   byFabric: "fabric",
+//   byCraft: "craft",
+//   byOccasion: "occasion",
+//   byColour: "color",
+// } as const;
+
+// type StorefrontFilterConfig = {
+//   productTypes: string[];
+//   businessId?: string;
+//   configuredFilters: NonNullable<import("@/domain/types").BarcodeFacets["configuredFilters"]>;
+// };
+
+// function slugifyProductType(value: unknown): string {
+//   return String(value ?? "").trim().toLowerCase()
+//     .normalize("NFKD")
+//     .replace(/[^ -~]/g, "")
+//     .replace(/[^a-z0-9]+/g, "-")
+//     .replace(/^-|-$/g, "");
+// }
+
+// function productTypeSlug(doc: Record<string, unknown>): string {
+//   return slugifyProductType(doc.ecommerceSlug)
+//     || slugifyProductType(doc.displayName)
+//     || slugifyProductType(doc.label)
+//     || slugifyProductType(doc.value);
+// }
+
+// function storefrontFilterConfig(doc: Record<string, unknown>) {
+//   const configured = new Map<string, Record<string, unknown>>();
+//   if (Array.isArray(doc.filterConfig)) {
+//     for (const [index, raw] of doc.filterConfig.entries()) {
+//       if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+//       const filter = raw as Record<string, unknown>;
+//       const key = String(filter.key ?? filter.field ?? "");
+//       if (Object.hasOwn(CLASSIFICATION_FIELDS, key)) {
+//         configured.set(key, { ...filter, displayOrder: Number(filter.displayOrder ?? index) });
+//       }
+//     }
+//   }
+//   if (Array.isArray(doc.filters)) {
+//     for (const [index, raw] of doc.filters.entries()) {
+//       const key = String(raw ?? "");
+//       if (Object.hasOwn(CLASSIFICATION_FIELDS, key) && !configured.has(key)) {
+//         configured.set(key, { key, displayOrder: index });
+//       }
+//     }
+//   }
+//   return [...configured.values()]
+//     .filter((filter) => filter.isActive !== false && filter.isVisible !== false && filter.isFilterable !== false)
+//     .sort((a, b) => Number(a.displayOrder ?? 0) - Number(b.displayOrder ?? 0))
+//     .flatMap((filter) => {
+//       const key = String(filter.key ?? filter.field ?? "") as keyof typeof CLASSIFICATION_FIELDS;
+//       const mappedKey = CLASSIFICATION_FIELDS[key];
+//       return mappedKey
+//         ? [{
+//             key: mappedKey,
+//             label: String(filter.displayLabel ?? filter.label ?? `By ${mappedKey}`),
+//             selectionMode: filter.selectionMode === "single" ? "single" as const : "multiple" as const,
+//           }]
+//         : [];
+//     });
+// }
+
+// const getStorefrontFilterConfig = cache(async (group: StorefrontCategoryGroup): Promise<StorefrontFilterConfig> => {
+//   if (group === "best-buy" || group === "new-arrivals") {
+//     return { productTypes: [...ERP_CATEGORY_PRODUCT_TYPES[group]], configuredFilters: [] };
+//   }
+
+//   const connection = await getErpConnection();
+//   const docs = await connection.db!.collection<Record<string, unknown>>("producttypes")
+//     .find(
+//       { isActive: { $ne: false }, ecommerceVisible: { $ne: false }, ecommerceEnabled: { $ne: false } },
+//       { projection: { value: 1, label: 1, displayName: 1, ecommerceSlug: 1, businessId: 1, filters: 1, filterConfig: 1 } },
+//     )
+//     .toArray();
+//   const configuredBusinesses = [...new Set(docs
+//     .filter((doc) => Array.isArray(doc.filterConfig) && doc.filterConfig.length > 0 && doc.businessId != null)
+//     .map((doc) => String(doc.businessId)))];
+//   const matchingTypes = docs.filter((doc) => productTypeSlug(doc) === group);
+//   const matchingBusinesses = [...new Set(matchingTypes
+//     .filter((doc) => doc.businessId != null)
+//     .map((doc) => String(doc.businessId)))];
+//   const businessId = env.ERP_ECOMMERCE_BUSINESS_ID
+//     ?? (configuredBusinesses.length === 1 ? configuredBusinesses[0] : matchingBusinesses.length === 1 ? matchingBusinesses[0] : undefined);
+
+//   if (!businessId && (configuredBusinesses.length > 1 || matchingBusinesses.length > 1)) {
+//     throw new Error("ERP_ECOMMERCE_BUSINESS_ID is required when the ERP has multiple e-commerce businesses.");
+//   }
+
+//   const typeDocs = matchingTypes.filter((doc) => String(doc.businessId ?? "") === businessId);
+//   const productTypes = [...new Set(typeDocs
+//     .map((doc) => typeof doc.value === "string" ? doc.value.trim() : "")
+//     .filter(Boolean))];
+//   return {
+//     productTypes,
+//     businessId,
+//     configuredFilters: typeDocs.flatMap(storefrontFilterConfig).slice(0, 5),
+//   };
+// });
+
+// async function getAddOnLabelIds(
+//   group: StorefrontCategoryGroup,
+//   groupIds: readonly string[],
+// ): Promise<string[]> {
+//   const [groupLabelIds, config] = await Promise.all([
+//     getBarcodeLabels().getLabelIdsForProductGroups([...groupIds]),
+//     getStorefrontFilterConfig(group),
+//   ]);
+//   const productTypeLabelIds = config.productTypes.length
+//     ? await getBarcodeLabels().getLabelIdsForProductTypes(
+//         config.productTypes,
+//         undefined,
+//         undefined,
+//         undefined,
+//         config.businessId,
+//       )
+//     : [];
+//   return [...new Set([...groupLabelIds, ...productTypeLabelIds])];
+// }
+
+// export const getStorefrontClassificationFacets = cache(async (
+//   group: StorefrontCategoryGroup,
+// ): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters">> => {
+//   const config = await getStorefrontFilterConfig(group);
+//   const classifications = await getBarcodeLabels().getProductTypeClassifications(config.productTypes, config.businessId);
+//   const activeClassifications: Pick<BarcodeFacets, EcommerceClassification> = {};
+//   for (const filter of config.configuredFilters) {
+//     activeClassifications[filter.key] = classifications[filter.key] ?? [];
+//   }
+//   return { ...activeClassifications, configuredFilters: config.configuredFilters };
+// });
+
+// export function applyPrintDescriptionOverrides(items: BarcodeProduct[], overrides: Map<string, string>) {
+//   return items.map((item) => {
+//     const description = overrides.get(item.barcode)?.trim();
+//     return description ? { ...item, printDescription: description } : item;
+//   });
+// }
+
+// type ProductWebOverrides = {
+//   printDescription?: string;
+//   galleryPrimaryImage?: string;
+//   extraImages: unknown[];
+// };
+
+// /** Website-owned overrides (description + gallery) for the page's barcodes, keyed by SKU. */
+// async function loadProductWebOverrides(items: BarcodeProduct[]): Promise<Map<string, ProductWebOverrides> | null> {
+//   try {
+//     const metas = await ProductWebMetaModel(await getWebConnection())
+//       .find({ sku: { $in: [...new Set(items.map((item) => item.barcode))] } })
+//       .select({ sku: 1, printDescriptionOverride: 1, extraImages: 1, galleryPrimaryImage: 1 })
+//       .lean();
+//     return new Map(metas.map((meta) => [meta.sku, {
+//       printDescription: typeof meta.printDescriptionOverride === "string" && meta.printDescriptionOverride.trim()
+//         ? meta.printDescriptionOverride
+//         : undefined,
+//       galleryPrimaryImage: typeof meta.galleryPrimaryImage === "string" ? meta.galleryPrimaryImage : undefined,
+//       extraImages: Array.isArray(meta.extraImages) ? meta.extraImages : [],
+//     }]));
+//   } catch (error) {
+//     console.error("[barcode-image-series] product web metadata lookup failed:", redactMongoUri(String((error as Error)?.message ?? error)));
+//     return null;
+//   }
+// }
+
+// async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
+//   if (!items.length) return items;
+//   const overrides = await loadProductWebOverrides(items);
+//   if (!overrides) return items;
+//   // Description-only path used by the homepage series; galleries are attached after ERP details.
+//   return items.map((item) => {
+//     const description = overrides.get(item.barcode)?.printDescription;
+//     return description ? { ...item, printDescription: description } : item;
+//   });
+// }
+
+// /**
+//  * Applies website description and gallery overrides AFTER `withEcommerceDetails`, so the gallery
+//  * primary is the final storefront image (barcode photo, or the ERP e-commerce image when the
+//  * barcode photo is missing). Website images come first; ERP `ecommerceproduct.additionalImages`
+//  * follow and are de-duplicated. Five images maximum.
+//  */
+// async function withProductWebOverrides(items: BarcodeProduct[]) {
+//   if (!items.length) return items;
+//   const overrides = await loadProductWebOverrides(items);
+//   if (!overrides) return items;
+//   return items.map((item) => {
+//     const meta = overrides.get(item.barcode);
+//     const extras = [...(meta?.extraImages ?? []), ...(item.erpAdditionalImages ?? [])];
+//     const images = buildGalleryImages(meta?.galleryPrimaryImage, extras, item.image);
+//     return {
+//       ...item,
+//       ...(meta?.printDescription ? { printDescription: meta.printDescription } : {}),
+//       ...(images.length ? { images } : {}),
+//     };
+//   });
+// }
+
+// function ecommerceImages(refs: unknown[]): string[] {
+//   const spaces = env.DO_SPACES_KEY && env.DO_SPACES_SECRET
+//     ? { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET }
+//     : undefined;
+//   const options = { base: env.ERP_IMAGE_BASE, spacesHosts: env.ERP_IMAGE_SPACES_HOSTS, spaces };
+//   const urls: string[] = [];
+//   const seen = new Set<string>();
+//   for (const ref of refs) {
+//     const normalized = normalizeImageRef(ref, options);
+//     if (!normalized || !("url" in normalized) || !isAllowedImageUrl(normalized.url, options)) continue;
+//     if (seen.has(normalized.url)) continue;
+//     seen.add(normalized.url);
+//     urls.push(normalized.url);
+//   }
+//   return urls;
+// }
+
+// function ecommerceImage(refs: unknown[]): string | undefined {
+//   return ecommerceImages(refs)[0];
+// }
+
+// /** Only verified barcode photos should prevent the ERP e-commerce image from being used as fallback. */
+// async function ownPhotoLoads(image?: string): Promise<boolean> {
+//   return Boolean(image) && (await probeImage(image!)) === true;
+// }
+
+// async function withEcommerceDetails(items: BarcodeProduct[]) {
+//   if (!items.length) return items;
+
+//   const catalogs = await loadErpEcommerceCatalogs(await getErpConnection(), items);
+//   return mapLimit(items, 8, async (item) => {
+//     const key = erpEcommerceKey(item.itemId ?? "", item.businessId ?? "");
+//     const catalog = (key ? catalogs.get(key) : undefined) ?? catalogs.get(`label:${item.id}`);
+//     if (!catalog) return item;
+//     const raw = catalog.raw ?? {};
+//     // One ERP product covers every barcode saved on it but holds a single image, so each barcode
+//     // keeps its own photo; the product image only fills in when that photo does not load.
+//     const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
+//       ...[raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
+//     ]);
+//     // Real alternate views maintained on the ERP product. Empty across current ERP data, but this
+//     // is the correct source once the merchandising team adds more photos.
+//     const additionalImages = ecommerceImages(toImages(raw.additionalImages));
+//     const ecommerce = {
+//       displayName: catalog.displayName,
+//       itemCode: catalog.ecommItemCode,
+//       productType: catalog.productType,
+//       description: catalog.printDescription,
+//       attributes: catalog.attributes,
+//       // when the product was added in the ERP, for the "1 day / 2 days" launch badge
+//       // Use barcode label's createdAt (actual product creation) instead of ecommerceproduct's createdAt (publish date)
+//       launchedAt: item.createdAt,
+//     };
+//     const hasEcommerceDetails = Object.values(ecommerce).some((value) =>
+//       typeof value === "string" ? Boolean(value) : value && Object.values(value).some(Boolean),
+//     );
+//     return {
+//       ...item,
+//       ...(image ? { image } : {}),
+//       ...(additionalImages.length ? { erpAdditionalImages: additionalImages } : {}),
+//       ...(hasEcommerceDetails ? { ecommerce } : {}),
+//     };
+//   });
+// }
+
+// async function withAvailableImages(items: BarcodeProduct[]): Promise<BarcodeProduct[]> {
+//   const checked = await mapLimit(items, 8, async (item) => {
+//     if (!item.image || (await probeImage(item.image)) !== true) return undefined;
+//     return item;
+//   });
+//   return checked.filter((item): item is BarcodeProduct => Boolean(item));
+// }
+
+// async function inactiveBarcodes() {
+//   const metas = await ProductWebMetaModel(await getWebConnection())
+//     .find({ isActive: false }, { sku: 1, _id: 0 })
+//     .lean();
+//   return metas.map((meta) => meta.sku);
+// }
+
+// const getBarcodeImageScopes = cache(async (
+//   group: EcommerceCategoryGroup,
+//   subgroupId?: string,
+//   classifications: EcommerceClassificationFilters = {},
+// ) => {
+//   const { productTypes, businessId, configuredFilters } = await getStorefrontFilterConfig(group);
+//   const hasClassifications = Object.values(classifications).some(Boolean);
+//   const labelIds = hasClassifications
+//     ? await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications, businessId)
+//     : await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, undefined, businessId);
+//   return { labelIds, productTypes, businessId, configuredFilters };
+// });
+
+// /** All ERP barcode-label images for a clothing category, paged and filtered for the storefront. */
+// export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
+//   const barcodeLabels = getBarcodeLabels();
+//   const { subgroup, q, barcode } = filters;
+//   const groupIds = getAddOnGroupIds(group);
+//   const classifications: EcommerceClassificationFilters = {
+//     weave: filters.weave,
+//     fabric: filters.fabric,
+//     craft: filters.craft,
+//     occasion: filters.occasion,
+//     color: filters.color,
+//   };
+//   const configuredFilters = groupIds
+//     ? []
+//     : (await getStorefrontFilterConfig(group as EcommerceCategoryGroup)).configuredFilters;
+//   const visibleClassificationKeys = new Set(configuredFilters.map((filter) => filter.key));
+//   for (const key of Object.keys(classifications) as EcommerceClassification[]) {
+//     if (!visibleClassificationKeys.has(key)) delete classifications[key];
+//   }
+
+//   // Add-on categories retain legacy group matches and also include active, published products
+//   // matching the configured Product Type, so stale group membership does not hide a product.
+//   const [scopeResult, excludedBarcodes] = await Promise.all([
+//     groupIds
+//       ? getAddOnLabelIds(group, groupIds).then((ids) => ({
+//           labelIds: ids,
+//           isAddOn: true,
+//           productTypes: [] as string[],
+//           businessId: undefined,
+//         }))
+//       : getBarcodeImageScopes(group as EcommerceCategoryGroup, subgroup, classifications).then((r) => ({ ...r, isAddOn: false })),
+//     inactiveBarcodes(),
+//   ]);
+
+//   const { labelIds, isAddOn } = scopeResult;
+//   if (!labelIds.length) return { items: [], total: 0, page, pages: 0 };
+
+//   const hasClassifications = !isAddOn && Object.values(classifications).some(Boolean);
+//   const ecommerceConfig = scopeResult;
+//   const ecommerceMatches = !isAddOn && q?.trim()
+//     ? hasClassifications
+//       ? await barcodeLabels.getLabelIdsForProductTypes(
+//           ecommerceConfig.productTypes,
+//           subgroup,
+//           q,
+//           classifications,
+//           ecommerceConfig.businessId,
+//         )
+//       : await barcodeLabels.getLabelIdsForProductTypes(ecommerceConfig.productTypes, subgroup, q, undefined, ecommerceConfig.businessId)
+//     : [];
+//   const searchByEcommerceCode = ecommerceMatches.length > 0;
+//   const listFilters = {
+//     group: filters.group,
+//     business: filters.business,
+//     status: filters.status,
+//     uomType: filters.uomType,
+//     // NEW (price filter): passed to the repository's match()
+//     priceMin: filters.priceMin,
+//     priceMax: filters.priceMax,
+//     q: searchByEcommerceCode ? undefined : q,
+//   };
+//   const detailView = Boolean(barcode?.trim());
+//   // Category listings hide short fabric cuts; their product pages remain reachable.
+//   const minFabricLength = detailView ? undefined : minFabricLengthFor(group);
+//   // Only labels currently available for purchase are part of the storefront catalog.
+//   const catalog = await barcodeLabels.list({
+//     labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
+//     excludedBarcodes,
+//     availableOnly: true,
+//     resolveImages: true,
+//     ...listFilters,
+//     ...(minFabricLength != null ? { minFabricLength } : {}),
+//     ...(detailView ? { barcodes: [barcode!.trim()] } : { sort: filters.sort }),
+//     page: detailView ? 1 : page,
+//     limit: detailView ? 1 : limit,
+//   });
+//   // ERP details first (they may replace the primary image), then description + gallery overrides.
+//   // A product the ERP holds no loadable photo for is not shown at all (no "Photo unavailable" cards).
+//   const items = await withAvailableImages(
+//     await withProductWebOverrides(await withEcommerceDetails(catalog.items)),
+//   );
+//   return {
+//     items,
+//     // Paging stays the database's: probing every barcode would cost a request per SKU.
+//     total: detailView ? Number(items.length > 0) : catalog.total,
+//     page: detailView ? 1 : catalog.page,
+//     pages: detailView ? Number(items.length > 0) : catalog.pages,
+//   };
+// }
+
+// export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
+//   const groupIds = getAddOnGroupIds(group);
+//   if (groupIds) {
+//     const [labelIds, excludedBarcodes] = await Promise.all([
+//       getAddOnLabelIds(group, groupIds),
+//       inactiveBarcodes(),
+//     ]);
+//     if (!labelIds.length) {
+//       return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
+//     }
+//     const facets = await getBarcodeLabels().facets({ labelIds, excludedBarcodes, availableOnly: true });
+//     return { ...facets, subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [] };
+//   }
+//   const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group as EcommerceCategoryGroup), inactiveBarcodes()]);
+//   if (!scopes.labelIds.length) return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
+//   const minFabricLength = minFabricLengthFor(group);
+//   const [facets, subgroup, classifications] = await Promise.all([
+//     getBarcodeLabels().facets({
+//       ...scopes,
+//       excludedBarcodes,
+//       availableOnly: true,
+//       ...(minFabricLength != null ? { minFabricLength } : {}),
+//     }),
+//     getBarcodeLabels().getProductTypeSubgroups(scopes.productTypes, scopes.businessId),
+//     getStorefrontClassificationFacets(group),
+//   ]);
+//   return { ...facets, ...classifications, subgroup };
+// }
+
+// export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
+//   const barcodeLabels = getBarcodeLabels();
+//   const groupIds = getAddOnGroupIds(group);
+//   const [scopeResult, excludedBarcodes] = await Promise.all([
+//     groupIds
+//       ? getAddOnLabelIds(group, groupIds).then((ids) => ({ labelIds: ids }))
+//       : getBarcodeImageScopes(group as EcommerceCategoryGroup).then((r) => ({ ...r })),
+//     inactiveBarcodes(),
+//   ]);
+
+//   const { labelIds } = scopeResult;
+
+//   if (!labelIds.length) {
+//     return (["8A", "9A"] as const).map((prefix) => ({ title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`, items: [] as BarcodeProduct[] }));
+//   }
+
+//   const seenImages = new Set<string>();
+//   const series = [];
+//   for (const prefix of ["8A", "9A"] as const) {
+//     const minFabricLength = minFabricLengthFor(group);
+//     const result = await barcodeLabels.list({
+//       labelIds,
+//       resolveImages: true,
+//       seriesPrefix: prefix,
+//       excludedBarcodes,
+//       availableOnly: true,
+//       limit: 12,
+//       ...(minFabricLength != null ? { minFabricLength } : {}),
+//     });
+//     const items = (await withAvailableImages(result.items))
+//       .filter((item): item is typeof item & { image: string } => {
+//         if (!item.image) return false;
+//         const imageUrl = item.image.split("?")[0];
+//         if (seenImages.has(imageUrl)) return false;
+//         seenImages.add(imageUrl);
+//         return true;
+//       });
+//     series.push({
+//       title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`,
+//       items,
+//     });
+//   }
+//   const items = await withPrintDescriptionOverrides(series.flatMap((group) => group.items));
+//   const descriptionsById = new Map(items.map((item) => [item.id, item.printDescription]));
+//   return series.map((group) => ({
+//     ...group,
+//     items: group.items.map((item) => {
+//       const printDescription = descriptionsById.get(item.id);
+//       return printDescription ? { ...item, printDescription } : item;
+//     }),
+//   }));
+// }
+
+// // Best Buy and New Arrivals repeat products of the other groups, so the homepage sections and filter chips leave them out.
+// const STOREFRONT_GROUPS = (Object.keys(ERP_CATEGORY_PRODUCT_TYPES) as StorefrontCategoryGroup[]).filter((group) => group !== "best-buy" && group !== "new-arrivals");
+
+// /** The homepage shows ERP products only: per storefront category, its published products, newest first. */
+// export const getErpHomeSections = cache(async (limitPerGroup = 8) => {
+//   const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+//     const result = await getBarcodeImageCatalog(group, 1, {}, limitPerGroup);
+//     return { group, title: ERP_CATEGORY_TITLES[group], items: result.items, total: result.total };
+//   }));
+//   return sections.filter((section) => section.items.length);
+// });
+
+// /**
+//  * One chip per classification value (occasion, fabric…) that published ERP products carry, linking to
+//  * the first storefront category where it is used.
+//  */
+// export async function getErpFilterChips(key: EcommerceClassification): Promise<{ label: string; href: string }[]> {
+//   const facets = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+//     const config = await getStorefrontClassificationFacets(group);
+//     return {
+//       group,
+//       options: (config.configuredFilters ?? []).some((filter) => filter.key === key) ? config[key] ?? [] : [],
+//     };
+//   }));
+//   const chips = new Map<string, { label: string; href: string }>();
+//   for (const { group, options } of facets) {
+//     for (const option of options) {
+//       const id = option.value.toLowerCase();
+//       if (!chips.has(id)) chips.set(id, { label: option.label, href: `/collections/${group}?${key}=${encodeURIComponent(option.value)}` });
+//     }
+//   }
+//   return [...chips.values()];
+// }
+
+
 // // src\lib\barcode-image-series.ts
 
 // import { cache } from "react";
@@ -276,6 +1100,8 @@ import { ERP_BEST_BUY_PRODUCT_TYPE, ERP_NEW_ARRIVAL_PRODUCT_TYPE, toImages } fro
 import { ProductWebMetaModel } from "@/models/web/content.models";
 import { buildGalleryImages } from "@/lib/product-gallery";
 import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
+import { cached } from "@/lib/cache";
+import { logPerfIfSlow, measureDb, measureExternal, withPerf } from "@/lib/perf";
 
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
 type EcommerceCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
@@ -387,18 +1213,25 @@ function storefrontFilterConfig(doc: Record<string, unknown>) {
     });
 }
 
-const getStorefrontFilterConfig = cache(async (group: StorefrontCategoryGroup): Promise<StorefrontFilterConfig> => {
-  if (group === "best-buy" || group === "new-arrivals") {
-    return { productTypes: [...ERP_CATEGORY_PRODUCT_TYPES[group]], configuredFilters: [] };
-  }
+/**
+ * ERP product-type config changes rarely. Cached for a short window so header, homepage and
+ * listings share one `producttypes` scan instead of running it per group per request.
+ */
+const CONFIG_TTL_MS = 60_000;
 
-  const connection = await getErpConnection();
-  const docs = await connection.db!.collection<Record<string, unknown>>("producttypes")
-    .find(
-      { isActive: { $ne: false }, ecommerceVisible: { $ne: false }, ecommerceEnabled: { $ne: false } },
-      { projection: { value: 1, label: 1, displayName: 1, ecommerceSlug: 1, businessId: 1, filters: 1, filterConfig: 1 } },
-    )
-    .toArray();
+const getStorefrontFilterConfig = cache((group: StorefrontCategoryGroup) =>
+  cached(`erp:filter-config:${group}`, CONFIG_TTL_MS, async (): Promise<StorefrontFilterConfig> => {
+    if (group === "best-buy" || group === "new-arrivals") {
+      return { productTypes: [...ERP_CATEGORY_PRODUCT_TYPES[group]], configuredFilters: [] };
+    }
+
+    const connection = await getErpConnection();
+    const docs = await measureDb(() => connection.db!.collection<Record<string, unknown>>("producttypes")
+      .find(
+        { isActive: { $ne: false }, ecommerceVisible: { $ne: false }, ecommerceEnabled: { $ne: false } },
+        { projection: { value: 1, label: 1, displayName: 1, ecommerceSlug: 1, businessId: 1, filters: 1, filterConfig: 1 } },
+      )
+      .toArray());
   const configuredBusinesses = [...new Set(docs
     .filter((doc) => Array.isArray(doc.filterConfig) && doc.filterConfig.length > 0 && doc.businessId != null)
     .map((doc) => String(doc.businessId)))];
@@ -413,48 +1246,54 @@ const getStorefrontFilterConfig = cache(async (group: StorefrontCategoryGroup): 
     throw new Error("ERP_ECOMMERCE_BUSINESS_ID is required when the ERP has multiple e-commerce businesses.");
   }
 
-  const typeDocs = matchingTypes.filter((doc) => String(doc.businessId ?? "") === businessId);
-  const productTypes = [...new Set(typeDocs
-    .map((doc) => typeof doc.value === "string" ? doc.value.trim() : "")
-    .filter(Boolean))];
-  return {
-    productTypes,
-    businessId,
-    configuredFilters: typeDocs.flatMap(storefrontFilterConfig).slice(0, 5),
-  };
-});
+    const typeDocs = matchingTypes.filter((doc) => String(doc.businessId ?? "") === businessId);
+    const productTypes = [...new Set(typeDocs
+      .map((doc) => typeof doc.value === "string" ? doc.value.trim() : "")
+      .filter(Boolean))];
+    return {
+      productTypes,
+      businessId,
+      configuredFilters: typeDocs.flatMap(storefrontFilterConfig).slice(0, 5),
+    };
+  }),
+);
 
 async function getAddOnLabelIds(
   group: StorefrontCategoryGroup,
   groupIds: readonly string[],
 ): Promise<string[]> {
   const [groupLabelIds, config] = await Promise.all([
-    getBarcodeLabels().getLabelIdsForProductGroups([...groupIds]),
+    measureDb(() => getBarcodeLabels().getLabelIdsForProductGroups([...groupIds])),
     getStorefrontFilterConfig(group),
   ]);
   const productTypeLabelIds = config.productTypes.length
-    ? await getBarcodeLabels().getLabelIdsForProductTypes(
+    ? await measureDb(() => getBarcodeLabels().getLabelIdsForProductTypes(
         config.productTypes,
         undefined,
         undefined,
         undefined,
         config.businessId,
-      )
+      ))
     : [];
   return [...new Set([...groupLabelIds, ...productTypeLabelIds])];
 }
 
-export const getStorefrontClassificationFacets = cache(async (
-  group: StorefrontCategoryGroup,
-): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters">> => {
-  const config = await getStorefrontFilterConfig(group);
-  const classifications = await getBarcodeLabels().getProductTypeClassifications(config.productTypes, config.businessId);
-  const activeClassifications: Pick<BarcodeFacets, EcommerceClassification> = {};
-  for (const filter of config.configuredFilters) {
-    activeClassifications[filter.key] = classifications[filter.key] ?? [];
-  }
-  return { ...activeClassifications, configuredFilters: config.configuredFilters };
-});
+/**
+ * Classification facets (weave/fabric/occasion…) derived from ERP product-type config.
+ * Read-only reference data, shared by the menu and every listing — cached briefly so it is
+ * not recomputed for each of the four header categories on every page.
+ */
+export const getStorefrontClassificationFacets = cache((group: StorefrontCategoryGroup) =>
+  cached(`erp:facets:${group}`, CONFIG_TTL_MS, async (): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters">> => {
+    const config = await getStorefrontFilterConfig(group);
+    const classifications = await measureDb(() => getBarcodeLabels().getProductTypeClassifications(config.productTypes, config.businessId));
+    const activeClassifications: Pick<BarcodeFacets, EcommerceClassification> = {};
+    for (const filter of config.configuredFilters) {
+      activeClassifications[filter.key] = classifications[filter.key] ?? [];
+    }
+    return { ...activeClassifications, configuredFilters: config.configuredFilters };
+  }),
+);
 
 export function applyPrintDescriptionOverrides(items: BarcodeProduct[], overrides: Map<string, string>) {
   return items.map((item) => {
@@ -472,10 +1311,10 @@ type ProductWebOverrides = {
 /** Website-owned overrides (description + gallery) for the page's barcodes, keyed by SKU. */
 async function loadProductWebOverrides(items: BarcodeProduct[]): Promise<Map<string, ProductWebOverrides> | null> {
   try {
-    const metas = await ProductWebMetaModel(await getWebConnection())
+    const metas = await measureDb(async () => ProductWebMetaModel(await getWebConnection())
       .find({ sku: { $in: [...new Set(items.map((item) => item.barcode))] } })
       .select({ sku: 1, printDescriptionOverride: 1, extraImages: 1, galleryPrimaryImage: 1 })
-      .lean();
+      .lean());
     return new Map(metas.map((meta) => [meta.sku, {
       printDescription: typeof meta.printDescriptionOverride === "string" && meta.printDescriptionOverride.trim()
         ? meta.printDescriptionOverride
@@ -526,7 +1365,12 @@ function ecommerceImages(refs: unknown[]): string[] {
   const spaces = env.DO_SPACES_KEY && env.DO_SPACES_SECRET
     ? { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET }
     : undefined;
-  const options = { base: env.ERP_IMAGE_BASE, spacesHosts: env.ERP_IMAGE_SPACES_HOSTS, spaces };
+  const options = {
+    base: env.ERP_IMAGE_BASE,
+    imageBase: env.NEXT_PUBLIC_IMAGE_BASE_URL,
+    spacesHosts: env.ERP_IMAGE_SPACES_HOSTS,
+    spaces,
+  };
   const urls: string[] = [];
   const seen = new Set<string>();
   for (const ref of refs) {
@@ -545,13 +1389,13 @@ function ecommerceImage(refs: unknown[]): string | undefined {
 
 /** Only verified barcode photos should prevent the ERP e-commerce image from being used as fallback. */
 async function ownPhotoLoads(image?: string): Promise<boolean> {
-  return Boolean(image) && (await probeImage(image!)) === true;
+  return Boolean(image) && (await measureExternal(() => probeImage(image!))) === true;
 }
 
-async function withEcommerceDetails(items: BarcodeProduct[]) {
+export async function withEcommerceDetails(items: BarcodeProduct[]) {
   if (!items.length) return items;
 
-  const catalogs = await loadErpEcommerceCatalogs(await getErpConnection(), items);
+  const catalogs = await measureDb(async () => loadErpEcommerceCatalogs(await getErpConnection(), items));
   return mapLimit(items, 8, async (item) => {
     const key = erpEcommerceKey(item.itemId ?? "", item.businessId ?? "");
     const catalog = (key ? catalogs.get(key) : undefined) ?? catalogs.get(`label:${item.id}`);
@@ -589,18 +1433,25 @@ async function withEcommerceDetails(items: BarcodeProduct[]) {
 
 async function withAvailableImages(items: BarcodeProduct[]): Promise<BarcodeProduct[]> {
   const checked = await mapLimit(items, 8, async (item) => {
-    if (!item.image || (await probeImage(item.image)) !== true) return undefined;
+    if (!item.image || (await measureExternal(() => probeImage(item.image!))) !== true) return undefined;
     return item;
   });
   return checked.filter((item): item is BarcodeProduct => Boolean(item));
 }
 
-async function inactiveBarcodes() {
-  const metas = await ProductWebMetaModel(await getWebConnection())
-    .find({ isActive: false }, { sku: 1, _id: 0 })
-    .lean();
-  return metas.map((meta) => meta.sku);
-}
+/**
+ * Barcodes hidden in the website admin (isActive=false). Identical for every visitor and
+ * used by the catalog + facets of every group, so it is cached briefly instead of scanning
+ * the web `productwebmetas` collection on each call. Inactive products can take up to the
+ * TTL to disappear from listings, which is acceptable for a merchandising flag.
+ */
+const inactiveBarcodes = () =>
+  cached("web:inactive-barcodes", CONFIG_TTL_MS, () => measureDb(async () => {
+    const metas = await ProductWebMetaModel(await getWebConnection())
+      .find({ isActive: false }, { sku: 1, _id: 0 })
+      .lean();
+    return metas.map((meta) => meta.sku);
+  }));
 
 const getBarcodeImageScopes = cache(async (
   group: EcommerceCategoryGroup,
@@ -609,14 +1460,30 @@ const getBarcodeImageScopes = cache(async (
 ) => {
   const { productTypes, businessId, configuredFilters } = await getStorefrontFilterConfig(group);
   const hasClassifications = Object.values(classifications).some(Boolean);
-  const labelIds = hasClassifications
-    ? await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications, businessId)
-    : await getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, undefined, businessId);
-  return { labelIds, productTypes, businessId, configuredFilters };
+  const labelIds = measureDb(() => hasClassifications
+    ? getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications, businessId)
+    : getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, undefined, businessId));
+  return { labelIds: await labelIds, productTypes, businessId, configuredFilters };
 });
 
 /** All ERP barcode-label images for a clothing category, paged and filtered for the storefront. */
-export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
+export function getBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
+  const started = performance.now();
+  return withPerf(() => loadBarcodeImageCatalog(group, page, filters, limit)).then(({ value, ctx }) => {
+    logPerfIfSlow("catalog", performance.now() - started, {
+      group,
+      page,
+      limit,
+      items: value.items.length,
+      total: value.total,
+      dbMs: Math.round(ctx.dbMs),
+      externalMs: Math.round(ctx.externalMs),
+    });
+    return value;
+  });
+}
+
+async function loadBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
   const barcodeLabels = getBarcodeLabels();
   const { subgroup, q, barcode } = filters;
   const groupIds = getAddOnGroupIds(group);
@@ -656,14 +1523,14 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
   const ecommerceConfig = scopeResult;
   const ecommerceMatches = !isAddOn && q?.trim()
     ? hasClassifications
-      ? await barcodeLabels.getLabelIdsForProductTypes(
+      ? await measureDb(() => barcodeLabels.getLabelIdsForProductTypes(
           ecommerceConfig.productTypes,
           subgroup,
           q,
           classifications,
           ecommerceConfig.businessId,
-        )
-      : await barcodeLabels.getLabelIdsForProductTypes(ecommerceConfig.productTypes, subgroup, q, undefined, ecommerceConfig.businessId)
+        ))
+      : await measureDb(() => barcodeLabels.getLabelIdsForProductTypes(ecommerceConfig.productTypes, subgroup, q, undefined, ecommerceConfig.businessId))
     : [];
   const searchByEcommerceCode = ecommerceMatches.length > 0;
   const listFilters = {
@@ -680,7 +1547,7 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
   // Category listings hide short fabric cuts; their product pages remain reachable.
   const minFabricLength = detailView ? undefined : minFabricLengthFor(group);
   // Only labels currently available for purchase are part of the storefront catalog.
-  const catalog = await barcodeLabels.list({
+  const catalog = await measureDb(() => barcodeLabels.list({
     labelIds: searchByEcommerceCode ? ecommerceMatches : labelIds,
     excludedBarcodes,
     availableOnly: true,
@@ -690,7 +1557,7 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
     ...(detailView ? { barcodes: [barcode!.trim()] } : { sort: filters.sort }),
     page: detailView ? 1 : page,
     limit: detailView ? 1 : limit,
-  });
+  }));
   // ERP details first (they may replace the primary image), then description + gallery overrides.
   // A product the ERP holds no loadable photo for is not shown at all (no "Photo unavailable" cards).
   const items = await withAvailableImages(
@@ -705,7 +1572,13 @@ export async function getBarcodeImageCatalog(group: StorefrontCategoryGroup, pag
   };
 }
 
-export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
+/**
+ * Facets for one listing. Availability counts come from the ERP, so the entry lives only
+ * briefly (60s): filters stay accurate while a category page stops recomputing them for
+ * every request. Nothing here is per-user.
+ */
+export function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
+  return cached(`erp:filter-options:${group}`, CONFIG_TTL_MS, async () => {
   const groupIds = getAddOnGroupIds(group);
   if (groupIds) {
     const [labelIds, excludedBarcodes] = await Promise.all([
@@ -715,23 +1588,24 @@ export async function getBarcodeImageFilterOptions(group: StorefrontCategoryGrou
     if (!labelIds.length) {
       return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
     }
-    const facets = await getBarcodeLabels().facets({ labelIds, excludedBarcodes, availableOnly: true });
+    const facets = await measureDb(() => getBarcodeLabels().facets({ labelIds, excludedBarcodes, availableOnly: true }));
     return { ...facets, subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [] };
   }
   const [scopes, excludedBarcodes] = await Promise.all([getBarcodeImageScopes(group as EcommerceCategoryGroup), inactiveBarcodes()]);
   if (!scopes.labelIds.length) return { status: [], group: [], business: [], uomType: [], subgroup: [], weave: [], fabric: [], craft: [], occasion: [], color: [], total: 0 };
   const minFabricLength = minFabricLengthFor(group);
   const [facets, subgroup, classifications] = await Promise.all([
-    getBarcodeLabels().facets({
+    measureDb(() => getBarcodeLabels().facets({
       ...scopes,
       excludedBarcodes,
       availableOnly: true,
       ...(minFabricLength != null ? { minFabricLength } : {}),
-    }),
-    getBarcodeLabels().getProductTypeSubgroups(scopes.productTypes, scopes.businessId),
+    })),
+    measureDb(() => getBarcodeLabels().getProductTypeSubgroups(scopes.productTypes, scopes.businessId)),
     getStorefrontClassificationFacets(group),
   ]);
   return { ...facets, ...classifications, subgroup };
+  });
 }
 
 export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
@@ -792,31 +1666,43 @@ const STOREFRONT_GROUPS = (Object.keys(ERP_CATEGORY_PRODUCT_TYPES) as Storefront
 
 /** The homepage shows ERP products only: per storefront category, its published products, newest first. */
 export const getErpHomeSections = cache(async (limitPerGroup = 8) => {
-  const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
-    const result = await getBarcodeImageCatalog(group, 1, {}, limitPerGroup);
-    return { group, title: ERP_CATEGORY_TITLES[group], items: result.items, total: result.total };
-  }));
-  return sections.filter((section) => section.items.length);
+  const started = performance.now();
+  const { value } = await withPerf(async () => {
+    const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+      const result = await getBarcodeImageCatalog(group, 1, {}, limitPerGroup);
+      return { group, title: ERP_CATEGORY_TITLES[group], items: result.items, total: result.total };
+    }));
+    return sections.filter((section) => section.items.length);
+  });
+  logPerfIfSlow("home-sections", performance.now() - started, {
+    limit: limitPerGroup,
+    groups: STOREFRONT_GROUPS.length,
+    sections: value.length,
+    items: value.reduce((count, section) => count + section.items.length, 0),
+  });
+  return value;
 });
 
 /**
  * One chip per classification value (occasion, fabric…) that published ERP products carry, linking to
  * the first storefront category where it is used.
  */
-export async function getErpFilterChips(key: EcommerceClassification): Promise<{ label: string; href: string }[]> {
-  const facets = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
-    const config = await getStorefrontClassificationFacets(group);
-    return {
-      group,
-      options: (config.configuredFilters ?? []).some((filter) => filter.key === key) ? config[key] ?? [] : [],
-    };
-  }));
-  const chips = new Map<string, { label: string; href: string }>();
-  for (const { group, options } of facets) {
-    for (const option of options) {
-      const id = option.value.toLowerCase();
-      if (!chips.has(id)) chips.set(id, { label: option.label, href: `/collections/${group}?${key}=${encodeURIComponent(option.value)}` });
+export function getErpFilterChips(key: EcommerceClassification): Promise<{ label: string; href: string }[]> {
+  return cached(`erp:filter-chips:${key}`, CONFIG_TTL_MS, async () => {
+    const facets = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+      const config = await getStorefrontClassificationFacets(group);
+      return {
+        group,
+        options: (config.configuredFilters ?? []).some((filter) => filter.key === key) ? config[key] ?? [] : [],
+      };
+    }));
+    const chips = new Map<string, { label: string; href: string }>();
+    for (const { group, options } of facets) {
+      for (const option of options) {
+        const id = option.value.toLowerCase();
+        if (!chips.has(id)) chips.set(id, { label: option.label, href: `/collections/${group}?${key}=${encodeURIComponent(option.value)}` });
+      }
     }
-  }
-  return [...chips.values()];
+    return [...chips.values()];
+  });
 }

@@ -24,6 +24,8 @@ const schema = z
     ERP_IMAGE_BASE: z.string().optional(),
     /** Comma-separated DigitalOcean Spaces bucket hosts ERP images may come from (keep in sync with next.config.ts). */
     ERP_IMAGE_SPACES_HOSTS: z.string().default("templeimg.blr1.digitaloceanspaces.com"),
+    /** Public image storage path; barcode photos are stored as <barcode>.jpg beneath it. */
+    NEXT_PUBLIC_IMAGE_BASE_URL: z.string().optional(),
     /** Optional DigitalOcean Spaces keys. When set, private ERP images in those buckets are served via fresh presigned URLs. */
     DO_SPACES_KEY: z.string().optional(),
     DO_SPACES_SECRET: z.string().optional(),

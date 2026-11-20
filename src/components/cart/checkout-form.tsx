@@ -643,7 +643,6 @@ const STATES = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi", "Go
 
 interface Props {
   customer: { name: string; mobile: string; email?: string; addresses: Address[] } | null;
-  codEnabled: boolean;
   razorpayEnabled: boolean;
   razorpayConfigured: boolean;
 }
@@ -665,14 +664,13 @@ interface ShippingQuote {
   selectedCourier?: { id: number | string; name: string; rate: number; cod: boolean; etaDays?: number };
 }
 
-export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayConfigured }: Props) {
+export function CheckoutForm({ customer, razorpayEnabled, razorpayConfigured }: Props) {
   const { cart, refresh } = useCart();
   const currency = useUi((s) => s.currency);
   const router = useRouter();
   const def = customer?.addresses.find((a) => a.isDefault) ?? customer?.addresses[0];
   const [addr, setAddr] = useState<Address>(def ?? { name: customer?.name ?? "", phone: customer?.mobile ?? "", line1: "", line2: "", city: "", state: "Karnataka", pincode: "", country: "India" });
   const [email, setEmail] = useState(customer?.email ?? "");
-  const [mode, setMode] = useState<"COD" | "RAZORPAY">(codEnabled ? "COD" : "RAZORPAY");
   const [onlineChoice, setOnlineChoice] = useState<OnlinePaymentChoice>({ option: "upi_apps" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -696,7 +694,7 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
       setQuoteLoading(true);
       setQuoteError(null);
       try {
-        const res = await fetch(`/api/v1/shipping/quote?pin=${addr.pincode}&paymentMode=${mode}`, { signal: controller.signal });
+        const res = await fetch(`/api/v1/shipping/quote?pin=${addr.pincode}&paymentMode=RAZORPAY`, { signal: controller.signal });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || json.ok === false) throw new Error(json?.error?.message ?? "Could not check delivery for this pincode");
         setQuote(json.data as ShippingQuote);
@@ -712,7 +710,7 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [addr.pincode, mode, cartFingerprint]);
+  }, [addr.pincode, cartFingerprint]);
 
   const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = k === "pincode"
@@ -728,8 +726,8 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
     setBusy(true);
     setError(null);
     try {
-      const body = { address: addr, paymentMode: mode, email: email || undefined };
-      if (mode === "RAZORPAY" && pendingPayment) {
+      const body = { address: addr, paymentMode: "RAZORPAY", email: email || undefined };
+      if (pendingPayment) {
         const confirmed = (await api<{ orderNo: string }>("/api/v1/checkout", {
           method: "POST",
           json: { ...body, payment: pendingPayment },
@@ -769,7 +767,7 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
   const t = cart.totals;
   const displayShipping = quote ? quote.shippingCharge : t.shippingCharge;
   const displayTotal = quote ? Math.round((t.subTotal - t.couponDiscount + displayShipping) * 100) / 100 : t.netAmount;
-  const blockedByQuote = !!quote && (!quote.serviceable || (mode === "COD" && !quote.codAvailable));
+  const blockedByQuote = !!quote && !quote.serviceable;
 
   return (
     <form onSubmit={submit} className="mt-8 grid gap-10 lg:grid-cols-[1fr_400px]">
@@ -807,27 +805,24 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
         </section>
         <section>
           <h2 className="mb-4 text-2xl">Payment</h2>
-          <div className="grid gap-2" role="radiogroup" aria-label="Choose a payment method">
-            <PayOption
-              selected={mode === "RAZORPAY"}
-              disabled={!razorpayEnabled}
-              onChange={() => setMode("RAZORPAY")}
-              title="Pay online"
-              text={razorpayEnabled
+          <div className="grid gap-2">
+            <div className={`flex items-center gap-3 rounded-sm border p-4 text-left ${razorpayEnabled && razorpayConfigured ? "border-gold bg-gold/5" : "border-line"}`}>
+              <span aria-hidden="true" className={`h-4 w-4 shrink-0 rounded-full border-[5px] ${razorpayEnabled && razorpayConfigured ? "border-olive" : "border-muted"}`} />
+              <span>
+                <span className="block text-sm font-medium text-ink">Pay online</span>
+                <span className="text-xs text-muted">{razorpayEnabled
                 ? razorpayConfigured
                   ? "UPI, cards and netbanking · Secure checkout by Razorpay"
                   : "UPI, cards and netbanking · Payment setup required before checkout"
                 : !razorpayConfigured
                   ? "Currently unavailable · Online payments need to be configured by the store"
-                  : "Online payments are not enabled by the store"}
-            />
-            {mode === "RAZORPAY" && (
-              <OnlinePaymentMethods configured={razorpayConfigured} choice={onlineChoice} onSelect={setOnlineChoice} />
-            )}
-            <PayOption selected={mode === "COD"} disabled={!codEnabled || !!pendingPayment} onChange={() => setMode("COD")} title="Cash on delivery" text="Pay when your saree arrives" />
+                  : "Online payments are not enabled by the store"}</span>
+              </span>
+            </div>
+            <OnlinePaymentMethods configured={razorpayConfigured} choice={onlineChoice} onSelect={setOnlineChoice} />
           </div>
           {pendingPayment && <p role="status" className="mt-2 text-xs text-olive">Payment received. If order confirmation did not finish, submit again to confirm it. Do not pay again.</p>}
-          {!codEnabled && !razorpayEnabled && <p role="alert" className="mt-2 text-xs text-red-700">No payment methods are currently available. Please contact the store.</p>}
+          {(!razorpayEnabled || !razorpayConfigured) && !pendingPayment && <p role="alert" className="mt-2 text-xs text-red-700">Online payments are currently unavailable. Please contact the store.</p>}
         </section>
       </div>
 
@@ -860,7 +855,7 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
                     {quote.etaDays ? ` · ${quote.etaDays} day${quote.etaDays === 1 ? "" : "s"}` : quote.estimatedDelivery ? ` · ${quote.estimatedDelivery}` : ""}
                   </span>
                   <span className="block">
-                    {mode === "COD" ? (quote.codAvailable ? "Cash on delivery available" : "Cash on delivery is not available here") : "Prepaid order"}
+                    Prepaid order
                     {quote.freeShippingApplied ? " · Free shipping applied" : ""}
                   </span>
                   {quote.fallback && <span className="block">Live courier rates are unavailable, so our standard rate applies.</span>}
@@ -873,8 +868,8 @@ export function CheckoutForm({ customer, codEnabled, razorpayEnabled, razorpayCo
         </dl>
         {quoteError && <p role="alert" className="mt-3 text-xs text-amber-700">{quoteError} You can still place the order; our team will confirm shipping.</p>}
         {error && <p className="mt-4 rounded-sm bg-red-50 p-2 text-xs text-red-800">{error}</p>}
-        <Button type="submit" size="lg" className="mt-6 w-full" loading={busy} disabled={(!codEnabled && !razorpayEnabled) || blockedByQuote}>
-          {pendingPayment ? "Confirm paid order" : mode === "COD" ? "Place order" : `Pay ${formatMoney(t.netAmount, "INR")}`}
+        <Button type="submit" size="lg" className="mt-6 w-full" loading={busy} disabled={(!pendingPayment && (!razorpayEnabled || !razorpayConfigured)) || blockedByQuote}>
+          {pendingPayment ? "Confirm paid order" : `Pay ${formatMoney(t.netAmount, "INR")}`}
         </Button>
         <p className="mt-3 text-center text-[11px] text-muted">Orders are billed in INR. By placing an order you agree to our policies.</p>
       </aside>
@@ -1074,18 +1069,6 @@ function OnlinePaymentMethods({
         })}
       </ul>
     </div>
-  );
-}
-
-function PayOption({ selected, disabled = false, onChange, title, text }: { selected: boolean; disabled?: boolean; onChange: () => void; title: string; text: string }) {
-  return (
-    <label className={`flex items-center gap-3 rounded-sm border p-4 text-left ${selected ? "border-gold bg-gold/5" : "border-line"} ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
-      <input type="radio" name="paymentMode" checked={selected} disabled={disabled} onChange={onChange} className="h-4 w-4 accent-olive disabled:opacity-60" />
-      <span>
-        <span className="block text-sm font-medium text-ink">{title}</span>
-        <span className="text-xs text-muted">{text}</span>
-      </span>
-    </label>
   );
 }
 

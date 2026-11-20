@@ -24,6 +24,11 @@ export function isAddOnCategorySlug(slug: string): slug is AddOnCategorySlug {
   return ADD_ON_CATEGORY_SLUGS.some((categorySlug) => categorySlug === slug);
 }
 
+export function getCanonicalAddOnCategorySlug(slug: string): AddOnCategorySlug | undefined {
+  if (slug === "pre-cut-fabrics") return "ready-bits";
+  return isAddOnCategorySlug(slug) ? slug : undefined;
+}
+
 export function getAddOnGroupIds(slug: string): readonly string[] | undefined {
   return isAddOnCategorySlug(slug) ? ADD_ON_CATEGORIES[slug].groupIds : undefined;
 }

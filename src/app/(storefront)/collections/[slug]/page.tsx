@@ -280,8 +280,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { barcodeProductPath } from "@/lib/paths";
 import { CATEGORY_SEO, DEFAULT_OG_IMAGE, OG_DEFAULTS, absoluteUrl, barcodeProductFacts, breadcrumbJsonLd, itemListJsonLd, publicImage } from "@/lib/seo";
 import { ERP_CATEGORY_TITLES, getBarcodeImageCatalog, getBarcodeImageFilterOptions, getBarcodeImageSeries, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
-import { isAddOnCategorySlug } from "@/lib/add-on-categories";
-
+import { getCanonicalAddOnCategorySlug } from "@/lib/add-on-categories";
 type SP = Record<string, string | string[] | undefined>;
 const toSearchParams = (sp: SP) => {
   const u = new URLSearchParams();
@@ -306,7 +305,7 @@ const ERP_GROUP_BANNERS: Partial<Record<StorefrontCategoryGroup, string>> = {
 
 function erpGroupForSlug(slug: string): StorefrontCategoryGroup | null {
   if (slug === "sarees" || slug === "fabrics" || slug === "plain-fabrics" || slug === "dupatta" || slug === "best-buy" || slug === "new-arrivals") return slug;
-  return isAddOnCategorySlug(slug) ? slug : null;
+  return getCanonicalAddOnCategorySlug(slug) ?? null;
 }
 
 async function resolve(slug: string) {
@@ -391,7 +390,8 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     // Legacy ?barcode= links redirect to the product's own page, which carries the product metadata.
     if (firstParam(sp.barcode)?.trim()) return { robots: { index: false, follow: true } };
     const copy = CATEGORY_SEO[erpGroup];
-    return { ...listingIndexing(slug, sp, copy.title, copy.description, ERP_GROUP_BANNERS[erpGroup] ?? DEFAULT_OG_IMAGE), keywords: copy.keywords };
+    const canonicalSlug = getCanonicalAddOnCategorySlug(slug) ?? slug;
+    return { ...listingIndexing(canonicalSlug, sp, copy.title, copy.description, ERP_GROUP_BANNERS[erpGroup] ?? DEFAULT_OG_IMAGE), keywords: copy.keywords };
   }
   const r = await resolve(slug);
   if (!r) return {};
@@ -402,6 +402,11 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
 
 export default async function CollectionPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<SP> }) {
   const [{ slug }, sp] = await Promise.all([params, searchParams]);
+  const canonicalSlug = getCanonicalAddOnCategorySlug(slug);
+  if (canonicalSlug && canonicalSlug !== slug) {
+    const query = toSearchParams(sp).toString();
+    permanentRedirect(`/collections/${canonicalSlug}${query ? `?${query}` : ""}`);
+  }
   const erpGroup = erpGroupForSlug(slug);
   if (erpGroup) {
     // Old ?barcode= detail links now live at /collections/<slug>/<barcode>.

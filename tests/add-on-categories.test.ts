@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, isAddOnCategorySlug } from "@/lib/add-on-categories";
-
+import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, getCanonicalAddOnCategorySlug, isAddOnCategorySlug } from "@/lib/add-on-categories";
 describe("Add On ERP category mappings", () => {
   it("defines the seven requested categories in navigation order", () => {
     expect(ADD_ON_CATEGORY_SLUGS.map((slug) => ADD_ON_CATEGORIES[slug].name)).toEqual([
@@ -28,5 +27,10 @@ describe("Add On ERP category mappings", () => {
     expect(new Set(ids).size).toBe(7);
     expect(isAddOnCategorySlug("ready-bits")).toBe(true);
     expect(getAddOnGroupIds("sarees")).toBeUndefined();
+  });
+   it("resolves the old Pre-Cut Fabrics URL to the Ready Bits ERP slug", () => {
+    expect(getCanonicalAddOnCategorySlug("pre-cut-fabrics")).toBe("ready-bits");
+    expect(getCanonicalAddOnCategorySlug("ready-bits")).toBe("ready-bits");
+    expect(getCanonicalAddOnCategorySlug("unknown")).toBeUndefined();
   });
 });

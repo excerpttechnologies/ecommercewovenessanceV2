@@ -534,7 +534,7 @@ const ADD_ON_ITEM_PREFIX = "storefront-add-on-";
 const STOREFRONT_NAV: { label: string; href: string; badge?: string }[] = [
   { label: "FABRICS", href: "/collections/fabrics" },
   { label: "PLAIN FABRICS", href: "/collections/plain-fabrics" },
-  { label: "PRE-CUT FABRICS", href: "/collections/pre-cut-fabrics" },
+{ label: "PRE-CUT FABRICS", href: "/collections/ready-bits" },
   { label: "SAREES", href: "/collections/sarees" },
   { label: "UNSTITCHED SUITS", href: "/collections/unstitched-suits" },
   { label: "DUPATTA", href: "/collections/dupatta" },

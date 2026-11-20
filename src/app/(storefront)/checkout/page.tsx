@@ -26,7 +26,6 @@ export default async function CheckoutPage() {
       </div>
       <CheckoutForm
         customer={customer ? { name: customer.name, mobile: customer.mobile, email: customer.email, addresses: customer.addresses } : null}
-        codEnabled={settings.commerce?.codEnabled ?? true}
         razorpayEnabled={settings.commerce?.razorpayEnabled === true}
         razorpayConfigured={razorpayConfigured}
       />
