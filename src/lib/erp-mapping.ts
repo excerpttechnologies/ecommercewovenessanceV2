@@ -322,6 +322,8 @@ export function barcodeProductToProduct(item: BarcodeProduct): Product {
     description: item.printDescription || item.name,
     category,
     subCategory: item.group,
+    uom: item.uom ?? item.uomType,
+    uomType: item.uomType,
     occasion: [],
     blouseIncluded: false,
     dimensions: { weight: 0 },

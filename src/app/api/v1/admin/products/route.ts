@@ -6,7 +6,6 @@ import { parseBody } from "@/lib/api/body";
 import { fail, handler, ok } from "@/lib/api/response";
 import { parseBarcodeListParams } from "@/lib/api/query";
 import { audit } from "@/lib/audit";
-import { invalidateCache } from "@/lib/cache";
 import { requireAdmin } from "@/lib/auth";
 import { getErpConnection, getWebConnection, redactMongoUri } from "@/lib/db";
 import { ERP_BARCODE_COLLECTIONS, toImages } from "@/lib/erp-mapping";
@@ -227,8 +226,6 @@ export const PATCH = handler(async (req: NextRequest) => {
     throw e;
   }
   await audit(actor, "productMeta.update", "productWebMeta", sku, before, after, req);
-  // The storefront caches only the list of hidden barcodes; refresh it as soon as visibility changes.
-  if (patch.isActive !== undefined) invalidateCache("web:inactive-barcodes");
   // Removing a slot should also remove its website-uploaded file. External/ERP URLs and
   // other products' folders are never touched (pruneProductUploads is SKU-scoped).
   try {

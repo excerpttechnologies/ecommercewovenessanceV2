@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  BadgeCheck, Banknote, Check, ChevronLeft, ChevronRight, Grid3x3, Heart, Layers, Minus, Palette,
-  Brush, Plus, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2,
+  BadgeCheck, Banknote, Check, ChevronLeft, ChevronRight, Grid3x3, Heart, Layers, Palette,
+  Brush, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2,
 } from "lucide-react";
 import { ImageGallery } from "@/components/product/image-gallery";
 import { PincodeCheck } from "@/components/product/pincode-check";
+import { QtyStepper } from "@/components/cart/qty-stepper";
 import { ProductInformationTabs, type ProductOverviewRow } from "@/components/product/info-tabs";
 import { COUNTRY_OF_ORIGIN, type CustomerCareInfo, type ShippingReturnsInfo } from "@/lib/product-info";
 import type { BarcodeProduct } from "@/domain/types";
@@ -35,19 +36,28 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const router = useRouter();
   const { add } = useCart();
   const { has, toggle } = useWishlist();
+  const busy = add.isPending;
   const [qty, setQty] = useState(0);
+  const [draftQty, setDraftQty] = useState(0);
   const [shared, setShared] = useState(false);
 
   const price = item.price ?? 0;
   const selling = item.offerPrice && item.offerPrice < price ? item.offerPrice : price;
   const discount = selling < price && price > 0 ? Math.round(((price - selling) / price) * 100) : 0;
   const inStock = item.status === "IN_STOCK" && !(item.qty != null && item.qty <= 0);
-  const maxQty = Math.max(1, Math.min(10, item.qty ?? 1));
+  const unit = item.uomType?.trim() || item.uom?.trim() || "";
+  const normalizedUnit = unit.replace(/[^a-z]/gi, "").toUpperCase();
+  const decimalQuantity = ["MTR", "MTRS", "METER", "METERS", "METRE", "METRES"].includes(normalizedUnit);
+  const availableStock = item.qty != null && Number.isFinite(item.qty) ? Math.max(0, item.qty) : 1;
+  const maxQty = decimalQuantity
+    ? Math.min(20, Math.floor((availableStock + Number.EPSILON) * 100) / 100)
+    : Math.min(20, Math.floor(availableStock));
   // The storefront shows the barcode as the product title; item names stay internal.
   const codeLabel = `Code ${item.barcode}`;
   // Exact Excel/ERP print description — never rewritten or used as a fallback title.
   const printDescription = item.printDescription?.trim() ? item.printDescription : undefined;
   const availableQty = `${item.qty ?? 0} ${item.uom?.trim() || "Pc(s)"}`;
+  const canSubmit = inStock && !busy && draftQty > 0;
   const attrs = Object.entries(item.ecommerce?.attributes ?? {}).filter((e): e is [string, string] => Boolean(e[1]));
   const overview: ProductOverviewRow[] = [
     { label: "Product code", value: item.barcode },
@@ -65,7 +75,6 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
     label: galleryViewLabel(index, galleryContext),
   }));
   const wished = has(item.barcode);
-  const busy = add.isPending;
 
   const share = async () => {
     const url = window.location.href;
@@ -80,7 +89,17 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
       /* share sheet dismissed */
     }
   };
-  const buyNow = () => add.mutate({ sku: item.barcode, qty }, { onSuccess: () => router.push("/checkout") });
+  const changeQuantity = (quantity: number) => { setQty(quantity); setDraftQty(quantity); };
+  const addToBag = () => {
+    setQty(draftQty);
+    if (draftQty > 0) add.mutate({ sku: item.barcode, qty: draftQty });
+  };
+  const buyNow = () => {
+    setQty(draftQty);
+    if (draftQty > 0) {
+      add.mutate({ sku: item.barcode, qty: draftQty }, { onSuccess: () => router.push("/checkout") });
+    }
+  };
 
   const trust = [
     { Icon: Truck, title: "Free Shipping", text: freeShippingAbove ? `On orders above ₹${freeShippingAbove.toLocaleString("en-IN")}` : "Across India" },
@@ -197,17 +216,23 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {inStock && (
-              <div className="flex h-12 items-center rounded-full border border-line bg-white">
-                <button type="button" aria-label="Decrease quantity" disabled={qty <= 0} onClick={() => setQty((q) => Math.max(0, q - 1))} className="flex h-12 w-11 items-center justify-center text-olive disabled:opacity-30"><Minus className="h-4 w-4" /></button>
-                <span className="w-8 text-center text-sm font-semibold" aria-live="polite"><span key={qty} className="we-pop">{qty}</span></span>
-                <button type="button" aria-label="Increase quantity" disabled={qty >= maxQty} onClick={() => setQty((q) => Math.min(maxQty, q + 1))} className="flex h-12 w-11 items-center justify-center text-olive disabled:opacity-30"><Plus className="h-4 w-4" /></button>
-              </div>
+              <QtyStepper
+                value={qty}
+                min={0}
+                max={maxQty}
+                unit={item.uom}
+                unitType={item.uomType}
+                ariaLabel="Quantity"
+                onChange={changeQuantity}
+                onDraftChange={setDraftQty}
+                size="product"
+              />
             )}
-            <button type="button" disabled={!inStock || busy || qty <= 0} onClick={() => add.mutate({ sku: item.barcode, qty })} className="inline-flex h-12 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-full bg-maroon px-6 text-[15px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none">
+            <button type="button" disabled={!canSubmit} onClick={addToBag} className="inline-flex h-12 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-full bg-maroon px-6 text-[15px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none">
               <ShoppingBag className="h-5 w-5" /> {inStock ? (busy ? "Adding…" : "Add to Bag") : "Unavailable"}
             </button>
             {inStock && (
-              <button type="button" disabled={busy || qty <= 0} onClick={buyNow} className="inline-flex h-12 min-w-[150px] flex-1 items-center justify-center gap-2 rounded-full border-2 border-maroon bg-white px-6 text-[15px] font-semibold text-maroon transition-colors hover:bg-maroon/5 disabled:opacity-60">
+              <button type="button" disabled={!canSubmit} onClick={buyNow} className="inline-flex h-12 min-w-[150px] flex-1 items-center justify-center gap-2 rounded-full border-2 border-maroon bg-white px-6 text-[15px] font-semibold text-maroon transition-colors hover:bg-maroon/5 disabled:opacity-60">
                 <ShoppingCart className="h-5 w-5" /> Buy Now
               </button>
             )}

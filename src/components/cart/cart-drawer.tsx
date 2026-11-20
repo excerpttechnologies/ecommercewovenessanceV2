@@ -1,6 +1,8 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useRef, type MouseEvent } from "react";
 import { useCart } from "@/hooks/useCart";
 import { buttonClass } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/drawer";
@@ -16,12 +18,38 @@ export function CartDrawer() {
   const setOpen = useUi((s) => s.setCartOpen);
   const currency = useUi((s) => s.currency);
   const { cart, update, isLoading } = useCart();
+  const router = useRouter();
+  const pendingUpdates = useRef(new Set<Promise<unknown>>());
   const lines = cart?.lines ?? [];
   const t = cart?.totals;
+  const updateQuantity = (sku: string, qty: number) => {
+    const request = update.mutateAsync({ sku, qty });
+    pendingUpdates.current.add(request);
+    void request.then(
+      () => pendingUpdates.current.delete(request),
+      () => pendingUpdates.current.delete(request),
+    );
+    return request;
+  };
+  const navigateAfterUpdates = async (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      setOpen(false);
+      return;
+    }
+    event.preventDefault();
+    try {
+      await Promise.all([...pendingUpdates.current]);
+      setOpen(false);
+      router.push(href);
+    } catch {
+      // The cart update error is shown below; stay in the drawer.
+    }
+  };
 
   return (
     <Drawer open={open} onClose={() => setOpen(false)} title={`Your bag${t?.itemCount ? ` (${t.itemCount})` : ""}`}>
       {isLoading && <p className="p-5 text-sm text-muted">Loading…</p>}
+      {update.isError && <p role="alert" className="mx-5 mt-3 text-xs text-red-700">{(update.error as Error).message}</p>}
       {!isLoading && lines.length === 0 && (
         <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
           <p className="font-heading text-2xl text-olive">Your bag is empty</p>
@@ -40,7 +68,14 @@ export function CartDrawer() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="line-clamp-2 text-sm uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
                 <div className="mt-auto flex items-center justify-between">
-                  <QtyStepper value={l.qty} max={l.product.stock.qty} onChange={(qty) => update.mutate({ sku: l.sku, qty })} />
+                  <QtyStepper
+                    value={l.qty}
+                    max={l.product.stock.qty}
+                    unit={l.product.uom}
+                    unitType={l.product.uomType}
+                    ariaLabel={`Quantity for CODE ${l.sku}`}
+                    onChange={(qty) => updateQuantity(l.sku, qty)}
+                  />
                   <Price amount={l.product.pricing.sellingPrice * l.qty} size="sm" />
                 </div>
               </div>
@@ -67,8 +102,8 @@ export function CartDrawer() {
           )}
           <p className="mt-1 text-[11px] text-muted">Shipping & taxes calculated at checkout.</p>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <Link href="/cart" onClick={() => setOpen(false)} className={buttonClass("outline")}>View bag</Link>
-            <Link href="/checkout" onClick={() => setOpen(false)} className={buttonClass("primary")}>Checkout</Link>
+            <Link href="/cart" onClick={(event) => void navigateAfterUpdates(event, "/cart")} className={buttonClass("outline")}>View bag</Link>
+            <Link href="/checkout" onClick={(event) => void navigateAfterUpdates(event, "/checkout")} className={buttonClass("primary")}>Checkout</Link>
           </div>
         </div>
       )}

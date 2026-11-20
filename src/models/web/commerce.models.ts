@@ -10,7 +10,7 @@ export const CartSchema = new Schema(
       {
         _id: false,
         sku: { type: String, required: true },
-        qty: { type: Number, required: true, min: 1 },
+        qty: { type: Number, required: true, min: 0.01 },
         addedAt: { type: Date, default: Date.now },
       },
     ],

@@ -1,7 +1,8 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRef, useState, type MouseEvent } from "react";
 import { useCart } from "@/hooks/useCart";
 import { formatMoney } from "@/lib/currency";
 import { Button, buttonClass } from "@/components/ui/button";
@@ -15,8 +16,29 @@ import { isRemoteImageSource } from "@/lib/utils";
 
 export function CartPage() {
   const { cart, update, coupon, isLoading } = useCart();
+  const router = useRouter();
   const currency = useUi((s) => s.currency);
   const [code, setCode] = useState("");
+  const pendingUpdates = useRef(new Set<Promise<unknown>>());
+  const updateQuantity = (sku: string, qty: number) => {
+    const request = update.mutateAsync({ sku, qty });
+    pendingUpdates.current.add(request);
+    void request.then(
+      () => pendingUpdates.current.delete(request),
+      () => pendingUpdates.current.delete(request),
+    );
+    return request;
+  };
+  const proceedToCheckout = async (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    try {
+      await Promise.all([...pendingUpdates.current]);
+      router.push("/checkout");
+    } catch {
+      // The cart update error is shown below; stay on the cart page.
+    }
+  };
   if (isLoading || !cart) return <div className="mx-auto max-w-site px-4 py-16 text-sm text-muted sm:px-6">Loading your bag…</div>;
   const t = cart.totals;
   return (
@@ -42,7 +64,14 @@ export function CartPage() {
                   <Price amount={l.product.pricing.sellingPrice} mrp={l.product.pricing.mrp} size="sm" className="mt-1" />
                   {l.product.stock.qty <= 3 && <p className="mt-1 text-xs text-gold">Only {l.product.stock.qty} left</p>}
                   <div className="mt-auto flex items-center justify-between pt-3">
-                    <QtyStepper value={l.qty} max={l.product.stock.qty} onChange={(qty) => update.mutate({ sku: l.sku, qty })} />
+                    <QtyStepper
+                      value={l.qty}
+                      max={l.product.stock.qty}
+                      unit={l.product.uom}
+                      unitType={l.product.uomType}
+                      ariaLabel={`Quantity for CODE ${l.sku}`}
+                      onChange={(qty) => updateQuantity(l.sku, qty)}
+                    />
                     <span className="font-medium">{formatMoney(l.product.pricing.sellingPrice * l.qty, currency)}</span>
                   </div>
                 </div>
@@ -52,6 +81,7 @@ export function CartPage() {
 
           <aside className="h-fit rounded-lg border border-line bg-white/60 p-6">
             <h2 className="text-2xl">Order summary</h2>
+            {update.isError && <p role="alert" className="mt-2 text-xs text-red-700">{(update.error as Error).message}</p>}
             <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (code.trim()) coupon.mutate(code.trim().toUpperCase()); }}>
               <Input placeholder="Coupon code" value={code} onChange={(e) => setCode(e.target.value)} disabled={!!cart.couponCode} />
               {cart.couponCode ? <Button type="button" variant="outline" onClick={() => coupon.mutate(null)}>Remove</Button> : <Button type="submit" variant="secondary" loading={coupon.isPending}>Apply</Button>}
@@ -67,7 +97,7 @@ export function CartPage() {
               <div className="flex justify-between border-t border-line pt-3 text-base font-medium"><dt>Total</dt><dd>{formatMoney(t.netAmount, currency)}</dd></div>
             </dl>
             {t.freeShippingGap > 0 && <p className="mt-3 text-xs text-muted">Add {formatMoney(t.freeShippingGap, currency)} more for free shipping.</p>}
-            <Link href="/checkout" className={buttonClass("primary", "lg", "mt-6 w-full")}>Proceed to checkout</Link>
+            <Link href="/checkout" onClick={(event) => void proceedToCheckout(event)} className={buttonClass("primary", "lg", "mt-6 w-full")}>Proceed to checkout</Link>
             <Link href="/collections/sarees" className="mt-3 block text-center text-xs uppercase tracking-wider text-muted hover:text-olive">Continue shopping</Link>
           </aside>
         </div>

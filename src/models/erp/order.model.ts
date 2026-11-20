@@ -12,7 +12,7 @@ export const OrderItemSchema = new Schema(
     [I.sku]: { type: String, required: true },
     [I.name]: String,
     [I.image]: String,
-    [I.qty]: { type: Number, required: true, min: 1 },
+    [I.qty]: { type: Number, required: true, min: 0.01 },
     [I.rate]: { type: Number, required: true },
     [I.discount]: { type: Number, default: 0 },
     [I.gst]: { type: Number, default: 0 },

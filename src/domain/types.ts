@@ -372,6 +372,8 @@ export interface Product {
   careInstructions?: string;
   pricing: Money;
   stock: { qty: number; storeId?: string; status: StockStatus };
+  uom?: string;
+  uomType?: string;
   images: string[];
   videoUrl?: string;
   tags: string[];

@@ -129,33 +129,6 @@ export default async function Home() {
         { key: "featuredCollections", title: "Curated collections", subtitle: null, config: {} },
       ]);
   const homeContact = settings.contact;
-
-  // The ERP homepage blocks (curated collections, new arrivals, Instagram) all read the same
-  // per-category products. Resolve ONE fan-out wide enough for every block instead of one
-  // fan-out per block (previously 3× with limits 8/10/8), then slice per block below.
-  const sectionLimit = (config: Record<string, unknown> | null | undefined) => {
-    const parsed = Number(config?.limit ?? 8);
-    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 8;
-  };
-  const erpLimits = homepageSections.flatMap((section) => {
-    const limit = sectionLimit(section.config as Record<string, unknown> | undefined);
-    // New arrivals are rounded up to a multiple of five so desktop rows (five cards) come out full.
-    if (section.key === "newArrivals") return [Math.ceil(limit / 5) * 5];
-    return section.key === "featuredCollections" || section.key === "instagram" ? [limit] : [];
-  });
-  const erpSectionLimit = erpLimits.length ? Math.max(...erpLimits) : 0;
-  const erpSectionsPromise = erpSectionLimit > 0
-    ? getErpHomeSections(erpSectionLimit).catch(() => [])
-    : Promise.resolve([]);
-  // Chips are shared by the categories strip and the occasion section: fetch once.
-  const erpChips = new Map<string, Promise<{ label: string; href: string }[]>>();
-  const getChips = (key: "occasion" | "fabric") => {
-    const existing = erpChips.get(key);
-    if (existing) return existing;
-    const promise = getErpFilterChips(key).catch(() => []);
-    erpChips.set(key, promise);
-    return promise;
-  };
   const configuredHeroSlides = heroBanners
     .filter((banner) => banner.image?.desktop?.trim())
     .map((banner) => {
@@ -182,7 +155,7 @@ export default async function Home() {
   const rendered = await Promise.all(
     homepageSections.map(async (s) => {
       const cfg = (s.config ?? {}) as Record<string, unknown>;
-      const limit = sectionLimit(cfg);
+      const limit = Number(cfg.limit ?? 8);
       switch (s.key) {
         case "hero": {
           return <div key={s.key}>{hero}</div>;
@@ -191,7 +164,7 @@ export default async function Home() {
           return <TrustBadges key={s.key} badges={settings.trustBadges ?? []} />;
         case "categories": {
           // The ERP category pages, never the demo category tree, plus quick links into them.
-          const festive = (await getChips("occasion")).find((chip) => /festive/i.test(chip.label));
+          const festive = (await getErpFilterChips("occasion").catch(() => [])).find((chip) => /festive/i.test(chip.label));
           return (
             <CategoryTiles
               key={s.key}
@@ -213,7 +186,7 @@ export default async function Home() {
         case "featuredCollections": {
           // ERP categories with published products, with live piece counts.
           // If RetailERP cannot be read, every category is shown with its cover only.
-          const erpSections = await erpSectionsPromise;
+          const erpSections = await getErpHomeSections(limit).catch(() => []);
           const tiles = (erpSections.length ? erpSections.map((section) => section.group) : CURATED_ORDER)
             .filter((group) => CURATED_COVERS[group])
             .sort((a, b) => CURATED_ORDER.indexOf(a) - CURATED_ORDER.indexOf(b))
@@ -232,8 +205,7 @@ export default async function Home() {
         case "newArrivals": {
           // Newest published ERP products, one row per storefront category.
           // Rounded up to a multiple of five so desktop rows (five cards) come out full.
-          const arrivalsLimit = Math.ceil(limit / 5) * 5;
-          const erpSections = (await erpSectionsPromise).map((section) => ({ ...section, items: section.items.slice(0, arrivalsLimit) }));
+          const erpSections = await getErpHomeSections(Math.ceil(limit / 5) * 5);
           return (
             <div key={s.key}>
               {erpSections.map((section, index) => (
@@ -259,11 +231,11 @@ export default async function Home() {
           return <ProductSection key={s.key + col.slug} title={s.title ?? col.name} subtitle={s.subtitle ?? col.description} href={`/collections/${col.slug}`} items={r.items} />;
         }
         case "occasions": {
-          const chips = await getChips("occasion");
+          const chips = await getErpFilterChips("occasion").catch(() => []);
           return <ChipStrip key={s.key} title={s.title ?? "Shop by occasion"} subtitle={s.subtitle} items={chips.slice(0, 8)} />;
         }
         case "fabrics": {
-          const chips = await getChips("fabric");
+          const chips = await getErpFilterChips("fabric").catch(() => []);
           return <ChipStrip key={s.key} title={s.title ?? "Shop by fabric"} subtitle={s.subtitle} items={chips.slice(0, 12).map((chip) => ({ ...chip, image: fabricThumb(chip.label) }))} />;
         }
         case "lifestyle":
@@ -271,9 +243,7 @@ export default async function Home() {
         case "testimonials":
           return <Testimonials key={s.key} items={await site.testimonials()} title={s.title} subtitle={s.subtitle} />;
         case "instagram": {
-          const erpImages = (await erpSectionsPromise)
-            .flatMap((section) => section.items.slice(0, limit).flatMap((item) => (item.image ? [item.image] : [])))
-            .slice(0, 12);
+          const erpImages = (await getErpHomeSections(limit).catch(() => [])).flatMap((section) => section.items.flatMap((item) => (item.image ? [item.image] : []))).slice(0, 12);
           const instagram = settings.social?.instagram || DEFAULT_INSTAGRAM;
           return <InstagramStrip key={s.key} handle={instagramHandle(instagram)} href={instagram} images={erpImages.length >= 6 ? erpImages : INSTAGRAM_FALLBACK} />;
         }

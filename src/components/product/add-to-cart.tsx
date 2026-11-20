@@ -10,6 +10,7 @@ import { WishlistButton } from "./wishlist-button";
 export function AddToCart({ product, whatsapp, siteUrl }: { product: Product; whatsapp?: string | null; siteUrl: string }) {
   const { add } = useCart();
   const [qty, setQty] = useState(0);
+  const [draftQty, setDraftQty] = useState(0);
   const out = product.stock.qty <= 0;
   const waText = encodeURIComponent(`Hi, I'm interested in Code ${product.sku} ${siteUrl}/products/${product.slug}`);
   return (
@@ -17,11 +18,11 @@ export function AddToCart({ product, whatsapp, siteUrl }: { product: Product; wh
       {!out && (
         <div className="flex items-center gap-4">
           <span className="text-xs uppercase tracking-wider text-muted">Qty</span>
-          <QtyStepper value={qty} min={0} max={Math.min(product.stock.qty, 10)} onChange={setQty} size="md" />
+          <QtyStepper value={qty} min={0} max={Math.min(product.stock.qty, 10)} unit={product.uom} unitType={product.uomType} ariaLabel={`Quantity for CODE ${product.sku}`} onChange={setQty} onDraftChange={setDraftQty} size="md" />
         </div>
       )}
       <div className="flex gap-2">
-        <Button size="lg" className="flex-1" disabled={out || qty <= 0} loading={add.isPending} onClick={() => add.mutate({ sku: product.sku, qty })}>
+        <Button size="lg" className="flex-1" disabled={out || draftQty <= 0} loading={add.isPending} onClick={() => { setQty(draftQty); add.mutate({ sku: product.sku, qty: draftQty }); }}>
           {out ? "Sold out" : "Add to bag"}
         </Button>
         <WishlistButton sku={product.sku} className="h-12 w-12 justify-center rounded-lg border border-line bg-white shadow-none" />
