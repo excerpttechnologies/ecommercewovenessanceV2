@@ -21,7 +21,7 @@ import { classificationLabel, loadClassificationNames } from "@/lib/erp-classifi
 import { BarcodeLabelModel } from "@/models/erp/barcode-label.model";
 import type { AnyDoc } from "@/models/_util";
 import type { BarcodeFacets, BarcodeListParams, BarcodeProduct, BarcodeSort, FacetOption, Paginated } from "@/domain/types";
-import type { BarcodeLabelRepository } from "../types";
+import type { BarcodeLabelRepository } from "@/repositories/types";
 
 const MAX_LIMIT = 96;
 type ErpId = string | Types.ObjectId;
@@ -760,7 +760,15 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
       { $group: { _id: `$${field}`, count: { $sum: 1 } } },
       { $match: { _id: { $nin: [null, ""] } } },
     ];
-    const [res] = await M.aggregate<any>([
+    type FacetRow = { _id: unknown; count: number; label?: string; business?: string };
+    type FacetsResult = {
+      status: FacetRow[];
+      uomType: FacetRow[];
+      group: FacetRow[];
+      business: FacetRow[];
+      total: { n: number }[];
+    };
+    const [res] = await M.aggregate<FacetsResult>([
       ...(Object.keys(match).length ? [{ $match: match }] : []),
       {
         $facet: {
@@ -790,21 +798,20 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
         },
       },
     ]);
-    type Row = { _id: unknown; count: number; label?: string; business?: string };
-    const opt = (r: Row, label?: string): FacetOption => ({ value: String(r._id), label: label ?? String(r._id), count: r.count });
+    const opt = (r: FacetRow, label?: string): FacetOption => ({ value: String(r._id), label: label ?? String(r._id), count: r.count });
     const byLabel = (a: FacetOption, b: FacetOption) => a.label.localeCompare(b.label);
     // Group ids with no productgroup document (import leftovers like "pc-86") cannot be named, so they are not offered.
-    const groups: Row[] = (res?.group ?? []).filter((r: Row) => r.label);
+    const groups = (res?.group ?? []).filter((r) => r.label);
     const nameUses = new Map<string, number>();
     for (const r of groups) nameUses.set(r.label!, (nameUses.get(r.label!) ?? 0) + 1);
     // Internal record ids are never shown to shoppers: an option whose only "label" is a
     // Mongo-style id is not offered as a filter (the id still works via the URL param).
     const noRawId = (o: FacetOption) => !/^[a-f0-9]{24}$/i.test(o.label);
     return {
-      status: (res?.status ?? []).map((r: Row) => opt(r)).filter(noRawId),
-      uomType: (res?.uomType ?? []).map((r: Row) => opt(r)).filter(noRawId),
+      status: (res?.status ?? []).map((r: FacetRow) => opt(r)).filter(noRawId),
+      uomType: (res?.uomType ?? []).map((r: FacetRow) => opt(r)).filter(noRawId),
       group: groups.map((r) => opt(r, nameUses.get(r.label!)! > 1 ? `${r.label} · ${r.business ?? "unlisted business"}` : r.label)).filter(noRawId).sort(byLabel),
-      business: (res?.business ?? []).map((r: Row) => opt(r, r.label ?? "Unlisted business")).filter(noRawId).sort(byLabel),
+      business: (res?.business ?? []).map((r: FacetRow) => opt(r, r.label ?? "Unlisted business")).filter(noRawId).sort(byLabel),
       total: res?.total?.[0]?.n ?? 0,
     };
   }

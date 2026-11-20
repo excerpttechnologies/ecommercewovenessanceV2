@@ -43,6 +43,8 @@ const schema = z
     NEXT_PUBLIC_SITE_URL: z.string().default("http://localhost:3000"),
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_KEY_SECRET: z.string().optional(),
+    /** FASHN API key for virtual try-on. Server-only; never sent to the browser. */
+    FASHN_API_KEY: z.string().optional(),
   })
   .transform((e) => ({
     ...e,
@@ -58,6 +60,7 @@ const schema = z
     NVIDIA_BASE_URL: blankToUndefined(e.NVIDIA_BASE_URL)?.replace(/\/+$/, "") ?? "https://integrate.api.nvidia.com/v1",
     RAZORPAY_KEY_ID: blankToUndefined(e.RAZORPAY_KEY_ID),
     RAZORPAY_KEY_SECRET: blankToUndefined(e.RAZORPAY_KEY_SECRET),
+    FASHN_API_KEY: blankToUndefined(e.FASHN_API_KEY),
   }));
 
 /** The public site address used for canonical links, the sitemap, JSON-LD and social cards. */

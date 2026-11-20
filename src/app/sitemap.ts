@@ -5,7 +5,7 @@ import { barcodeProductPath } from "@/lib/paths";
 import { absoluteUrl, publicImage } from "@/lib/seo";
 import { getMasterData, getSite } from "@/repositories";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 const ERP_PAGE_SIZE = 96; // the barcode repository's maximum page size
 const MAX_PAGES_PER_GROUP = 60;

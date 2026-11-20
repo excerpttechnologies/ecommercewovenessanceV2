@@ -209,10 +209,12 @@ function BarcodeProductImage({
   src,
   alt,
   sizes,
+  zoomOnHover = false,
 }: {
   src?: string;
   alt: string;
   sizes: string;
+  zoomOnHover?: boolean;
 }) {
   const [imageFailed, setImageFailed] = useState(!src);
 
@@ -238,7 +240,7 @@ function BarcodeProductImage({
       fill
       unoptimized
       sizes={sizes}
-      className="object-cover"
+      className={cn("object-cover", zoomOnHover && "transition-transform duration-500 group-hover:scale-105")}
       onError={() => setImageFailed(true)}
     />
   );
@@ -365,6 +367,7 @@ export function BarcodeProductGrid({
                     src={item.image}
                     alt={codeLabel}
                     sizes={sizes}
+                    zoomOnHover={zoomOnHover}
                   />
                 </Link>
               ) : (
@@ -375,6 +378,7 @@ export function BarcodeProductGrid({
                     src={item.image}
                     alt={codeLabel}
                     sizes={sizes}
+                    zoomOnHover={zoomOnHover}
                   />
                 </div>
               )}
