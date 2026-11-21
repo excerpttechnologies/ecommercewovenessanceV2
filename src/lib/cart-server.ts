@@ -9,6 +9,7 @@ import { computeTotals, type CartLine, type CartTotals, type CouponLike } from "
 import { CartModel, CouponModel, WishlistModel } from "@/models/web/commerce.models";
 import { getBarcodeLabels, getMasterData, getSite } from "@/repositories";
 import { barcodeProductToProduct, stockStatus } from "@/lib/erp-mapping";
+import { withEcommerceDetails, withProductWebOverrides } from "@/lib/barcode-image-series";
 import { committedStockByBarcode } from "@/lib/inventory/order-inventory";
 import type { Product } from "@/domain/types";
 
@@ -22,7 +23,9 @@ export interface CartView {
 
 async function getBarcodeProduct(sku: string) {
   const [item] = await getBarcodeLabels().getByBarcodes([sku]);
-  return item ? barcodeProductToProduct(item) : null;
+  if (!item) return null;
+  const [enriched] = await withProductWebOverrides(await withEcommerceDetails([item]));
+  return barcodeProductToProduct(enriched ?? item);
 }
 
 /**
@@ -113,8 +116,14 @@ export async function getCartView(token?: string | null): Promise<CartView> {
   const products = items.length ? await applyHeldStock(await getMasterData().products.getBySkus(items.map((i) => i.sku))) : [];
   const bySku = new Map(products.map((p) => [p.sku, p]));
   const missingSkus = items.map((item) => item.sku).filter((sku) => !bySku.has(sku));
-  const barcodeProducts = missingSkus.length
-    ? await applyHeldStock((await getBarcodeLabels().getByBarcodes(missingSkus)).map(barcodeProductToProduct))
+  const rawBarcodeProducts = missingSkus.length
+    ? await getBarcodeLabels().getByBarcodes(missingSkus)
+    : [];
+  const enrichedBarcodeProducts = rawBarcodeProducts.length
+    ? await withProductWebOverrides(await withEcommerceDetails(rawBarcodeProducts))
+    : [];
+  const barcodeProducts = enrichedBarcodeProducts.length
+    ? await applyHeldStock(enrichedBarcodeProducts.map(barcodeProductToProduct))
     : [];
   for (const item of barcodeProducts) bySku.set(item.barcode ?? item.sku, item);
   const lines: CartLine[] = [];

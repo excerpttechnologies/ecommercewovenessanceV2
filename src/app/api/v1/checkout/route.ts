@@ -11,6 +11,7 @@ import { buildOrderShippingSnapshot, chargedShipping, quoteForItems } from "@/li
 import { getCustomers, getOrders, getSite } from "@/repositories";
 import { getWebConnection } from "@/lib/db";
 import { OrderModel } from "@/models/erp/order.model";
+import { resolveOrderItemImage } from "@/lib/order-image-resolver";
 
 export const dynamic = "force-dynamic";
 
@@ -170,14 +171,29 @@ export const POST = handler(async (req: NextRequest) => {
   let gateway: GatewayOrder | undefined;
   if (online) gateway = await createGatewayOrder(netAmount, token.slice(0, 12));
 
-  const order = await getOrders().create({
-    customerId: cust.id,
-    items: cart.lines.map((l) => {
+  const orderItems = await Promise.all(
+    cart.lines.map(async (l) => {
       const rate = l.product.pricing.sellingPrice;
       const gross = rate * l.qty;
       const gstRate = l.product.pricing.gstPercent ?? 5;
-      return { productId: l.product.id, sku: l.sku, name: l.product.name, image: l.product.images[0], qty: l.qty, rate, discount: 0, gst: Math.round((gross - gross / (1 + gstRate / 100)) * 100) / 100, amount: gross };
+      const resolvedImage = await resolveOrderItemImage(l.sku, l.product.images[0]);
+      return {
+        productId: l.product.id,
+        sku: l.sku,
+        name: l.product.name,
+        image: resolvedImage ?? l.product.images[0],
+        qty: l.qty,
+        rate,
+        discount: 0,
+        gst: Math.round((gross - gross / (1 + gstRate / 100)) * 100) / 100,
+        amount: gross,
+      };
     }),
+  );
+
+  const order = await getOrders().create({
+    customerId: cust.id,
+    items: orderItems,
     subTotal: cart.totals.subTotal,
     discountTotal: cart.totals.couponDiscount,
     gstTotal: cart.totals.gstTotal,

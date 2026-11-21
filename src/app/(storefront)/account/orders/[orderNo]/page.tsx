@@ -154,6 +154,8 @@ import { Badge } from "@/components/ui/badge";
 import { orderTone } from "@/components/account/order-status";
 import { AccountCard, AccountCardTitle } from "@/components/account/account-card";
 import { InvoiceButton, GiftReceiptButton } from "@/components/account/order-actions";
+import { OrderItemImage } from "@/components/ui/order-item-image";
+import { resolveOrderImages } from "@/lib/order-image-resolver";
 
 export const metadata = { title: "Order details", robots: { index: false } };
 
@@ -183,8 +185,9 @@ const chip = "inline-flex items-center gap-1.5 rounded-full border border-line b
 
 export default async function OrderPage({ params }: { params: Promise<{ orderNo: string }> }) {
   const s = (await getCustomerSession())!;
-  const base = await getOrders().getByOrderNo((await params).orderNo);
-  if (!base || base.customerId !== s.sub) notFound();
+  const rawBase = await getOrders().getByOrderNo((await params).orderNo);
+  if (!rawBase || rawBase.customerId !== s.sub) notFound();
+  const base = await resolveOrderImages(rawBase);
 
   const order = base as typeof base & {
     courierName?: string;
@@ -257,7 +260,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNo:
               {/* Product */}
               <div className="flex gap-5">
                 <span className="relative h-36 w-28 shrink-0 overflow-hidden rounded-2xl bg-line">
-                  {image && <Image src={image} alt="" fill sizes="112px" className="object-cover" />}
+                  <OrderItemImage src={image} alt={`Code ${it.sku}`} fill sizes="112px" />
                 </span>
                 <div className="min-w-0 text-sm">
                   {slug ? (

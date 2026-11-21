@@ -440,6 +440,8 @@ import { getSettings } from "@/lib/site-data";
 import { formatINR, isRemoteImageSource } from "@/lib/utils";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
 import { ComingSoonImage } from "@/components/ui/coming-soon-image";
+import { OrderItemImage } from "@/components/ui/order-item-image";
+import { resolveOrderImages } from "@/lib/order-image-resolver";
 import type { OrderStatus } from "@/domain/types";
 
 export const metadata: Metadata = { title: "Order placed", robots: { index: false } };
@@ -499,8 +501,9 @@ const DOTS = [
 ];
 
 export default async function Success({ params }: { params: Promise<{ orderNo: string }> }) {
-  const order = await getOrders().getByOrderNo((await params).orderNo);
-  if (!order) notFound();
+  const rawOrder = await getOrders().getByOrderNo((await params).orderNo);
+  if (!rawOrder) notFound();
+  const order = await resolveOrderImages(rawOrder);
 
   const info = businessInfo(await getSettings());
   const session = await getCustomerSession();
@@ -580,7 +583,7 @@ export default async function Success({ params }: { params: Promise<{ orderNo: s
             {order.items.map((it) => (
               <li key={it.sku} className="flex items-start gap-4 py-3 first:pt-0">
                 <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-[#e5e7eb] bg-[#f6f7f8]">
-                  {it.image ? <Image src={it.image} alt={`Code ${it.sku}`} fill unoptimized={isRemoteImageSource(it.image)} sizes="72px" className="object-cover" /> : <ComingSoonImage compact className="absolute inset-0" />}
+                  <OrderItemImage src={it.image} alt={`Code ${it.sku}`} fill sizes="72px" compact />
                 </div>
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="font-medium uppercase tracking-wide text-[#111827]">Code {it.sku}</p>
