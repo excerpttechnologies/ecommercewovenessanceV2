@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type MouseEvent } from "react";
@@ -11,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Price } from "@/components/ui/price";
 import { useUi } from "@/store/ui";
 import { QtyStepper } from "./qty-stepper";
-import { ComingSoonImage } from "@/components/ui/coming-soon-image";
-import { isRemoteImageSource } from "@/lib/utils";
+import { OrderItemImage } from "@/components/ui/order-item-image";
 
 export function CartPage() {
   const { cart, update, coupon, isLoading } = useCart();
@@ -57,7 +55,14 @@ export function CartPage() {
             {cart.lines.map((l) => (
               <li key={l.sku} className="flex gap-5 py-5">
                 <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
-                  {l.product.images[0] ? <Image src={l.product.images[0]} alt={`Code ${l.sku}`} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="112px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
+                  <OrderItemImage
+                    src={l.product.images[0]}
+                    sku={l.sku}
+                    fallbackSources={l.product.images.slice(1)}
+                    alt={`Code ${l.sku}`}
+                    fill
+                    sizes="112px"
+                  />
                 </Link>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="text-base uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>

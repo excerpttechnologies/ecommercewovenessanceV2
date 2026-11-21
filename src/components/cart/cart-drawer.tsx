@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, type MouseEvent } from "react";
@@ -10,8 +9,7 @@ import { Price } from "@/components/ui/price";
 import { useUi } from "@/store/ui";
 import { QtyStepper } from "./qty-stepper";
 import { formatMoney } from "@/lib/currency";
-import { ComingSoonImage } from "@/components/ui/coming-soon-image";
-import { isRemoteImageSource } from "@/lib/utils";
+import { OrderItemImage } from "@/components/ui/order-item-image";
 
 export function CartDrawer() {
   const open = useUi((s) => s.cartOpen);
@@ -63,7 +61,14 @@ export function CartDrawer() {
           {lines.map((l) => (
             <li key={l.sku} className="flex gap-4 py-4">
               <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-line">
-                {l.product.images[0] ? <Image src={l.product.images[0]} alt={`Code ${l.sku}`} fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="80px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}
+                <OrderItemImage
+                  src={l.product.images[0]}
+                  sku={l.sku}
+                  fallbackSources={l.product.images.slice(1)}
+                  alt={`Code ${l.sku}`}
+                  fill
+                  sizes="80px"
+                />
               </Link>
               <div className="flex min-w-0 flex-1 flex-col">
                 <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="line-clamp-2 text-sm uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>

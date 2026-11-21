@@ -10,15 +10,15 @@ import type { Order, OrderItem } from "@/domain/types";
  * 1. Website overrides from productWebMeta (galleryPrimaryImage / extraImages)
  * 2. ERP barcodeLabel (image / imageUrl / filePath)
  * 3. ERP ecommerceproduct (image / images[0] via barcode, publishedBarcodes, or itemId)
- * 4. Style-prefix URL (e.g. /images/4A/4A1200.jpg -> https://erp.wovenessence.in/images/4A/4A1200.jpg)
- * 5. DigitalOcean Spaces public bucket root
+ * 4. Style-prefix URL (e.g. /images/4A/4A1200.jpg, /images/OL/OL2296.jpg)
+ * 5. DigitalOcean Spaces public bucket barcodes folder
  */
 const ERP_MEDIA_BASE = "https://erp.wovenessence.in";
 
 function formatImageUrl(url?: string | null): string | undefined {
   if (!url || typeof url !== "string") return undefined;
   const s = url.trim();
-  if (!s || s.includes("/1/1/barcodes/")) return undefined;
+  if (!s) return undefined;
   if (/^https?:\/\//i.test(s)) return s;
   if (s.startsWith("//")) return `https:${s}`;
   if (s.startsWith("/")) return `${ERP_MEDIA_BASE}${s}`;
@@ -88,14 +88,14 @@ export async function resolveOrderItemImage(sku: string, currentImage?: string |
     const ecommImg = formatImageUrl(rawEcommImage);
     if (ecommImg) return ecommImg;
 
-    // 4. Barcode prefix rule (e.g. 4A1200, 6A2197)
-    const prefixMatch = /^(\d+[A-Za-z]+)/.exec(cleanSku);
+    // 4. Barcode prefix rule (e.g. 4A1200, 6A2197, OL2296)
+    const prefixMatch = /^([0-9]+[A-Za-z]+|[A-Za-z]{2,3})/.exec(cleanSku);
     if (prefixMatch) {
-      return `${ERP_MEDIA_BASE}/images/${prefixMatch[1]}/${encodeURIComponent(cleanSku)}.jpg`;
+      return `${ERP_MEDIA_BASE}/images/${prefixMatch[1].toUpperCase()}/${encodeURIComponent(cleanSku)}.jpg`;
     }
 
-    // 5. DigitalOcean Spaces direct root
-    return `https://templeimg.blr1.digitaloceanspaces.com/${encodeURIComponent(cleanSku)}.jpg`;
+    // 5. DigitalOcean Spaces direct barcode path
+    return `https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/${encodeURIComponent(cleanSku)}.jpg`;
   } catch (error) {
     console.error(`[order-image-resolver] Failed to resolve image for SKU ${sku}:`, error);
     return undefined;

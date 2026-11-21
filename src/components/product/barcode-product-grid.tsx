@@ -330,9 +330,19 @@ export function BarcodeProductGrid({
           const detailHref = collectionSlug
             ? barcodeProductPath(collectionSlug, item.barcode)
             : undefined;
-          const imageSources = [...new Set([...(item.images ?? []), item.image].filter(
+          const rawSources = [...(item.images ?? []), item.image].filter(
             (source): source is string => Boolean(source),
-          ))];
+          );
+          const cleanBarcode = item.barcode?.trim();
+          if (cleanBarcode) {
+            rawSources.push(`https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/${encodeURIComponent(cleanBarcode)}.jpg`);
+            rawSources.push(`https://templeimg.blr1.digitaloceanspaces.com/${encodeURIComponent(cleanBarcode)}.jpg`);
+            const prefix = cleanBarcode.length >= 2 ? cleanBarcode.slice(0, 2).toUpperCase() : "";
+            if (prefix && !/^\d+$/.test(cleanBarcode)) {
+              rawSources.push(`https://erp.wovenessence.in/images/${prefix}/${encodeURIComponent(cleanBarcode)}.jpg`);
+            }
+          }
+          const imageSources = [...new Set(rawSources)];
 
           const launched = launchBadge(item.ecommerce?.launchedAt);
 

@@ -581,7 +581,7 @@ export default async function Success({ params }: { params: Promise<{ orderNo: s
             {order.items.map((it) => (
               <li key={it.sku} className="flex items-start gap-4 py-3 first:pt-0">
                 <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-[#e5e7eb] bg-[#f6f7f8]">
-                  <OrderItemImage src={it.image} alt={`Code ${it.sku}`} fill sizes="72px" compact />
+                  <OrderItemImage src={it.image} sku={it.sku} alt={`Code ${it.sku}`} fill sizes="72px" compact />
                 </div>
                 <div className="min-w-0 flex-1 text-sm">
                   <p className="font-medium uppercase tracking-wide text-[#111827]">Code {it.sku}</p>

@@ -1,7 +1,6 @@
 "use client";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -9,8 +8,7 @@ import type { ProductCard } from "@/domain/types";
 import { api } from "@/hooks/api";
 import { Price } from "@/components/ui/price";
 import { useUi } from "@/store/ui";
-import { ComingSoonImage } from "@/components/ui/coming-soon-image";
-import { isRemoteImageSource } from "@/lib/utils";
+import { OrderItemImage } from "@/components/ui/order-item-image";
 
 export function SearchOverlay() {
   const open = useUi((s) => s.searchOpen);
@@ -67,7 +65,9 @@ export function SearchOverlay() {
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-lg p-2 hover:bg-maroon/5"
             >
-              <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-line">{p.images[0] ? <Image src={p.images[0]} alt="" fill unoptimized={isRemoteImageSource(p.images[0])} sizes="48px" className="object-cover" /> : <ComingSoonImage className="absolute inset-0" />}</div>
+              <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-md bg-line">
+                <OrderItemImage src={p.images[0]} sku={p.sku} fallbackSources={p.images.slice(1)} alt={`Code ${p.sku}`} fill sizes="48px" compact />
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium uppercase tracking-wide">Code {p.sku}</p>
                 <p className="text-xs text-muted">{p.fabric}</p>

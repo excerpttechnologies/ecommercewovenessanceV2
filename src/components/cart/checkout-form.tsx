@@ -625,7 +625,6 @@
 
 
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -637,7 +636,7 @@ import { formatMoney } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { useUi } from "@/store/ui";
-import { isRemoteImageSource } from "@/lib/utils";
+import { OrderItemImage } from "@/components/ui/order-item-image";
 
 const STATES = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Odisha", "Punjab", "Rajasthan", "Tamil Nadu", "Telangana", "Uttar Pradesh", "Uttarakhand", "West Bengal"];
 
@@ -831,7 +830,17 @@ export function CheckoutForm({ customer, razorpayEnabled, razorpayConfigured }: 
         <ul className="mt-4 divide-y divide-line">
           {cart.lines.map((l) => (
             <li key={l.sku} className="flex items-center gap-3 py-3 text-sm">
-              <span className="relative h-16 w-12 shrink-0 overflow-hidden rounded-sm bg-line">{l.product.images[0] && <Image src={l.product.images[0]} alt="" fill unoptimized={isRemoteImageSource(l.product.images[0])} sizes="48px" className="object-cover" />}</span>
+              <span className="relative h-16 w-12 shrink-0 overflow-hidden rounded-sm bg-line">
+                <OrderItemImage
+                  src={l.product.images[0]}
+                  sku={l.sku}
+                  fallbackSources={l.product.images.slice(1)}
+                  alt={`Code ${l.sku}`}
+                  fill
+                  sizes="48px"
+                  compact
+                />
+              </span>
               <span className="min-w-0 flex-1"><span className="line-clamp-2 uppercase tracking-wide">Code {l.sku}</span><span className="text-xs text-muted">× {l.qty}</span></span>
               <span>{formatMoney(l.product.pricing.sellingPrice * l.qty, currency)}</span>
             </li>

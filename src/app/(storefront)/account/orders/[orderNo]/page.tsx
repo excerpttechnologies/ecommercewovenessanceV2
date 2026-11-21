@@ -259,7 +259,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderNo:
               {/* Product */}
               <div className="flex gap-5">
                 <span className="relative h-36 w-28 shrink-0 overflow-hidden rounded-2xl bg-line">
-                  <OrderItemImage src={image} alt={`Code ${it.sku}`} fill sizes="112px" />
+                  <OrderItemImage src={image} sku={it.sku} alt={`Code ${it.sku}`} fill sizes="112px" />
                 </span>
                 <div className="min-w-0 text-sm">
                   {slug ? (

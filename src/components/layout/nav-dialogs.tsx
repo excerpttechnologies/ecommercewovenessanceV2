@@ -154,16 +154,15 @@
 // PURPOSE: navbar dialogs auto-filled from useAccount(); empty dialog with icon when no liked items / orders / not logged in.
 "use client";
 import { Heart, LogIn, Package, User } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "@/hooks/useAccount";
 import { buttonClass } from "@/components/ui/button";
-import { ComingSoonImage } from "@/components/ui/coming-soon-image";
 import { Price } from "@/components/ui/price";
-import { formatINR, isRemoteImageSource } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
+import { OrderItemImage } from "@/components/ui/order-item-image";
 
 /** Anchored dialog: opens under its icon, closes on outside click / Esc / page change. Refetches data each time it opens. */
 function Menu({ label, icon, count, hiddenOnMobile, children, onOpen }: { label: string; icon: React.ReactNode; count?: number; hiddenOnMobile?: boolean; children: React.ReactNode; onOpen?: () => void }) {
@@ -213,10 +212,10 @@ function Skeleton() {
   );
 }
 
-function Thumb({ src, alt }: { src?: string | null; alt: string }) {
+function Thumb({ src, alt, sku }: { src?: string | null; alt: string; sku?: string }) {
   return (
     <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-sm bg-line">
-      {src ? <Image src={src} alt={alt} fill unoptimized={isRemoteImageSource(src)} sizes="48px" className="object-cover" /> : <ComingSoonImage compact className="absolute inset-0" />}
+      <OrderItemImage src={src} sku={sku} alt={alt} fill sizes="48px" compact />
     </div>
   );
 }
@@ -237,7 +236,7 @@ export function WishlistMenu({ count }: { count: number }) {
           <p className="border-b border-line px-4 py-3 text-xs uppercase tracking-widest text-muted">Liked items ({items.length})</p>
           <ul className="max-h-80 divide-y divide-line overflow-y-auto">
             {items.map((p) => (
-              <li key={p.sku}><Link href={p.href} className="flex gap-3 px-4 py-3 hover:bg-olive/5"><Thumb src={p.image} alt={`Code ${p.sku}`} /><span className="min-w-0 text-sm"><span className="line-clamp-2 uppercase tracking-wide leading-snug">Code {p.sku}</span><Price amount={p.price} mrp={p.mrp} size="sm" className="mt-1" /></span></Link></li>
+              <li key={p.sku}><Link href={p.href} className="flex gap-3 px-4 py-3 hover:bg-olive/5"><Thumb src={p.image} sku={p.sku} alt={`Code ${p.sku}`} /><span className="min-w-0 text-sm"><span className="line-clamp-2 uppercase tracking-wide leading-snug">Code {p.sku}</span><Price amount={p.price} mrp={p.mrp} size="sm" className="mt-1" /></span></Link></li>
             ))}
           </ul>
           <Link href="/wishlist" className="block border-t border-line px-4 py-3 text-center text-xs uppercase tracking-widest text-maroon hover:bg-olive/5">View all</Link>

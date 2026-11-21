@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { ComingSoonImage } from "@/components/ui/coming-soon-image";
 import { isRemoteImageSource } from "@/lib/utils";
 
 interface OrderItemImageProps {
   src?: string | null;
+  sku?: string | null;
+  fallbackSources?: string[];
   alt?: string;
   fill?: boolean;
   width?: number;
@@ -18,6 +20,8 @@ interface OrderItemImageProps {
 
 export function OrderItemImage({
   src,
+  sku,
+  fallbackSources = [],
   alt = "Product image",
   fill = true,
   width,
@@ -26,24 +30,52 @@ export function OrderItemImage({
   className = "object-cover",
   compact = false,
 }: OrderItemImageProps) {
-  const [error, setError] = useState(false);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
 
-  // If no source or error occurred during loading, render the clean fallback component
-  if (!src || error) {
+  const candidateSources = useMemo(() => {
+    const list: string[] = [];
+    if (src && typeof src === "string" && src.trim()) {
+      list.push(src.trim());
+    }
+    for (const fb of fallbackSources) {
+      if (fb && typeof fb === "string" && fb.trim()) {
+        list.push(fb.trim());
+      }
+    }
+    if (sku && typeof sku === "string") {
+      const cleanSku = sku.trim();
+      if (cleanSku) {
+        list.push(`https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/${encodeURIComponent(cleanSku)}.jpg`);
+        list.push(`https://templeimg.blr1.digitaloceanspaces.com/${encodeURIComponent(cleanSku)}.jpg`);
+        const prefix = cleanSku.length >= 2 ? cleanSku.slice(0, 2).toUpperCase() : "";
+        if (prefix && !/^\d+$/.test(cleanSku)) {
+          list.push(`https://erp.wovenessence.in/images/${prefix}/${encodeURIComponent(cleanSku)}.jpg`);
+        }
+      }
+    }
+    return Array.from(new Set(list));
+  }, [src, sku, fallbackSources]);
+
+  const currentSource = candidateSources.find((s) => !failedSources.includes(s));
+
+  if (!currentSource) {
     return <ComingSoonImage compact={compact} className="absolute inset-0 h-full w-full" />;
   }
 
   return (
     <Image
-      src={src}
+      key={currentSource}
+      src={currentSource}
       alt={alt}
       fill={fill}
       width={!fill ? width : undefined}
       height={!fill ? height : undefined}
       sizes={sizes}
-      unoptimized={isRemoteImageSource(src)}
+      unoptimized={isRemoteImageSource(currentSource)}
       className={className}
-      onError={() => setError(true)}
+      onError={() => {
+        setFailedSources((prev) => (prev.includes(currentSource) ? prev : [...prev, currentSource]));
+      }}
     />
   );
 }
