@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cacheSize, cached, clearCache, invalidateCache } from "@/lib/cache";
+import { cacheSize, cached, cachedSWR, clearCache, invalidateCache, invalidateCachePrefixes, stableKey } from "@/lib/cache";
 
 describe("TTL cache", () => {
   beforeEach(() => clearCache());
@@ -64,5 +64,37 @@ describe("TTL cache", () => {
     expect(cacheSize()).toBe(1);
     await cached("erp:facets:sarees", 10_000, load);
     expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it("serves stale data while one background refresh runs", async () => {
+    vi.useFakeTimers();
+    try {
+      let sequence = 0;
+      const load = vi.fn(async () => ++sequence);
+      expect(await cachedSWR("swr", 1_000, 5_000, load)).toBe(1);
+      vi.advanceTimersByTime(1_001);
+      expect(await cachedSWR("swr", 1_000, 5_000, load)).toBe(1);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(await cachedSWR("swr", 1_000, 5_000, load)).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("invalidates several prefixes at once (admin product write)", async () => {
+    const load = vi.fn(async () => "v");
+    await cached("erp:catalog:sarees", 10_000, load);
+    await cached("erp:home-sections:10", 10_000, load);
+    await cached("site:settings", 10_000, load);
+
+    invalidateCachePrefixes(["erp:catalog:", "erp:home-sections:"]);
+    expect(cacheSize()).toBe(1);
+  });
+
+  it("builds stable keys regardless of object key or filter-array order", () => {
+    expect(stableKey({ b: 2, a: [1, 3] })).toBe(stableKey({ a: [3, 1], b: 2 }));
+    expect(stableKey({ a: undefined })).toBe("{}");
   });
 });

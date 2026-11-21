@@ -8,7 +8,7 @@ describe("Add On ERP category mappings", () => {
       "Pavada",
       "Dhotis",
       "Ready Made",
-      "Ready Bits",
+      "Pre-Cut Fabrics",
       "Unstitched Suits",
     ]);
   });

@@ -100,6 +100,7 @@ export default async function BarcodeProductPage({ params }: { params: Params })
       <Breadcrumbs items={[{ label: categoryTitle, href: `/collections/${group}` }, { label: name }]} />
       <div className="mt-4">
         <BarcodeProductDetail
+          key={`${item.barcode}:${item.uomType ?? item.uom ?? ""}:${item.qty ?? ""}:${item.status}`}
           item={item}
           categoryTitle={categoryTitle}
           categoryHref={`/collections/${group}`}

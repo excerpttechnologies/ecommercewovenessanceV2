@@ -15,6 +15,7 @@ import type { BarcodeProduct } from "@/domain/types";
 import { useCart, useWishlist } from "@/hooks/useCart";
 import { galleryViewLabel } from "@/lib/product-gallery";
 import { swatchColor } from "@/lib/colour";
+import { getDefaultProductQty } from "@/lib/product-quantity";
 import { cn, formatINR } from "@/lib/utils";
 
 type Neighbour = { href: string; name: string } | null;
@@ -37,9 +38,6 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const { add } = useCart();
   const { has, toggle } = useWishlist();
   const busy = add.isPending;
-  const [qty, setQty] = useState(0);
-  const [draftQty, setDraftQty] = useState(0);
-  const [shared, setShared] = useState(false);
 
   const price = item.price ?? 0;
   const selling = item.offerPrice && item.offerPrice < price ? item.offerPrice : price;
@@ -52,10 +50,14 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const maxQty = decimalQuantity
     ? Math.min(20, Math.floor((availableStock + Number.EPSILON) * 100) / 100)
     : Math.min(20, Math.floor(availableStock));
+  const defaultQty = getDefaultProductQty(item.uom, item.uomType, availableStock, inStock);
+  const [qty, setQty] = useState(() => defaultQty);
+  const [draftQty, setDraftQty] = useState(() => defaultQty);
+  const [shared, setShared] = useState(false);
+
   // The storefront shows the barcode as the product title; item names stay internal.
   const codeLabel = `Code ${item.barcode}`;
-  // Exact Excel/ERP print description — never rewritten or used as a fallback title.
-  const printDescription = item.printDescription?.trim() ? item.printDescription : undefined;
+  const printDescription = item.printDescription?.trim() || undefined;
   const availableQty = `${item.qty ?? 0} ${item.uom?.trim() || "Pc(s)"}`;
   const canSubmit = inStock && !busy && draftQty > 0;
   const attrs = Object.entries(item.ecommerce?.attributes ?? {}).filter((e): e is [string, string] => Boolean(e[1]));
@@ -146,12 +148,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="mt-3 font-display text-3xl font-semibold uppercase leading-tight tracking-wide text-olive sm:text-4xl">{codeLabel}</h1>
-              {printDescription && (
-                <p className="mt-2 max-w-xl text-base leading-relaxed text-ink/80">
-                  <span className="font-medium text-olive">Print Description: </span>
-                  {printDescription}
-                </p>
-              )}
+              {printDescription && <p className="mt-2 max-w-xl text-base leading-relaxed text-ink/80">{printDescription}</p>}
               <p className="mt-1 text-xs text-muted">Available Qty: {availableQty}</p>
             </div>
             <div className="flex shrink-0 gap-3">
@@ -247,11 +244,10 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
               </li>
             ))}
           </ul>
-
           <ProductInformationTabs
             productName={codeLabel}
-            description={printDescription}
             overview={overview}
+            description={printDescription}
             material={item.ecommerce?.attributes?.fabric}
             silkMark={null}
             shipping={shippingReturns}

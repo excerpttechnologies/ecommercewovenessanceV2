@@ -44,6 +44,7 @@ export interface CartTotals {
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const ERP_DEFAULT_GST_RATE = 5;
 
 export function validateCoupon(coupon: CouponLike | null | undefined, subTotal: number, lines: CartLine[], now = new Date()): { ok: true; discount: number } | { ok: false; error: string } {
   if (!coupon) return { ok: false, error: "Coupon not found" };
@@ -93,7 +94,11 @@ export function computeTotals(lines: CartLine[], opts: { coupon?: CouponLike | n
   // GST is inclusive in ERP selling prices; back it out proportionally for the invoice.
   const gstTotal = r2(
     lines.reduce((s, l) => {
-      const rate = l.product.pricing.gstPercent ?? 5;
+      const productRate = l.product.pricing.gstPercent;
+      if (productRate == null) {
+        console.warn(`Missing GST rate for ${l.sku}; using ERP default ${ERP_DEFAULT_GST_RATE}%`);
+      }
+      const rate = productRate ?? ERP_DEFAULT_GST_RATE;
       const gross = l.product.pricing.sellingPrice * l.qty;
       return s + gross - gross / (1 + rate / 100);
     }, 0) * (subTotal ? afterDiscount / subTotal : 0),

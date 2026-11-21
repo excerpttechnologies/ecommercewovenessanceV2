@@ -54,7 +54,7 @@ export function CartDrawer() {
         <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
           <p className="font-heading text-2xl text-olive">Your bag is empty</p>
           <p className="text-sm text-muted">Handloom worth keeping, waiting to be found.</p>
-          <Link href="/collections/sarees" onClick={() => setOpen(false)} className={buttonClass("outline")}>Shop sarees</Link>
+          <Link href="/collections/sarees" onClick={() => setOpen(false)} className={buttonClass("outline")}>Shop</Link>
         </div>
       )}
       {lines.length > 0 && (

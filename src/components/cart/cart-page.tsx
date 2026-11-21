@@ -45,7 +45,7 @@ export function CartPage() {
     <div className="mx-auto max-w-site px-4 py-8 sm:px-6">
       <h1 className="text-4xl font-bold">Your bag</h1>
       {cart.lines.length === 0 ? (
-        <div className="mt-8"><Empty title="Your bag is empty" text="Handloom worth keeping, waiting to be found." href="/collections/sarees" cta="Shop sarees" /></div>
+        <div className="mt-8"><Empty title="Your bag is empty" text="Handloom worth keeping, waiting to be found." href="/collections/sarees" cta="Shop" /></div>
       ) : (
         <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_380px]">
           <ul className="divide-y divide-line">

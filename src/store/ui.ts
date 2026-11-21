@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { normalizeCurrencyCode } from "@/lib/currency";
 
 interface UiState {
   cartOpen: boolean;
@@ -26,9 +27,15 @@ export const useUi = create<UiState>()(
       setCartOpen: (cartOpen) => set({ cartOpen }),
       setSearchOpen: (searchOpen) => set({ searchOpen }),
       setMenuOpen: (menuOpen) => set({ menuOpen }),
-      setCurrency: (currency) => set({ currency }),
+      setCurrency: (currency) => set({ currency: normalizeCurrencyCode(currency) }),
       setStoreId: (storeId) => set({ storeId }),
     }),
-    { name: "we-ui", partialize: (s) => ({ currency: s.currency, storeId: s.storeId }) },
+    {
+      name: "we-ui",
+      partialize: (s) => ({ currency: s.currency, storeId: s.storeId }),
+      onRehydrateStorage: () => (state) => {
+        if (state) state.setCurrency(normalizeCurrencyCode(state.currency));
+      },
+    },
   ),
 );

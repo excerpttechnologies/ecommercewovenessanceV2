@@ -485,7 +485,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
               <p className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-brass">
                 Our Collection <span className="h-px w-12 bg-brass/60" />
               </p>
-              <h1 className="mt-2 font-display text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{title}</h1>
+              <h1 className="mt-2 font-body text-5xl font-semibold leading-none tracking-tight sm:text-6xl">{title}</h1>
               <p className="mt-3 max-w-xl font-display text-base text-ink/75 sm:text-lg">{copy.intro}</p>
             </div>
             <div className="flex min-w-0 flex-col gap-4 lg:max-w-[820px] lg:items-end">

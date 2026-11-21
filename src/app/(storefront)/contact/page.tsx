@@ -24,19 +24,22 @@ export default async function ContactPage() {
     <div className="mx-auto max-w-site px-4 py-6 sm:px-6">
       {s && <JsonLd nodes={[storeJsonLd(s), breadcrumbJsonLd([{ name: "Contact", path: "/contact" }])]} />}
       <Breadcrumbs items={[{ label: "Contact" }]} />
-      <div className="mt-4 grid gap-10 md:grid-cols-2">
-        <div>
-          <h1 className="text-4xl font-bold">Talk to us</h1>
-          <p className="mt-2 text-sm font-semibold text-olive">{businessName}</p>
-          <div className="mt-5 space-y-2 text-sm text-ink/80">
-            {s.contact?.address && <p>{s.contact.address}</p>}
-            {s.contact?.phone && <p><a href={`tel:${e164(s.contact.phone)}`} className="hover:text-maroon">{s.contact.phone}</a></p>}
-            <p><a href={`mailto:${contactEmail}`} className="hover:text-maroon">{contactEmail}</a></p>
-            <p className="text-muted">{contactHours}</p>
-            {s.whatsappNumber && <p><a href={`https://wa.me/${s.whatsappNumber}`} target="_blank" rel="noreferrer" className="text-olive underline underline-offset-4">Chat on WhatsApp</a></p>}
+      <div className="mx-auto mt-8 w-full max-w-[1050px]">
+        <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[0.85fr_1.15fr] md:gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gold">Get in touch</p>
+            <h1 className="mt-2 text-4xl font-bold">Talk to us</h1>
+            <p className="mt-2 text-sm font-semibold text-olive">{businessName}</p>
+            <div className="mt-5 space-y-2 text-sm text-ink/80">
+              {s.contact?.address && <p>{s.contact.address}</p>}
+              {s.contact?.phone && <p><a href={`tel:${e164(s.contact.phone)}`} className="hover:text-maroon">{s.contact.phone}</a></p>}
+              <p><a href={`mailto:${contactEmail}`} className="hover:text-maroon">{contactEmail}</a></p>
+              <p className="text-muted">{contactHours}</p>
+              {s.whatsappNumber && <p><a href={`https://wa.me/${s.whatsappNumber}`} target="_blank" rel="noreferrer" className="text-olive underline underline-offset-4">Chat on WhatsApp</a></p>}
+            </div>
           </div>
+          <ContactForm />
         </div>
-        <ContactForm />
       </div>
     </div>
   );

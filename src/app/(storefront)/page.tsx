@@ -76,7 +76,7 @@ const fallbackHeroSlides = [
     id: "default-pink-silk",
     title: "A Tradition to Treasure",
     subtitle: "Beautiful handwoven sarees for every celebration.",
-    ctaLabel: "Shop sarees",
+    ctaLabel: "Shop",
     ctaHref: "/collections/sarees",
     desktop: "/hero-pink-silk.png",
     mobile: "/hero-green-silk-mobile.webp",
@@ -86,7 +86,7 @@ const fallbackHeroSlides = [
     id: "default-gold-silk",
     title: "A Golden Celebration",
     subtitle: "Radiant silk sarees, woven for unforgettable moments.",
-    ctaLabel: "Shop sarees",
+    ctaLabel: "Shop",
     ctaHref: "/collections/sarees",
     desktop: "/hero-gold-silk.png",
     alt: "Woman wearing a gold silk saree against a red backdrop",
@@ -128,6 +128,15 @@ export default async function Home() {
         { key: "categories", title: "Shop by category", subtitle: null, config: {} },
         { key: "featuredCollections", title: "Curated collections", subtitle: null, config: {} },
       ]);
+  const erpHomeLimit = Math.max(1, ...homepageSections.flatMap((section) => {
+    if (!["featuredCollections", "newArrivals", "instagram"].includes(section.key)) return [];
+    const cfg = (section.config ?? {}) as Record<string, unknown>;
+    const limit = Number(cfg.limit ?? 8);
+    return [section.key === "newArrivals" ? Math.ceil(limit / 5) * 5 : limit];
+  }));
+  let erpHomeSectionsPromise: ReturnType<typeof getErpHomeSections> | undefined;
+  const getHomeSections = () =>
+    (erpHomeSectionsPromise ??= getErpHomeSections(erpHomeLimit));
   const homeContact = settings.contact;
   const configuredHeroSlides = heroBanners
     .filter((banner) => banner.image?.desktop?.trim())
@@ -186,7 +195,9 @@ export default async function Home() {
         case "featuredCollections": {
           // ERP categories with published products, with live piece counts.
           // If RetailERP cannot be read, every category is shown with its cover only.
-          const erpSections = await getErpHomeSections(limit).catch(() => []);
+          const erpSections = (await getHomeSections().catch(() => []))
+            .map((section) => ({ ...section, items: section.items.slice(0, limit) }))
+            .filter((section) => section.items.length);
           const tiles = (erpSections.length ? erpSections.map((section) => section.group) : CURATED_ORDER)
             .filter((group) => CURATED_COVERS[group])
             .sort((a, b) => CURATED_ORDER.indexOf(a) - CURATED_ORDER.indexOf(b))
@@ -205,7 +216,10 @@ export default async function Home() {
         case "newArrivals": {
           // Newest published ERP products, one row per storefront category.
           // Rounded up to a multiple of five so desktop rows (five cards) come out full.
-          const erpSections = await getErpHomeSections(Math.ceil(limit / 5) * 5);
+          const sectionLimit = Math.ceil(limit / 5) * 5;
+          const erpSections = (await getHomeSections())
+            .map((section) => ({ ...section, items: section.items.slice(0, sectionLimit) }))
+            .filter((section) => section.items.length);
           return (
             <div key={s.key}>
               {erpSections.map((section, index) => (
@@ -243,7 +257,9 @@ export default async function Home() {
         case "testimonials":
           return <Testimonials key={s.key} items={await site.testimonials()} title={s.title} subtitle={s.subtitle} />;
         case "instagram": {
-          const erpImages = (await getErpHomeSections(limit).catch(() => [])).flatMap((section) => section.items.flatMap((item) => (item.image ? [item.image] : []))).slice(0, 12);
+          const erpImages = (await getHomeSections().catch(() => []))
+            .flatMap((section) => section.items.slice(0, limit).flatMap((item) => (item.image ? [item.image] : [])))
+            .slice(0, 12);
           const instagram = settings.social?.instagram || DEFAULT_INSTAGRAM;
           return <InstagramStrip key={s.key} handle={instagramHandle(instagram)} href={instagram} images={erpImages.length >= 6 ? erpImages : INSTAGRAM_FALLBACK} />;
         }

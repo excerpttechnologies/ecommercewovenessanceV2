@@ -88,7 +88,7 @@
 //       <div className="mt-8 flex flex-col items-center rounded-xl border border-line bg-white px-6 py-14 text-center">
 //         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-maroon/10 text-maroon"><ShoppingBag className="h-6 w-6" /></span>
 //         <p className="mt-4 font-display text-2xl">Your bag is empty</p>
-//         <Link href="/collections/sarees" className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-maroon px-6 text-sm font-semibold text-white hover:bg-gold">Shop sarees <ArrowRight className="h-4 w-4" /></Link>
+//         <Link href="/collections/sarees" className="mt-5 inline-flex h-11 items-center gap-2 rounded-full bg-maroon px-6 text-sm font-semibold text-white hover:bg-gold">Shop <ArrowRight className="h-4 w-4" /></Link>
 //       </div>
 //     );
 //   }
@@ -763,7 +763,7 @@ export function CheckoutForm({ customer, razorpayEnabled, razorpayConfigured }: 
   }
 
   if (!cart) return <p className="mt-8 text-sm text-muted">Loading…</p>;
-  if (!cart.lines.length) return <p className="mt-8 text-sm text-muted">Your bag is empty. <Link href="/collections/sarees" className="text-maroon underline">Shop sarees</Link></p>;
+  if (!cart.lines.length) return <p className="mt-8 text-sm text-muted">Your bag is empty. <Link href="/collections/sarees" className="text-maroon underline">Shop</Link></p>;
   const t = cart.totals;
   const displayShipping = quote ? quote.shippingCharge : t.shippingCharge;
   const displayTotal = quote ? Math.round((t.subTotal - t.couponDiscount + displayShipping) * 100) / 100 : t.netAmount;
@@ -839,6 +839,10 @@ export function CheckoutForm({ customer, razorpayEnabled, razorpayConfigured }: 
         </ul>
         <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatMoney(t.subTotal, currency)}</dd></div>
+          <div className="text-right text-[11px] text-muted">
+            <dt className="sr-only">GST included in subtotal</dt>
+            <dd>(Includes GST {formatMoney(t.gstTotal, currency, { decimals: 2 })})</dd>
+          </div>
           {t.couponDiscount > 0 && <div className="flex justify-between text-olive"><dt>Coupon {cart.couponCode}</dt><dd>− {formatMoney(t.couponDiscount, currency)}</dd></div>}
           <div className="flex justify-between">
             <dt>Shipping</dt>
@@ -869,7 +873,7 @@ export function CheckoutForm({ customer, razorpayEnabled, razorpayConfigured }: 
         {quoteError && <p role="alert" className="mt-3 text-xs text-amber-700">{quoteError} You can still place the order; our team will confirm shipping.</p>}
         {error && <p className="mt-4 rounded-sm bg-red-50 p-2 text-xs text-red-800">{error}</p>}
         <Button type="submit" size="lg" className="mt-6 w-full" loading={busy} disabled={(!pendingPayment && (!razorpayEnabled || !razorpayConfigured)) || blockedByQuote}>
-          {pendingPayment ? "Confirm paid order" : `Pay ${formatMoney(t.netAmount, "INR")}`}
+          {pendingPayment ? "Confirm paid order" : `Pay ${formatMoney(displayTotal, "INR")}`}
         </Button>
         <p className="mt-3 text-center text-[11px] text-muted">Orders are billed in INR. By placing an order you agree to our policies.</p>
       </aside>

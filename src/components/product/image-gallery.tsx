@@ -181,7 +181,13 @@ export function ImageGallery({
                   unoptimized={unoptimized(current.src)}
                   sizes="(min-width: 1024px) 45vw, 100vw"
                   onLoad={() => markLoaded(current.src)}
-                  onError={() => markFailed(current.src)}
+                  onError={() => {
+                    markFailed(current.src);
+                    const fallback = items.findIndex((image, index) =>
+                      index !== selectedIndex && !failed[image.src],
+                    );
+                    if (fallback >= 0) setActive(fallback);
+                  }}
                   style={origin ? { transformOrigin: origin } : undefined}
                   className={cn("object-contain transition-transform duration-200", origin && "scale-[1.8]")}
                 />

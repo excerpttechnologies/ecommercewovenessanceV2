@@ -54,9 +54,7 @@ export async function Header({
           name: s.name,
           city: s.city,
         }))}
-        currencies={settings.supportedCurrencies ?? ["INR"]}
         defaultStoreId={settings.defaultStoreId ?? undefined}
-        defaultCurrency={settings.currency ?? "INR"}
         tagline={settings.tagline ?? ""}
         logo={
           <Logo

@@ -9,7 +9,7 @@ vi.mock("@/models/erp/barcode-label.model", () => ({
   BarcodeLabelModel: () => ({ aggregate, countDocuments }),
 }));
 
-const { MongoBarcodeLabelRepository } = await import("@/repositories/mongo/barcode-label.repository");
+const { MongoBarcodeLabelRepository, buildBarcodeMatch } = await import("@/repositories/mongo/barcode-label.repository");
 
 describe("barcode label series", () => {
   beforeEach(() => {
@@ -357,5 +357,30 @@ describe("barcode label series", () => {
     await repository.list({ barcodes: ["8A1101"], limit: 1 });
 
     expect(aggregate.mock.calls[0][0][0].$match).toEqual({ barcodeNo: { $in: ["8A1101"] } });
+  });
+
+  it("count() and list() share one filter builder; sorting and pagination stay intact", async () => {
+    const repository = new MongoBarcodeLabelRepository(async () => ({} as never));
+    const params = {
+      labelIds: ["6a9905f8ee2f8f36193a0ce2"],
+      availableOnly: true,
+      minFabricLength: 4.5,
+      sort: "price_asc" as const,
+      page: 2,
+      limit: 12,
+    };
+    const expectedMatch = buildBarcodeMatch(params);
+    countDocuments.mockResolvedValue(602);
+
+    expect(await repository.count(params)).toBe(602);
+    expect(countDocuments).toHaveBeenCalledWith(expectedMatch);
+
+    aggregate.mockResolvedValue([]);
+    await repository.list(params);
+    const pipeline = aggregate.mock.calls.at(-1)![0] as Array<Record<string, unknown>>;
+    expect(pipeline[0].$match).toEqual(expectedMatch);
+    expect(pipeline).toContainEqual({ $skip: 12 });
+    expect(pipeline).toContainEqual({ $limit: 12 });
+    expect(pipeline.some((stage) => "$sort" in stage)).toBe(true);
   });
 });

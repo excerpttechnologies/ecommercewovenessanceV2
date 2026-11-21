@@ -177,7 +177,6 @@ export function barcodeProductFacts(item: BarcodeProduct) {
   const sellingPrice = item.offerPrice && item.offerPrice < price ? item.offerPrice : price;
   // Storefront titles are barcode-based; ERP item names are never shown to customers.
   const name = `Code ${item.barcode}`;
-  // Only the print description may be presented as the product description.
   const detail = item.printDescription?.trim() || undefined;
   const inStock = item.status === "IN_STOCK" && !(item.qty != null && item.qty <= 0);
   return { price, sellingPrice, name, detail, inStock };

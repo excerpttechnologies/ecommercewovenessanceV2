@@ -287,3 +287,88 @@ Revert the commit. The cache is in-memory only, so a restart clears it; no data 
 undo. To disable caching without a revert, set the TTLs in `src/lib/barcode-image-series.ts`
 (`CONFIG_TTL_MS`) to `0` — `cached()` with a 0 ms TTL behaves as a pass-through (in-flight sharing
 remains).
+
+---
+
+## 11. Addendum — production pass (2026-11-21)
+
+This pass was performed with both MongoDB databases reachable, so the numbers below are **live
+measurements**, not projections. See `docs/IMAGE_AUDIT.md` for the image-count bug.
+
+### 11.1 Live baseline (before this pass)
+
+| Scope | Measured |
+|-------|----------|
+| Homepage `getErpHomeSections(10)` cold | 19 540 ms (11 ERP groups, 6 non-empty) |
+| Catalogue, sarees page 1 | total 1336 / 47 items, `dbMs` 6 580, `ms` 6 877 |
+| Catalogue, fabrics page 1 | total 572 / 46, `dbMs` 8 616, `ms` 9 079 |
+| Catalogue, plain-fabrics page 1 | total 602 / **7**, `dbMs` 9 694, `externalMs` 23 283, `ms` 13 002 |
+| Catalogue, dupatta page 1 | total 86 / 47, `dbMs` 3 283, `ms` 3 773 |
+| MongoDB command round-trip | ~500 ms; `explain()` shows server-side execution 7–27 ms, so the cost is round-trips, not a collection scan |
+
+### 11.2 Changes since section 5
+
+| Area | Change |
+|------|--------|
+| `src/lib/cache.ts` | Added `cachedSWR` (stale-while-revalidate), `invalidateCachePrefixes`, `stableKey`; 500-key cap retained |
+| `src/lib/db.ts` | Env-configurable pools (`MONGODB_MAX_POOL_SIZE`/`MONGODB_MIN_POOL_SIZE`), `maxConnecting: 2`, timeouts, driver command monitoring; ERP connection uses `autoIndex:false`/`autoCreate:false` |
+| `src/lib/mongo-perf.ts` | New: logs only slow server-side commands (`dbMs`) or every command with `MONGO_PERF_LOG=1`; redacts values and sensitive collections |
+| `src/lib/perf.ts` | Added `getPerfContext()` for the command monitor |
+| `src/lib/product-meta-cache.ts` | New: one cached `productWebMeta` map + inactive-barcode list shared by catalog, homepage and product hydration |
+| `src/lib/cache-invalidation.ts` | New: product/site/config invalidation + `revalidatePath`; wired into all admin write routes |
+| `src/lib/site-data.ts` | 300 s TTL + 600 s stale on settings/menu/categories/stores/pages |
+| `src/lib/barcode-image-series.ts` | 120 s TTL + 300 s stale on catalog and homepage sections; 300 s on label-id scopes; shared count/list filter; **no rows dropped for missing photos** (placeholder instead); 1 200 ms photo-probe budget; configurable homepage concurrency (default 11 = prior parallelism) |
+| `src/repositories/mongo/barcode-label.repository.ts` | Extracted pure exported `buildBarcodeMatch()`; added `count()`; `list()` and `facets()` use the same builder |
+| `src/repositories/mongo/product.repository.ts` | Hydration reuses the cached overlay snapshot |
+| `src/app/(storefront)/page.tsx` | **One** `getErpHomeSections(maxLimit)` shared by featured collections / new arrivals / Instagram (was 3 fan-outs); slices preserve each block's limit |
+| `src/app/(storefront)/layout.tsx` | Kept `force-dynamic` — see §11.4 |
+| `next.config.ts` | AVIF/WebP, 30-day minimum image cache, tuned device/image sizes, gzip, `poweredByHeader:false`, optional standalone output |
+| Scripts | `scripts/migrate-indexes.ts` (add-only, dry-run default), `scripts/audit-images.ts`, `docs/IMAGE_AUDIT.md`, `ecosystem.config.js` |
+
+### 11.3 Live after measurements
+
+```
+home cold:  21 727 ms  sections=7  items=57   cache=35 entries
+home warm:       0 ms  sections=7  items=57
+plain-fabrics: total=602  items=10  (count/list now agree)
+plain-fabrics page 2, sort=price_desc: total=602  items=10  2 266 ms  (uncached)
+```
+
+Cold homepage is unchanged in wall time (concurrency default kept at one worker per group); every
+subsequent request within the 120 s TTL is a memory hit. `dbMs` in the `[perf]`/`[mongo]` logs is
+now the driver-reported server duration, not application elapsed time.
+
+### 11.4 Why ISR was not enabled
+
+An experiment with `revalidate = 120` on the storefront layout and homepage made `/` static and
+worked **when `.env`/MongoDB were present**, but the existing `Dockerfile` runs `next build` with
+no env and no database. Verified failure without `.env`:
+
+```
+Error occurred prerendering page "/".
+MongooseServerSelectionError: connect ECONNREFUSED 127.0.0.1:27017
+```
+
+With the original `force-dynamic` restored, `npm run build` passes both with and without `.env`
+(10 static pages, all storefront routes dynamic). Therefore storefront rendering stays dynamic and
+the latency reduction comes from the process TTL/SWR caches, which are safe with a DB-less build.
+
+### 11.5 Verification (this pass)
+
+- `npm run typecheck` — pass.
+- `npm run lint` — pass.
+- `npm test` — **283 passed / 283** (39 files). Added SWR, invalidation, cache-key, count/list
+  consistency and image-fallback tests; updated three stale tests that depended on old env/naming.
+- `npm run build` — pass with `.env` and with `.env` removed (DB-less Docker scenario).
+- Live DB measurements above; no data was written by the audit.
+
+### 11.6 Deployment notes
+
+1. Run `npx tsx scripts/migrate-indexes.ts` first (dry run), then `--apply` in a maintenance window.
+   It is add-only and never drops an index.
+2. Set the new env knobs only if tuning is needed (see `.env.example`). `MONGO_PERF_LOG=1` is for
+   short investigations only.
+3. With PM2 cluster mode, each worker has its own cache. Keep `PM2_INSTANCES=2` initially; admin
+   writes call `revalidatePath` so all workers re-render, and other workers' stale TTL entries
+   refresh on their next hit.
+4. `docs/IMAGE_AUDIT.md` explains the missing plain-fabric photos: this is ERP content, not code.

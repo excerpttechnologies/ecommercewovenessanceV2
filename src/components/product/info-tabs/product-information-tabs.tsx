@@ -9,11 +9,11 @@ import { SilkMarkTab } from "./silk-mark-tab";
 import { CustomerCareTab } from "./customer-care-tab";
 
 const TABS = [
-  { key: "overview", label: "More About The Product" },
   { key: "shipping", label: "Shipping And Returns" },
   { key: "care", label: "Silk Care" },
   { key: "silk-mark", label: "Silk Mark" },
   { key: "customer-care", label: "Customer Care" },
+  { key: "overview", label: "More About The Product" },
 ] as const;
 
 export type ProductInfoTabKey = (typeof TABS)[number]["key"];
@@ -35,8 +35,8 @@ export interface ProductInformationTabsProps {
 
 /**
  * The five product-information tabs shared by every product detail page.
- * All five stay mounted in the tab strip; on narrow screens the strip scrolls
- * horizontally and the selected tab is scrolled into view.
+ * On narrow screens the strip scrolls horizontally and the selected tab is
+ * scrolled into view.
  */
 export function ProductInformationTabs({
   productName,
@@ -48,7 +48,7 @@ export function ProductInformationTabs({
   shipping,
   customerCare,
   deliveryCheck,
-  defaultTab = "overview",
+  defaultTab = "shipping",
 }: ProductInformationTabsProps) {
   const [active, setActive] = useState<ProductInfoTabKey>(defaultTab);
   const tabRefs = useRef<Partial<Record<ProductInfoTabKey, HTMLButtonElement | null>>>({});

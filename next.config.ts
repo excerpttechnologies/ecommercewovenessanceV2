@@ -32,7 +32,17 @@ const nextConfig: NextConfig = {
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   outputFileTracingRoot: process.cwd(),
   serverExternalPackages: ["mongoose"],
+  compress: true,
+  poweredByHeader: false,
+  // Opt-in standalone bundle for a small PM2/VPS image (set NEXT_OUTPUT=standalone).
+  ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const } : {}),
   images: {
+    // Serve modern formats and cache optimised variants for a month. Product photos rarely change;
+    // admin gallery edits bust the cache through their unique filenames.
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 60 * 60 * 24 * 30,
+    deviceSizes: [360, 414, 640, 750, 828, 1080, 1200, 1920, 2048],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "https", hostname: "wovenessence.in", pathname: "/images/**" },

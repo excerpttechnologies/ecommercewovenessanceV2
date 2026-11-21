@@ -444,7 +444,7 @@ import {
 
 import { useEffect, useRef, useState } from "react";
 
-import { CURRENCIES } from "@/lib/currency";
+import { CURRENCY_OPTIONS, normalizeCurrencyCode } from "@/lib/currency";
 import { cn } from "@/lib/utils";
 import { DEFAULT_MENU } from "@/lib/default-menu";
 import type { MenuNode } from "@/repositories/web/site.repository";
@@ -471,9 +471,7 @@ interface Props {
   menu: MenuNode[];
   messages: string[];
   stores: { id: string; name: string; city?: string }[];
-  currencies: string[];
   defaultStoreId?: string;
-  defaultCurrency: string;
   tagline: string;
   logo: React.ReactNode;
   whatsapp: string;
@@ -575,9 +573,7 @@ export function HeaderClient({
   menu,
   messages,
   stores,
-  currencies,
   defaultStoreId,
-  defaultCurrency,
   logo,
 }: Props) {
   const navItems = storefrontNav(menu.length ? menu : DEFAULT_MENU);
@@ -663,22 +659,8 @@ export function HeaderClient({
     };
   }, [active]);
 
-  // Currency fallback.
-  const configuredCurrencies = [
-    ...new Set(
-      currencies.filter((currency) => CURRENCIES[currency]),
-    ),
-  ];
-
-  const currencyOptions = configuredCurrencies.length
-    ? configuredCurrencies
-    : ["INR"];
-
-  const selectedCurrency = currencyOptions.includes(ui.currency)
-    ? ui.currency
-    : currencyOptions.includes(defaultCurrency)
-      ? defaultCurrency
-      : currencyOptions[0] ?? "INR";
+  const currencyOptions = CURRENCY_OPTIONS;
+  const selectedCurrency = normalizeCurrencyCode(ui.currency);
 
   // Store fallback.
   const selectedStore =

@@ -66,8 +66,6 @@
 //           const outOfStock = item.status !== "IN_STOCK" || (item.qty != null && item.qty <= 0);
 //           const productTitle = item.ecommerce?.displayName || item.itemName || item.name;
 //           const ecommerceDescription = item.ecommerce?.description;
-//           const printDescription = item.printDescription;
-//           const subtitle = [ecommerceDescription, printDescription].find((d) => d && d !== productTitle);
 //           const colour = item.ecommerce?.attributes?.color;
 //           const classifications = Object.entries(item.ecommerce?.attributes ?? {})
 //             .filter((entry): entry is [string, string] => Boolean(entry[1]));
@@ -124,7 +122,6 @@
 //                   <p className="text-xs uppercase tracking-wider text-muted">Code {item.barcode}</p>
 //                   <h1 className="font-display text-3xl font-semibold sm:text-4xl">{productTitle}</h1>
 //                   {ecommerceDescription && ecommerceDescription !== productTitle && <p className="text-[15px] leading-relaxed text-ink/80">{ecommerceDescription}</p>}
-//                   {printDescription && printDescription !== productTitle && printDescription !== ecommerceDescription && <p className="text-sm text-muted">{printDescription}</p>}
 //                   {classifications.length > 0 && (
 //                     <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl border border-line bg-white p-4 text-sm">
 //                       {classifications.map(([key, value]) => (
@@ -207,18 +204,23 @@ function launchBadge(launchedAt?: string): string | undefined {
 /** Product image with fallback and optional hover zoom. */
 function BarcodeProductImage({
   src,
+  fallbackSources = [],
   alt,
   sizes,
   zoomOnHover = false,
 }: {
   src?: string;
+  fallbackSources?: string[];
   alt: string;
   sizes: string;
   zoomOnHover?: boolean;
 }) {
-  const [imageFailed, setImageFailed] = useState(!src);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
+  const currentSource = [src, ...fallbackSources].find(
+    (source): source is string => Boolean(source && !failedSources.includes(source)),
+  );
 
-  if (imageFailed || !src) {
+  if (!currentSource) {
     return (
       <div
         role="img"
@@ -235,13 +237,14 @@ function BarcodeProductImage({
 
   return (
     <Image
-      src={src}
+      key={currentSource}
+      src={currentSource}
       alt={alt}
       fill
       unoptimized
       sizes={sizes}
       className={cn("object-cover", zoomOnHover && "transition-transform duration-500 group-hover:scale-105")}
-      onError={() => setImageFailed(true)}
+      onError={() => setFailedSources((failed) => [...failed, currentSource])}
     />
   );
 }
@@ -314,13 +317,7 @@ export function BarcodeProductGrid({
 
           // Customer-facing cards show the barcode/code only; item names stay internal.
           const codeLabel = `Code ${item.barcode}`;
-
-          const printDescription =
-            item.printDescription && item.printDescription.trim()
-              ? item.printDescription
-              : undefined;
-
-          const subtitle = printDescription;
+          const printDescription = item.printDescription?.trim() || undefined;
 
           const colour = item.ecommerce?.attributes?.color;
 
@@ -333,6 +330,9 @@ export function BarcodeProductGrid({
           const detailHref = collectionSlug
             ? barcodeProductPath(collectionSlug, item.barcode)
             : undefined;
+          const imageSources = [...new Set([...(item.images ?? []), item.image].filter(
+            (source): source is string => Boolean(source),
+          ))];
 
           const launched = launchBadge(item.ecommerce?.launchedAt);
 
@@ -364,7 +364,9 @@ export function BarcodeProductGrid({
                   className="absolute inset-0 block"
                 >
                   <BarcodeProductImage
-                    src={item.image}
+                    key={`${item.id}:${imageSources.join("|")}`}
+                    src={imageSources[0]}
+                    fallbackSources={imageSources.slice(1)}
                     alt={codeLabel}
                     sizes={sizes}
                     zoomOnHover={zoomOnHover}
@@ -375,7 +377,9 @@ export function BarcodeProductGrid({
                   className="absolute inset-0"
                 >
                   <BarcodeProductImage
-                    src={item.image}
+                    key={`${item.id}:${imageSources.join("|")}`}
+                    src={imageSources[0]}
+                    fallbackSources={imageSources.slice(1)}
                     alt={codeLabel}
                     sizes={sizes}
                     zoomOnHover={zoomOnHover}
@@ -477,12 +481,7 @@ export function BarcodeProductGrid({
                     {codeLabel}
                   </h1>
 
-                  {printDescription && (
-                    <p className="text-[15px] leading-relaxed text-ink/80">
-                      <span className="font-semibold text-olive">Print Description: </span>
-                      {printDescription}
-                    </p>
-                  )}
+                  {printDescription && <p className="text-sm text-muted">{printDescription}</p>}
 
                   <p className="text-xs text-muted">
                     Available Qty: {item.qty ?? 0} {item.uom ?? "Pc(s)"}
@@ -536,9 +535,9 @@ export function BarcodeProductGrid({
                   Code {item.barcode}
                 </p>
 
-                {subtitle ? (
+                {printDescription ? (
                   <p className="mt-1 line-clamp-2 break-words text-[11px] leading-snug text-muted sm:text-xs">
-                    {subtitle}
+                    {printDescription}
                   </p>
                 ) : (
                   <p className="mt-0.5 h-3.5 sm:h-4" aria-hidden />

@@ -54,7 +54,7 @@ const TABS: { key: string; label: string; fields: FieldSpec[] }[] = [
       { name: "commerce.returnWindowDays", label: "Return window (days)", type: "number" },
       { name: "commerce.razorpayEnabled", label: "Online payments (Razorpay)", type: "boolean", hint: "Requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the server environment. Payments cannot be simulated." },
       { name: "commerce.serviceablePincodePrefixes", label: "Serviceable pincode prefixes", type: "tags", hint: "Blank = all India. e.g. 56, 57, 60" },
-      { name: "supportedCurrencies", label: "Display currencies", type: "tags", hint: "INR, USD, GBP, AED, EUR (display only; orders bill in INR)" },
+      { name: "supportedCurrencies", label: "Display currencies", type: "tags", hint: "INR, USD (display only; orders bill in INR)" },
     ],
   },
   {

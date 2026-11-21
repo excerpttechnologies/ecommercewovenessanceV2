@@ -177,7 +177,7 @@ describe("isAllowedImageUrl", () => {
 
 describe("barcodeImageUrl", () => {
   it("builds the ERP photo URL from a safe barcode", () => {
-    expect(barcodeImageUrl("8A2524")).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
+    expect(barcodeImageUrl("8A2524", "https://erp.wovenessence.in/august_8A_images")).toBe("https://erp.wovenessence.in/august_8A_images/8A2524.jpg");
     expect(barcodeImageUrl("../private")).toBeUndefined();
   });
 });
@@ -249,7 +249,7 @@ describe("resolveRecordImage", () => {
   });
 
   it("fetches the barcode-named ERP image without an ERP_IMAGE_BASE setting", async () => {
-    const image = barcodeImageUrl("8A2525")!;
+    const image = barcodeImageUrl("8A2525", "https://erp.wovenessence.in/august_8A_images")!;
 
     const spaces = `https://${SPACES[0]}/1/1/barcodes/8A2525.jpg`;
     expect(await resolveRecordImage([image], OPTS, fakeFetch({ [image]: 206, [spaces]: 206 }))).toEqual({ image });

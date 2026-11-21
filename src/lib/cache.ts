@@ -17,10 +17,12 @@ type Entry = { value: unknown; expiresAt: number };
 type CacheState = {
   entries: Map<string, Entry>;
   inflight: Map<string, Promise<unknown>>;
+  inflightOnly: Map<string, Promise<unknown>>;
 };
 
 const g = globalThis as unknown as { __appTtlCache?: CacheState };
-const state: CacheState = g.__appTtlCache ?? (g.__appTtlCache = { entries: new Map(), inflight: new Map() });
+const state: CacheState = g.__appTtlCache ?? (g.__appTtlCache = { entries: new Map(), inflight: new Map(), inflightOnly: new Map() });
+state.inflightOnly ??= new Map();
 
 /** Hard cap on stored keys. Well above the number of distinct groups/endpoints we cache. */
 const MAX_ENTRIES = 500;
@@ -60,6 +62,16 @@ export function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): P
   return run;
 }
 
+/** Share concurrent work without retaining its result after the load completes. */
+export function deduplicateInFlight<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const pending = state.inflightOnly.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const run = load().finally(() => state.inflightOnly.delete(key));
+  state.inflightOnly.set(key, run as Promise<unknown>);
+  return run;
+}
+
 /** Drop every entry whose key starts with `prefix` (e.g. after an admin edit). */
 export function invalidateCache(prefix: string) {
   for (const key of state.entries.keys()) {
@@ -71,6 +83,7 @@ export function invalidateCache(prefix: string) {
 export function clearCache() {
   state.entries.clear();
   state.inflight.clear();
+  state.inflightOnly.clear();
 }
 
 /** Number of live entries (for diagnostics only). */

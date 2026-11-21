@@ -35,7 +35,7 @@ export const SiteSettingsSchema = new Schema(
       bodyFont: { type: String, default: "Inter" },
     },
     currency: { type: String, default: "INR" },
-    supportedCurrencies: { type: [String], default: ["INR", "USD", "GBP", "AED"] },
+    supportedCurrencies: { type: [String], default: ["INR", "USD"] },
     defaultStoreId: String,
     whatsappNumber: { type: String, default: "919999999999" },
     contact: {

@@ -493,7 +493,7 @@ describe("getBarcodeImageCatalog", () => {
     ]);
   });
 
-  it("omits a barcode when its final storefront photo cannot be loaded", async () => {
+  it("keeps a barcode with a placeholder when its final storefront photo cannot be loaded", async () => {
     loadErpEcommerceCatalogs.mockResolvedValue(new Map([
       ["item-no-photo:business-1", {
         raw: { image: "https://templeimg.blr1.digitaloceanspaces.com/no-photo.jpg" },
@@ -516,7 +516,24 @@ describe("getBarcodeImageCatalog", () => {
 
     const result = await getBarcodeImageCatalog("sarees", 1);
 
-    expect(result.items).toEqual([]);
+    // The count comes from MongoDB and must agree with the rendered list.
+    expect(result.total).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].barcode).toBe("8A9999");
+    expect(result.items[0].image).toBeUndefined();
+    expect(result.items[0].imageIssue).toBe("unavailable");
+  });
+
+  it("shares one catalog result for identical filters (TTL cache)", async () => {
+    list.mockResolvedValue({ items: [], total: 0, page: 1, limit: 48, pages: 0, skipped: 0 });
+    const [a, b] = await Promise.all([
+      getBarcodeImageCatalog("sarees", 1, { sort: "newest" }),
+      getBarcodeImageCatalog("sarees", 1, { sort: "newest" }),
+    ]);
+
+    expect(a).toBe(b);
+    expect(getLabelIdsForProductTypes).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledTimes(1);
   });
 
   it("omits unavailable photos from the legacy category series too", async () => {

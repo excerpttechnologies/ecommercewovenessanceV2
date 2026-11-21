@@ -1100,7 +1100,7 @@ import { ERP_BEST_BUY_PRODUCT_TYPE, ERP_NEW_ARRIVAL_PRODUCT_TYPE, toImages } fro
 import { ProductWebMetaModel } from "@/models/web/content.models";
 import { buildGalleryImages } from "@/lib/product-gallery";
 import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
-import { cached } from "@/lib/cache";
+import { cached, deduplicateInFlight } from "@/lib/cache";
 import { logPerfIfSlow, measureDb, measureExternal, withPerf } from "@/lib/perf";
 
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
@@ -1666,21 +1666,23 @@ const STOREFRONT_GROUPS = (Object.keys(ERP_CATEGORY_PRODUCT_TYPES) as Storefront
 
 /** The homepage shows ERP products only: per storefront category, its published products, newest first. */
 export const getErpHomeSections = cache(async (limitPerGroup = 8) => {
-  const started = performance.now();
-  const { value } = await withPerf(async () => {
-    const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
-      const result = await getBarcodeImageCatalog(group, 1, {}, limitPerGroup);
-      return { group, title: ERP_CATEGORY_TITLES[group], items: result.items, total: result.total };
-    }));
-    return sections.filter((section) => section.items.length);
+  return deduplicateInFlight(`erp:home-sections:${limitPerGroup}`, async () => {
+    const started = performance.now();
+    const { value } = await withPerf(async () => {
+      const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {
+        const result = await getBarcodeImageCatalog(group, 1, {}, limitPerGroup);
+        return { group, title: ERP_CATEGORY_TITLES[group], items: result.items, total: result.total };
+      }));
+      return sections.filter((section) => section.items.length);
+    });
+    logPerfIfSlow("home-sections", performance.now() - started, {
+      limit: limitPerGroup,
+      groups: STOREFRONT_GROUPS.length,
+      sections: value.length,
+      items: value.reduce((count, section) => count + section.items.length, 0),
+    });
+    return value;
   });
-  logPerfIfSlow("home-sections", performance.now() - started, {
-    limit: limitPerGroup,
-    groups: STOREFRONT_GROUPS.length,
-    sections: value.length,
-    items: value.reduce((count, section) => count + section.items.length, 0),
-  });
-  return value;
 });
 
 /**
