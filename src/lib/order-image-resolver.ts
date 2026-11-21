@@ -1,6 +1,6 @@
 import { getErpConnection, getWebConnection } from "@/lib/db";
-import { ProductWebMetaModel } from "@/models/web/commerce.models";
-import { ERP_BARCODE_COLLECTIONS } from "@/repositories/mongo/barcode-label.repository";
+import { ProductWebMetaModel } from "@/models/web/content.models";
+import { ERP_BARCODE_COLLECTIONS } from "@/lib/erp-mapping";
 import type { Order, OrderItem } from "@/domain/types";
 
 /**

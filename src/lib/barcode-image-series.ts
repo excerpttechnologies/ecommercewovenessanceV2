@@ -506,7 +506,7 @@
 //  * barcode photo is missing). Website images come first; ERP `ecommerceproduct.additionalImages`
 //  * follow and are de-duplicated. Five images maximum.
 //  */
-// async function withProductWebOverrides(items: BarcodeProduct[]) {
+// export async function withProductWebOverrides(items: BarcodeProduct[]) {
 //   if (!items.length) return items;
 //   const overrides = await loadProductWebOverrides(items);
 //   if (!overrides) return items;
@@ -1345,7 +1345,7 @@ async function withPrintDescriptionOverrides(items: BarcodeProduct[]) {
  * barcode photo is missing). Website images come first; ERP `ecommerceproduct.additionalImages`
  * follow and are de-duplicated. Five images maximum.
  */
-async function withProductWebOverrides(items: BarcodeProduct[]) {
+export async function withProductWebOverrides(items: BarcodeProduct[]) {
   if (!items.length) return items;
   const overrides = await loadProductWebOverrides(items);
   if (!overrides) return items;

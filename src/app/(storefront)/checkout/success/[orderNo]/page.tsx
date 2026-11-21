@@ -429,7 +429,6 @@
 //             paymentTransactionId (see mapOrder in src/lib/erp-mapping.ts).
 // ============================================================================
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgeCheck, Check, ChevronDown, Clock, Lock, MapPin, Package, PackageCheck, ShieldCheck, Truck, X, Home } from "lucide-react";
@@ -437,9 +436,8 @@ import { getCustomerSession } from "@/lib/auth";
 import { getOrders } from "@/repositories";
 import { businessInfo, e164 } from "@/lib/business";
 import { getSettings } from "@/lib/site-data";
-import { formatINR, isRemoteImageSource } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
 import { AutoRefresh } from "@/components/ui/auto-refresh";
-import { ComingSoonImage } from "@/components/ui/coming-soon-image";
 import { OrderItemImage } from "@/components/ui/order-item-image";
 import { resolveOrderImages } from "@/lib/order-image-resolver";
 import type { OrderStatus } from "@/domain/types";
