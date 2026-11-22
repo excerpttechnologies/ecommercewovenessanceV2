@@ -9,7 +9,7 @@ import { env } from "./env";
  *
  * Cached on globalThis so Next.js hot reloads don't open new sockets.
  */
-type Cache = { web?: Promise<Connection>; erp?: Promise<Connection> };
+type Cache = { web?: Promise<Connection>; erp?: Promise<Connection>; erpWrite?: Promise<Connection> };
 const g = globalThis as unknown as { __wovenConns?: Cache };
 const cache: Cache = g.__wovenConns ?? (g.__wovenConns = {});
 
@@ -38,19 +38,30 @@ export function getErpConnection(): Promise<Connection> {
   }));
 }
 
+/** RetailERP database write connection (primary readPreference) for authoritative inventory transactions and audit ledger. */
+export function getErpWriteConnection(): Promise<Connection> {
+  return (cache.erpWrite ??= open("erpWrite", env.ERP_MONGODB_URI, {
+    dbName: env.ERP_DB_NAME,
+    readPreference: "primary",
+  }));
+}
+
 export function getMasterConnection(): Promise<Connection> {
-  if (env.DATA_SOURCE === "mock") return getWebConnection();
-  return getErpConnection();
+  if (env.DATA_SOURCE === "erp" || Boolean(process.env.ERP_MONGODB_URI || process.env.ERP_MONGO_URI)) {
+    return getErpConnection();
+  }
+  return getWebConnection();
 }
 
 /** For logs: hides the user:password part of any MongoDB URI that ends up inside an error message. */
 export const redactMongoUri = (s: string) => s.replace(/(mongodb(?:\+srv)?:\/\/)[^@\s/]+@/gi, "$1***@");
 
 export async function closeConnections() {
-  const conns = await Promise.all([cache.web, cache.erp].filter(Boolean));
+  const conns = await Promise.all([cache.web, cache.erp, cache.erpWrite].filter(Boolean));
   await Promise.all(conns.map((c) => c?.close()));
   cache.web = undefined;
   cache.erp = undefined;
+  cache.erpWrite = undefined;
 }
 
 export const isValidObjectId = (id: string) => mongoose.isValidObjectId(id);

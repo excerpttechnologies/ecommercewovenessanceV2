@@ -22,7 +22,10 @@ const reg: Registry = g.__wovenRepos ?? (g.__wovenRepos = {});
 
 /** Products, categories, stores — from mock DB or RetailERP depending on DATA_SOURCE. */
 export function getMasterData(): MasterDataSource {
-  if (!reg.master) reg.master = env.DATA_SOURCE === "erp" ? createErpAdapter() : createMockAdapter();
+  if (!reg.master) {
+    const isErp = env.DATA_SOURCE === "erp" || Boolean(process.env.ERP_MONGODB_URI || process.env.ERP_MONGO_URI);
+    reg.master = isErp ? createErpAdapter() : createMockAdapter();
+  }
   return reg.master;
 }
 

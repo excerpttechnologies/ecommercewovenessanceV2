@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Types, type Model } from "mongoose";
-import { getErpConnection, getWebConnection } from "@/lib/db";
+import { getErpConnection, getErpWriteConnection, getWebConnection, toObjectIdOrString } from "@/lib/db";
 import { BARCODE_LABEL_FIELDS as B, ERP_BARCODE_COLLECTIONS, toNum, toStr } from "@/lib/erp-mapping";
 import { OrderModel } from "@/models/erp/order.model";
 import {
@@ -134,6 +134,11 @@ function labelUnits(label: AnyDoc): number {
   const primary = toNum(label[B.qty], NaN);
   if (Number.isFinite(primary)) return round(primary);
   return round(toNum(label[B.qtyText]));
+}
+
+function inHandQty(unit: AnyDoc): number {
+  if (!unit || unit[B.status] === "SOLD") return 0;
+  return round(labelUnits(unit));
 }
 
 function labelName(label: AnyDoc): string | undefined {
@@ -462,6 +467,98 @@ export async function processOrderInventory(
         { $set: { status: "SUPERSEDED", supersededAt: now } },
       );
       supersededAt = superseded.modifiedCount ? now : null;
+
+      // Authoritative ERP Inventory Deduction (grooretailerp1)
+      try {
+        const erpConn = await getErpWriteConnection();
+        if (erpConn.db) {
+          const erpLabels = erpConn.db.collection(ERP_BARCODE_COLLECTIONS.labels);
+          const erpMovements = erpConn.db.collection("stockmovement");
+
+          for (const { allocations } of plannedByLine) {
+            for (const allocation of allocations) {
+              const labelId = toObjectIdOrString(allocation.labelId);
+              const labelDoc = await erpLabels.findOne({ _id: labelId });
+              if (!labelDoc) continue;
+
+              const have = inHandQty(labelDoc);
+              const sold = allocation.qty;
+              const left = Math.max(0, round(have - sold));
+              const full = left <= 0.0005;
+
+              const updateFilter: AnyDoc = { _id: labelId, status: "IN_STOCK" };
+              if (typeof labelDoc[B.qty] === "number") updateFilter[B.qty] = labelDoc[B.qty];
+
+              const updateSet: AnyDoc = full
+                ? {
+                    status: "SOLD",
+                    billingNo: orderNo,
+                    soldAt: now,
+                    updatedAt: now,
+                  }
+                : {
+                    [B.qty]: left,
+                    qty: String(left),
+                    updatedAt: now,
+                  };
+
+              const res = await erpLabels.updateOne(updateFilter, {
+                $set: updateSet,
+                $push: {
+                  sales: {
+                    invoiceNo: orderNo,
+                    qty: sold,
+                    at: now,
+                    returnedQty: 0,
+                    icBilledId: null,
+                    icBilledNo: "",
+                  },
+                },
+              });
+
+              if (res.matchedCount > 0) {
+                const labelLocId = labelDoc.currentLocationId || labelDoc.locationId;
+                const labelBizId = labelDoc.currentBusinessId || labelDoc.businessId;
+                const erpMovementDoc = {
+                  businessId: labelBizId ? toObjectIdOrString(labelBizId) : null,
+                  finYear: fy,
+                  type: "ECOM_OUT",
+                  direction: "out",
+                  barcodeId: labelId,
+                  barcodeNo: allocation.barcode,
+                  itemId: labelDoc.itemId ? toObjectIdOrString(labelDoc.itemId) : null,
+                  itemCode: allocation.itemCode || labelDoc[B.itemCode] || "",
+                  itemName: labelDoc[B.itemName] || labelDoc[B.printDescription] || labelDoc[B.description] || "",
+                  uom: allocation.uom || labelDoc[B.uom] || "",
+                  batchType: labelDoc.batchType || "",
+                  qty: -sold,
+                  fromLocationId: labelLocId ? toObjectIdOrString(labelLocId) : null,
+                  toLocationId: null,
+                  statusBefore: "IN_STOCK",
+                  statusAfter: full ? "SOLD" : "IN_STOCK",
+                  refModel: "order",
+                  refId: claimed._id,
+                  refNo: orderNo,
+                  reason: "E-Commerce website purchase",
+                  createdBy: options.by ?? "ecom_checkout",
+                  at: now,
+                  idempotencyKey: `${orderNo}:${allocation.labelId}:ECOM_OUT`,
+                };
+
+                await erpMovements.updateOne(
+                  { idempotencyKey: erpMovementDoc.idempotencyKey },
+                  { $setOnInsert: erpMovementDoc },
+                  { upsert: true },
+                ).catch((err) => {
+                  console.warn("[inventory] ERP stockmovement append failed", err?.message);
+                });
+              }
+            }
+          }
+        }
+      } catch (erpError) {
+        console.error("[inventory] ERP stock deduction error", erpError);
+      }
     }
     await insertMovements(Movements, movements);
     writtenKeys.push(...movements.map((movement) => movement.idempotencyKey));
@@ -589,6 +686,88 @@ export async function releaseOrderInventory(
         { $set: { status: "RELEASED", releasedAt: now } },
       );
       reserveReleased = result.modifiedCount > 0;
+    } else if (previous === "Deducted") {
+      // Authoritative ERP Inventory Restoration (grooretailerp1)
+      try {
+        const erpConn = await getErpWriteConnection();
+        if (erpConn.db) {
+          const erpLabels = erpConn.db.collection(ERP_BARCODE_COLLECTIONS.labels);
+          const erpMovements = erpConn.db.collection("stockmovement");
+
+          for (const line of lines) {
+            for (const allocation of line.allocations ?? []) {
+              const labelId = toObjectIdOrString(String(allocation.barcodeLabelId));
+              const labelDoc = await erpLabels.findOne({ _id: labelId });
+              if (!labelDoc) continue;
+
+              const isSoldStatus = labelDoc.status === "SOLD";
+              const returnQty = allocation.qty;
+
+              const updateSet: AnyDoc = {};
+              if (isSoldStatus) {
+                updateSet.status = "IN_STOCK";
+                updateSet.billingNo = "";
+                updateSet.soldAt = null;
+                updateSet.updatedAt = now;
+              } else {
+                const currentQty = inHandQty(labelDoc);
+                const newQty = round(currentQty + returnQty);
+                updateSet[B.qty] = newQty;
+                updateSet.qty = String(newQty);
+                updateSet.updatedAt = now;
+              }
+
+              await erpLabels.updateOne(
+                { _id: labelId },
+                {
+                  $set: updateSet,
+                  $pull: { sales: { invoiceNo: orderNo } as AnyDoc },
+                },
+              );
+
+              const labelLocId = labelDoc.currentLocationId || labelDoc.locationId;
+              const labelBizId = labelDoc.currentBusinessId || labelDoc.businessId;
+              const fy = financialYear(claimed.createdAt ? new Date(claimed.createdAt) : now);
+
+              const erpReturnMovement = {
+                businessId: labelBizId ? toObjectIdOrString(labelBizId) : null,
+                finYear: fy,
+                type: "POS_RETURN_IN",
+                direction: "in",
+                barcodeId: labelId,
+                barcodeNo: allocation.barcode || labelDoc[B.barcode] || "",
+                itemId: labelDoc.itemId ? toObjectIdOrString(labelDoc.itemId) : null,
+                itemCode: allocation.itemCode || labelDoc[B.itemCode] || "",
+                itemName: labelDoc[B.itemName] || labelDoc[B.printDescription] || labelDoc[B.description] || "",
+                uom: allocation.uom || labelDoc[B.uom] || "",
+                batchType: labelDoc.batchType || "",
+                qty: returnQty,
+                fromLocationId: null,
+                toLocationId: labelLocId ? toObjectIdOrString(labelLocId) : null,
+                statusBefore: labelDoc.status,
+                statusAfter: "IN_STOCK",
+                refModel: "order",
+                refId: claimed._id,
+                refNo: orderNo,
+                reason: options.trigger ?? "E-Commerce order cancellation/restoration",
+                createdBy: options.by ?? "ecom_system",
+                at: now,
+                idempotencyKey: `${orderNo}:${allocation.barcodeLabelId}:POS_RETURN_IN`,
+              };
+
+              await erpMovements.updateOne(
+                { idempotencyKey: erpReturnMovement.idempotencyKey },
+                { $setOnInsert: erpReturnMovement },
+                { upsert: true },
+              ).catch((err) => {
+                console.warn("[inventory] ERP stockmovement return append failed", err?.message);
+              });
+            }
+          }
+        }
+      } catch (erpError) {
+        console.error("[inventory] ERP stock restoration error", erpError);
+      }
     }
     await insertMovements(Movements, movements);
     writtenKeys.push(...movements.map((movement) => movement.idempotencyKey));
