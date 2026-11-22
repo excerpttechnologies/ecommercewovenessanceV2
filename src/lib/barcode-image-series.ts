@@ -1102,6 +1102,18 @@ import { buildGalleryImages } from "@/lib/product-gallery";
 import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
 import { cached, deduplicateInFlight } from "@/lib/cache";
 import { logPerfIfSlow, measureDb, measureExternal, withPerf } from "@/lib/perf";
+import { imageBelongsToBarcode } from "@/lib/order-image-resolver";
+
+const ERP_FILES_PATH = /^\/api\/files\/[a-z0-9]+\/[a-z0-9]+\.[a-z]+$/i;
+function isErpFilePath(url?: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const u = new URL(url, "https://erp.wovenessence.in");
+    return ERP_FILES_PATH.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
 
 export type BarcodeSeriesGroup = "sarees" | "fabrics";
 type EcommerceCategoryGroup = BarcodeSeriesGroup | "plain-fabrics" | "dupatta" | "best-buy" | "new-arrivals";
@@ -1356,7 +1368,7 @@ export async function withProductWebOverrides(items: BarcodeProduct[]) {
     return {
       ...item,
       ...(meta?.printDescription ? { printDescription: meta.printDescription } : {}),
-      ...(images.length ? { images } : {}),
+      ...(images.length ? { images, image: images[0] } : {}),
     };
   });
 }
@@ -1389,7 +1401,9 @@ function ecommerceImage(refs: unknown[]): string | undefined {
 
 /** Only verified barcode photos should prevent the ERP e-commerce image from being used as fallback. */
 async function ownPhotoLoads(image?: string): Promise<boolean> {
-  return Boolean(image) && (await measureExternal(() => probeImage(image!))) === true;
+  if (!image) return false;
+  if (isErpFilePath(image)) return true;
+  return (await measureExternal(() => probeImage(image))) !== false;
 }
 
 export async function withEcommerceDetails(items: BarcodeProduct[]) {
@@ -1403,9 +1417,11 @@ export async function withEcommerceDetails(items: BarcodeProduct[]) {
     const raw = catalog.raw ?? {};
     // One ERP product covers every barcode saved on it but holds a single image, so each barcode
     // keeps its own photo; the product image only fills in when that photo does not load.
-    const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage([
-      ...[raw.image, raw.images, raw.imageUrl, raw.filePath].flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
-    ]);
+    // Sibling barcode photos must NOT be used as fallback for a different barcode.
+    const fallbackCandidates = [raw.image, raw.images, raw.imageUrl, raw.filePath]
+      .flatMap((value) => toImages(Array.isArray(value) ? value : [value]))
+      .filter((candidate) => typeof candidate === "string" && imageBelongsToBarcode(candidate, item.barcode));
+    const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage(fallbackCandidates);
     // Real alternate views maintained on the ERP product. Empty across current ERP data, but this
     // is the correct source once the merchandising team adds more photos.
     const additionalImages = ecommerceImages(toImages(raw.additionalImages));
@@ -1433,7 +1449,9 @@ export async function withEcommerceDetails(items: BarcodeProduct[]) {
 
 async function withAvailableImages(items: BarcodeProduct[]): Promise<BarcodeProduct[]> {
   const checked = await mapLimit(items, 8, async (item) => {
-    if (!item.image || (await measureExternal(() => probeImage(item.image!))) !== true) return undefined;
+    if (!item.image) return undefined;
+    if (isErpFilePath(item.image)) return item;
+    if ((await measureExternal(() => probeImage(item.image!))) === false) return undefined;
     return item;
   });
   return checked.filter((item): item is BarcodeProduct => Boolean(item));

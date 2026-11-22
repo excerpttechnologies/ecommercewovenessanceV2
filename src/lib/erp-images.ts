@@ -545,6 +545,12 @@ export function probeImage(url: string, fetchImpl: typeof fetch = fetch): Promis
     }
     res.body?.cancel().catch(() => {});
     if (res.status === 429 || res.status >= 500) return null; // transient: let the browser try, re-check next time
+    // /api/files/ paths on ERP server are uploaded image files; server-side probes may return 401 without an admin cookie
+    if (res.status === 401 && ERP_FILES_PATH.test(new URL(url).pathname)) {
+      if (state.cache.size >= MAX_ENTRIES) state.cache.clear();
+      state.cache.set(key, { ok: true, at: Date.now() });
+      return true;
+    }
     const ok = (res.status === 200 || res.status === 206) && (res.headers.get("content-type") ?? "image/").toLowerCase().startsWith("image/");
     if (state.cache.size >= MAX_ENTRIES) state.cache.clear();
     state.cache.set(key, { ok, at: Date.now() });

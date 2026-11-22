@@ -10,10 +10,23 @@ import type { Order, OrderItem } from "@/domain/types";
  * 1. Website overrides from productWebMeta (galleryPrimaryImage / extraImages)
  * 2. ERP barcodeLabel (image / imageUrl / filePath)
  * 3. ERP ecommerceproduct (image / images[0] via barcode, publishedBarcodes, or itemId)
- * 4. Style-prefix URL (e.g. /images/4A/4A1200.jpg, /images/OL/OL2296.jpg)
- * 5. DigitalOcean Spaces public bucket barcodes folder
+ * 4. Style-prefix URL (e.g. /images/4A/4A1200.jpg -> https://erp.wovenessence.in/images/4A/4A1200.jpg)
+ * 5. DigitalOcean Spaces public bucket root
  */
 const ERP_MEDIA_BASE = "https://erp.wovenessence.in";
+const BARCODE_FILE_NAME = /^\d{1,2}[A-Za-z]\d{3,6}$/i;
+
+/**
+ * A stored image whose filename is ANOTHER barcode's number (e.g. 4A1708.jpg) is a sibling
+ * barcode's photo living on the parent item row (e.g. 10-PRAWSILK), so it must not be shown
+ * for other barcodes (e.g. 256550). Files named after anything else (hashes, item codes) are allowed.
+ */
+export function imageBelongsToBarcode(src: string, barcode: string): boolean {
+  const stem = String(src || "").split(/[?#]/)[0].split("/").pop()?.replace(/\.[a-z0-9]+$/i, "");
+  if (!stem) return false;
+  if (!BARCODE_FILE_NAME.test(stem)) return true;
+  return barcode.toLowerCase() === stem.toLowerCase();
+}
 
 function formatImageUrl(url?: string | null): string | undefined {
   if (!url || typeof url !== "string") return undefined;
@@ -85,17 +98,19 @@ export async function resolveOrderItemImage(sku: string, currentImage?: string |
     });
 
     const rawEcommImage = (ecomm?.image as string) || (Array.isArray(ecomm?.images) ? (ecomm.images[0] as string) : null);
-    const ecommImg = formatImageUrl(rawEcommImage);
-    if (ecommImg) return ecommImg;
-
-    // 4. Barcode prefix rule (e.g. 4A1200, 6A2197, OL2296)
-    const prefixMatch = /^([0-9]+[A-Za-z]+|[A-Za-z]{2,3})/.exec(cleanSku);
-    if (prefixMatch) {
-      return `${ERP_MEDIA_BASE}/images/${prefixMatch[1].toUpperCase()}/${encodeURIComponent(cleanSku)}.jpg`;
+    if (rawEcommImage && imageBelongsToBarcode(rawEcommImage, cleanSku)) {
+      const ecommImg = formatImageUrl(rawEcommImage);
+      if (ecommImg) return ecommImg;
     }
 
-    // 5. DigitalOcean Spaces direct barcode path
-    return `https://templeimg.blr1.digitaloceanspaces.com/1/1/barcodes/${encodeURIComponent(cleanSku)}.jpg`;
+    // 4. Barcode prefix rule (e.g. 4A1200, 6A2197)
+    const prefixMatch = /^(\d+[A-Za-z]+)/.exec(cleanSku);
+    if (prefixMatch) {
+      return `${ERP_MEDIA_BASE}/images/${prefixMatch[1]}/${encodeURIComponent(cleanSku)}.jpg`;
+    }
+
+    // 5. DigitalOcean Spaces direct root
+    return `https://templeimg.blr1.digitaloceanspaces.com/${encodeURIComponent(cleanSku)}.jpg`;
   } catch (error) {
     console.error(`[order-image-resolver] Failed to resolve image for SKU ${sku}:`, error);
     return undefined;

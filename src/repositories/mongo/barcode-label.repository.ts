@@ -1423,7 +1423,8 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     const doc = await M.findOne({ [B.barcode]: barcode }, PROJECTION).sort({ _id: -1 }).lean<AnyDoc>();
     if (!doc) return null;
     try {
-      return mapBarcodeLabel(doc);
+      const { items } = this.hydrate([doc]);
+      return items[0] ?? null;
     } catch {
       return null;
     }
