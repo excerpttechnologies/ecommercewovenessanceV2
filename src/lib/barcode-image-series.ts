@@ -1100,7 +1100,7 @@ import { ERP_BEST_BUY_PRODUCT_TYPE, ERP_NEW_ARRIVAL_PRODUCT_TYPE, toImages } fro
 import { ProductWebMetaModel } from "@/models/web/content.models";
 import { buildGalleryImages } from "@/lib/product-gallery";
 import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnCategorySlug } from "@/lib/add-on-categories";
-import { cached, deduplicateInFlight } from "@/lib/cache";
+import { cached } from "@/lib/cache";
 import { logPerfIfSlow, measureDb, measureExternal, withPerf } from "@/lib/perf";
 import { imageBelongsToBarcode } from "@/lib/order-image-resolver";
 

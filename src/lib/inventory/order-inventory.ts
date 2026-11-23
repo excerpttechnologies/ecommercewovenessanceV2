@@ -478,7 +478,7 @@ export async function processOrderInventory(
           for (const { allocations } of plannedByLine) {
             for (const allocation of allocations) {
               const labelId = toObjectIdOrString(allocation.labelId);
-              const labelDoc = await erpLabels.findOne({ _id: labelId });
+              const labelDoc = await erpLabels.findOne({ _id: labelId as any });
               if (!labelDoc) continue;
 
               const have = inHandQty(labelDoc);
@@ -486,7 +486,7 @@ export async function processOrderInventory(
               const left = Math.max(0, round(have - sold));
               const full = left <= 0.0005;
 
-              const updateFilter: AnyDoc = { _id: labelId, status: "IN_STOCK" };
+              const updateFilter: AnyDoc = { _id: labelId as any, status: "IN_STOCK" };
               if (typeof labelDoc[B.qty] === "number") updateFilter[B.qty] = labelDoc[B.qty];
 
               const updateSet: AnyDoc = full
@@ -502,7 +502,7 @@ export async function processOrderInventory(
                     updatedAt: now,
                   };
 
-              const res = await erpLabels.updateOne(updateFilter, {
+              const res = await erpLabels.updateOne(updateFilter as any, {
                 $set: updateSet,
                 $push: {
                   sales: {
@@ -546,8 +546,8 @@ export async function processOrderInventory(
                 };
 
                 await erpMovements.updateOne(
-                  { idempotencyKey: erpMovementDoc.idempotencyKey },
-                  { $setOnInsert: erpMovementDoc },
+                  { idempotencyKey: erpMovementDoc.idempotencyKey } as any,
+                  { $setOnInsert: erpMovementDoc as any },
                   { upsert: true },
                 ).catch((err) => {
                   console.warn("[inventory] ERP stockmovement append failed", err?.message);
@@ -697,7 +697,7 @@ export async function releaseOrderInventory(
           for (const line of lines) {
             for (const allocation of line.allocations ?? []) {
               const labelId = toObjectIdOrString(String(allocation.barcodeLabelId));
-              const labelDoc = await erpLabels.findOne({ _id: labelId });
+              const labelDoc = await erpLabels.findOne({ _id: labelId as any });
               if (!labelDoc) continue;
 
               const isSoldStatus = labelDoc.status === "SOLD";
@@ -718,7 +718,7 @@ export async function releaseOrderInventory(
               }
 
               await erpLabels.updateOne(
-                { _id: labelId },
+                { _id: labelId as any },
                 {
                   $set: updateSet,
                   $pull: { sales: { invoiceNo: orderNo } as AnyDoc },
@@ -756,8 +756,8 @@ export async function releaseOrderInventory(
               };
 
               await erpMovements.updateOne(
-                { idempotencyKey: erpReturnMovement.idempotencyKey },
-                { $setOnInsert: erpReturnMovement },
+                { idempotencyKey: erpReturnMovement.idempotencyKey } as any,
+                { $setOnInsert: erpReturnMovement as any },
                 { upsert: true },
               ).catch((err) => {
                 console.warn("[inventory] ERP stockmovement return append failed", err?.message);

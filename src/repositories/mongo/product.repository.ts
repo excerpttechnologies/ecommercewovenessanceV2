@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Connection, FilterQuery } from "mongoose";
-import { getErpConnection, getWebConnection, toObjectIdOrString } from "@/lib/db";
+import { getWebConnection, toObjectIdOrString } from "@/lib/db";
 import {
   ACTIVE_PRODUCT_QUERY,
   BARCODE_LABEL_FIELDS as B,
@@ -9,16 +9,12 @@ import {
   PRODUCT_FIELDS as P,
   PRODUCT_FILTER_FIELDS,
   TRUTHY_VALUES,
-  barcodeProductToProduct,
   categoryRefValue,
-  mapBarcodeLabel,
   mapProduct,
-  productSlug,
   productSort,
   skuCandidatesFromSlug,
   toProductCard,
 } from "@/lib/erp-mapping";
-import { loadClassificationNames } from "@/lib/erp-classification-names";
 import { barcodeImageUrl } from "@/lib/erp-images";
 import { cached } from "@/lib/cache";
 import { escapeRegex } from "@/lib/utils";
