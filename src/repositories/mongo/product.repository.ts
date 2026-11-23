@@ -347,66 +347,75 @@ export class MongoProductRepository implements ProductRepository {
         ? (p.publishedBarcodes as string[])
         : [String(p.barcode ?? "")].filter(Boolean);
 
-      const parentInStockLabels: AnyDoc[] = [];
-      for (const b of barcodes) {
-        const found = labelsByBarcode.get(b);
-        if (found) parentInStockLabels.push(...found);
-      }
+      const slugName = (p.displayName || p.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-      const totalQty = parentInStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
-      if (params.inStock && totalQty <= 0) continue;
+      if (barcodes.length === 0) {
+        const sku = p.ecommItemCode || String(p._id);
+        const slug = `${slugName}-${sku.toLowerCase()}`.replace(/^-+|-+$/g, "");
+        const mrp = Number(p.barcodePriceOverride) || 0;
+        items.push({
+          id: String(p._id),
+          sku,
+          name: p.displayName || p.ecommItemCode || "Woven Essence Product",
+          category: p.productType || "Sarees",
+          subCategory: p.productType,
+          slug,
+          pricing: {
+            mrp,
+            sellingPrice: mrp,
+            discountPercent: 0,
+            gstPercent: 5,
+            currency: "INR",
+          },
+          stock: { qty: 1, status: "in_stock" },
+          images: p.image ? [p.image] : [],
+          source: "erp",
+          isNewArrival: Boolean(p.isNewArrival),
+        });
+      } else {
+        for (const b of barcodes) {
+          const bLabels = labelsByBarcode.get(b) ?? [];
+          const bQty = bLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
+          if (params.inStock && bQty <= 0) continue;
 
-      let mrp = Number(p.barcodePriceOverride) || 0;
-      let offer: number | null = null;
-      if (parentInStockLabels.length > 0) {
-        const firstWithPrice = parentInStockLabels.find((l) => l[B.retailPrice]);
-        if (firstWithPrice) {
-          mrp = Number(firstWithPrice[B.retailPrice]) || mrp;
-          offer = Number(firstWithPrice[B.offerPrice]) || null;
+          const firstLabel = bLabels[0];
+          const mrp = (firstLabel && Number(firstLabel[B.retailPrice])) || Number(p.barcodePriceOverride) || 0;
+          const offer = firstLabel && Number(firstLabel[B.offerPrice]) ? Number(firstLabel[B.offerPrice]) : null;
+          const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
+
+          if (params.priceMin != null && sellingPrice < params.priceMin) continue;
+          if (params.priceMax != null && sellingPrice > params.priceMax) continue;
+
+          const primaryImage = (firstLabel && (firstLabel.imageUrl || firstLabel.image || firstLabel.filePath))
+            || p.image
+            || barcodeImageUrl(b);
+
+          const slug = `${slugName}-${b.toLowerCase()}`.replace(/^-+|-+$/g, "");
+
+          items.push({
+            id: firstLabel ? String(firstLabel._id) : `${String(p._id)}-${b}`,
+            sku: b,
+            name: p.displayName || p.ecommItemCode || "Woven Essence Product",
+            category: p.productType || "Sarees",
+            subCategory: p.productType,
+            slug,
+            pricing: {
+              mrp,
+              sellingPrice,
+              discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+              gstPercent: 5,
+              currency: "INR",
+            },
+            stock: {
+              qty: bQty,
+              status: bQty <= 0 ? "out_of_stock" : bQty <= 3 ? "low_stock" : "in_stock",
+            },
+            images: primaryImage ? [primaryImage] : [],
+            source: "erp",
+            isNewArrival: Boolean(p.isNewArrival),
+          });
         }
       }
-      const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
-
-      if (params.priceMin != null && sellingPrice < params.priceMin) continue;
-      if (params.priceMax != null && sellingPrice > params.priceMax) continue;
-
-      let primaryImage: string | undefined = p.image;
-      if (!primaryImage && parentInStockLabels.length) {
-        primaryImage = parentInStockLabels[0].imageUrl || parentInStockLabels[0].image || parentInStockLabels[0].filePath;
-      }
-      if (!primaryImage && p.barcode) {
-        primaryImage = barcodeImageUrl(p.barcode);
-      }
-
-      // If user searched for a specific child barcode that belongs to this product, highlight that barcode
-      const activeSku = query && barcodes.includes(upperQuery)
-        ? upperQuery
-        : (p.barcode || p.ecommItemCode || String(p._id));
-      const slugName = (p.displayName || p.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const slug = `${slugName}-${(activeSku || "").toLowerCase()}`.replace(/^-+|-+$/g, "");
-
-      items.push({
-        id: String(p._id),
-        sku: activeSku,
-        name: p.displayName || p.ecommItemCode || "Woven Essence Product",
-        category: p.productType || "Sarees",
-        subCategory: p.productType,
-        slug,
-        pricing: {
-          mrp,
-          sellingPrice,
-          discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
-          gstPercent: 5,
-          currency: "INR",
-        },
-        stock: {
-          qty: totalQty,
-          status: totalQty <= 0 ? "out_of_stock" : totalQty <= 3 ? "low_stock" : "in_stock",
-        },
-        images: primaryImage ? [primaryImage] : [],
-        source: "erp",
-        isNewArrival: Boolean(p.isNewArrival),
-      });
     }
 
     // 4. Standalone in-stock barcode labels (if query matched barcodes not in any parent ecommerce product)
@@ -607,28 +616,19 @@ export class MongoProductRepository implements ProductRepository {
       const inStockLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
         [B.barcode]: { $in: barcodes },
         [B.status]: "IN_STOCK",
-        businessId: DEFAULT_BUSINESS_ID,
       }).toArray();
 
-      const totalQty = inStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
-      let mrp = Number(ecom.barcodePriceOverride) || 0;
-      let offer: number | null = null;
-      if (inStockLabels.length > 0) {
-        const firstWithPrice = inStockLabels.find((l) => l[B.retailPrice]);
-        if (firstWithPrice) {
-          mrp = Number(firstWithPrice[B.retailPrice]) || mrp;
-          offer = Number(firstWithPrice[B.offerPrice]) || null;
-        }
-      }
+      const specificLabel = inStockLabels.find((l) => String(l[B.barcode]).toUpperCase() === upperSku);
+      const totalQty = specificLabel
+        ? (Number(specificLabel[B.qty]) || 1)
+        : inStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
+
+      const targetLabel = specificLabel || inStockLabels.find((l) => l[B.retailPrice]) || inStockLabels[0];
+      const mrp = (targetLabel && Number(targetLabel[B.retailPrice])) || Number(ecom.barcodePriceOverride) || 0;
+      const offer: number | null = targetLabel && Number(targetLabel[B.offerPrice]) ? Number(targetLabel[B.offerPrice]) : null;
       const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
 
-      let primaryImage: string | undefined = ecom.image;
-      if (!primaryImage && inStockLabels.length) {
-        primaryImage = inStockLabels[0].imageUrl || inStockLabels[0].image || inStockLabels[0].filePath;
-      }
-      if (!primaryImage && cleanSku) {
-        primaryImage = barcodeImageUrl(cleanSku);
-      }
+      const primaryImage: string | undefined = targetLabel?.imageUrl || targetLabel?.image || targetLabel?.filePath || ecom.image || barcodeImageUrl(cleanSku);
 
       const slugName = (ecom.displayName || ecom.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
