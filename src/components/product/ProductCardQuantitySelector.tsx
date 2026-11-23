@@ -2,11 +2,13 @@
 
 import { ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isDecimalUnit } from "@/lib/product-quantity";
 
 interface Props {
   sku: string;
   maxQty?: number;
   uom?: string;
+  uomType?: string;
   onAdd: (qty: number) => void;
   disabled?: boolean;
   adding?: boolean;
@@ -19,12 +21,15 @@ interface Props {
 export function ProductCardQuantitySelector({
   maxQty,
   uom,
+  uomType,
   onAdd,
   disabled = false,
   adding = false,
 }: Props) {
+  const isDecimal = isDecimalUnit(uom, uomType);
   const available = Math.max(0, maxQty ?? 0);
-  const unit = uom?.trim() || "Pc(s)";
+  const unit = isDecimal ? "Mtr" : (uom?.trim() || "Pc(s)");
+  const addQty = isDecimal && available < 1 && available >= 0.5 ? available : 1;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -35,7 +40,7 @@ export function ProductCardQuantitySelector({
       <button
         type="button"
         disabled={disabled || adding || available <= 0}
-        onClick={() => onAdd(1)}
+        onClick={() => onAdd(addQty)}
         className={cn(
           "inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-full bg-maroon px-2 font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all",
           "hover:-translate-y-0.5 hover:bg-gold active:translate-y-0",

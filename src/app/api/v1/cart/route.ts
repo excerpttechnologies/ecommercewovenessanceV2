@@ -48,7 +48,7 @@ export const GET = handler(async () => {
 /** POST /api/v1/cart { sku, qty } — add (login required) */
 export const POST = handler(async (req: NextRequest) => {
   await requireCustomer();
-  const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().gt(0).max(20).default(1) }));
+  const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().gt(0).max(9999).default(1) }));
   if (!b.ok) return b.res;
   return ok(strip(await addToCart(b.data.sku, b.data.qty)));
 });
@@ -56,7 +56,7 @@ export const POST = handler(async (req: NextRequest) => {
 /** PATCH /api/v1/cart { sku, qty } — set quantity, 0 removes (login required) */
 export const PATCH = handler(async (req: NextRequest) => {
   await requireCustomer();
-  const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().min(0).max(20) }));
+  const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().min(0).max(9999) }));
   if (!b.ok) return b.res;
   return ok(strip(await setCartQty(b.data.sku, b.data.qty)));
 });

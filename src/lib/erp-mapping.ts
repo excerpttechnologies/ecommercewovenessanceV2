@@ -308,6 +308,37 @@ export function mapBarcodeLabel(raw: any): BarcodeProduct {
   };
 }
 
+import { barcodeImageUrl } from "@/lib/erp-images";
+
+import { formatImageUrl, imageBelongsToBarcode } from "./image-matcher";
+export { formatImageUrl, imageBelongsToBarcode };
+
+export { isDecimalUnit } from "./product-quantity";
+
+/**
+ * Authoritative primary image resolver for any product/barcode record:
+ * 1. Barcode label's own image (imageUrl / image / filePath).
+ * 2. Parent ecommerceproduct image, ONLY if it belongs to this barcode (not a sibling photo).
+ * 3. Fallback to public Spaces bucket `<barcode>.jpg`.
+ */
+export function resolvePrimaryProductImage(
+  barcode: string,
+  label?: { imageUrl?: string; image?: string; filePath?: string } | Record<string, any> | null,
+  ecomImage?: string | null,
+): string | undefined {
+  const cleanBarcode = String(barcode || "").trim();
+  const labelImg = label?.imageUrl || label?.image || label?.filePath;
+  if (labelImg && typeof labelImg === "string" && labelImg.trim()) {
+    return formatImageUrl(labelImg);
+  }
+  if (ecomImage && typeof ecomImage === "string" && ecomImage.trim()) {
+    if (imageBelongsToBarcode(ecomImage, cleanBarcode)) {
+      return formatImageUrl(ecomImage);
+    }
+  }
+  return barcodeImageUrl(cleanBarcode);
+}
+
 export function barcodeProductToProduct(item: BarcodeProduct): Product {
   const mrp = item.price ?? item.offerPrice ?? 0;
   const sellingPrice = item.offerPrice != null && item.offerPrice > 0 && item.offerPrice < mrp ? item.offerPrice : mrp;
@@ -339,7 +370,7 @@ export function barcodeProductToProduct(item: BarcodeProduct): Product {
       qty,
       status: qty <= 0 ? "out_of_stock" : qty <= 3 ? "low_stock" : "in_stock",
     },
-    images: item.image ? [item.image] : [],
+    images: resolvePrimaryProductImage(item.barcode, item, item.image) ? [resolvePrimaryProductImage(item.barcode, item, item.image)!] : (item.image ? [item.image] : []),
     tags: [],
     isNewArrival: false,
     isActive: item.status === "IN_STOCK" && qty > 0,
@@ -564,6 +595,8 @@ export function toProductCard(p: Product): ProductCard {
     images: p.images,
     isNewArrival: p.isNewArrival,
     source: p.source,
+    uom: p.uom,
+    uomType: p.uomType,
     web: p.web ? {
       cardTitle: p.web.cardTitle,
       cardDescription: p.web.cardDescription,

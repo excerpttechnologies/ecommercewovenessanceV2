@@ -64,7 +64,7 @@ export function validateCoupon(coupon: CouponLike | null | undefined, subTotal: 
   else if (coupon.type === "flat") discount = coupon.value;
   else if (coupon.type === "bogo") {
     // cheapest eligible unit free for every 2 units
-    const units = eligible.flatMap((l) => Array.from({ length: l.qty }, () => l.product.pricing.sellingPrice)).sort((a, b) => a - b);
+    const units = eligible.flatMap((l) => Array.from({ length: Math.floor(l.qty) }, () => l.product.pricing.sellingPrice)).sort((a, b) => a - b);
     const free = Math.floor(units.length / 2);
     discount = units.slice(0, free).reduce((s, p) => s + p, 0);
   }

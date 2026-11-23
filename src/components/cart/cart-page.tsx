@@ -76,8 +76,9 @@ export function CartPage() {
                       unitType={l.product.uomType}
                       ariaLabel={`Quantity for CODE ${l.sku}`}
                       onChange={(qty) => updateQuantity(l.sku, qty)}
+                      showUnit
                     />
-                    <span className="font-medium">{formatMoney(l.product.pricing.sellingPrice * l.qty, currency)}</span>
+                    <span className="font-medium">{formatMoney(Math.round(l.product.pricing.sellingPrice * l.qty * 100) / 100, currency)}</span>
                   </div>
                 </div>
               </li>

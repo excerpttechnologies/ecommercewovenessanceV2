@@ -8,7 +8,7 @@ import { CART_COOKIE, cookieOptions, getCustomerSession } from "@/lib/auth";
 import { computeTotals, type CartLine, type CartTotals, type CouponLike } from "@/lib/pricing";
 import { CartModel, CouponModel, WishlistModel } from "@/models/web/commerce.models";
 import { getBarcodeLabels, getMasterData, getSite } from "@/repositories";
-import { barcodeProductToProduct, stockStatus } from "@/lib/erp-mapping";
+import { barcodeProductToProduct, isDecimalUnit, stockStatus } from "@/lib/erp-mapping";
 import { committedStockByBarcode } from "@/lib/inventory/order-inventory";
 import type { Product } from "@/domain/types";
 
@@ -151,26 +151,46 @@ export async function addToCart(sku: string, qty = 1, tokenOverride?: string): P
     throw Object.assign(new Error("This item is out of stock"), { status: 409, code: "OUT_OF_STOCK" });
   }
 
+  const isDecimal = isDecimalUnit(product.uom, product.uomType);
+  const unitLabel = isDecimal ? "Mtr" : "Pc(s)";
+
+  if (!isDecimal) {
+    if (!Number.isInteger(qty) || qty < 1) {
+      throw Object.assign(
+        new Error("This product is sold in pieces (Pc) and can only be purchased in whole numbers."),
+        { status: 400, code: "INVALID_QUANTITY" },
+      );
+    }
+  } else {
+    if (qty < 0.5) {
+      throw Object.assign(
+        new Error("Minimum order quantity for this fabric is 0.5 Mtr."),
+        { status: 400, code: "INVALID_QUANTITY" },
+      );
+    }
+  }
+
   const { M, cart } = await rawCart(token);
   const existing = (cart.items ?? []).find((i) => i.sku === sku);
   const currentInCart = existing?.qty ?? 0;
 
   if (currentInCart >= product.stock.qty) {
     throw Object.assign(
-      new Error(`You already have all available quantity (${product.stock.qty}) in your bag`),
+      new Error(`You already have all available quantity (${product.stock.qty} ${unitLabel}) in your bag`),
       { status: 409, code: "STOCK_EXCEEDED" },
     );
   }
 
-  if (currentInCart + qty > product.stock.qty) {
-    const remaining = product.stock.qty - currentInCart;
+  const requestedTotal = Math.round((currentInCart + qty) * 1000) / 1000;
+  if (requestedTotal > product.stock.qty) {
+    const remaining = Math.round((product.stock.qty - currentInCart) * 1000) / 1000;
     throw Object.assign(
-      new Error(`Only ${product.stock.qty} Pc(s) available in stock (${remaining} more can be added)`),
+      new Error(`Only ${product.stock.qty} ${unitLabel} available in stock (${remaining} more can be added)`),
       { status: 409, code: "INSUFFICIENT_STOCK" },
     );
   }
 
-  const newQty = currentInCart + qty;
+  const newQty = requestedTotal;
   if (existing) {
     await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": newQty, lastActivityAt: new Date() } });
   } else {
@@ -192,14 +212,35 @@ export async function setCartQty(sku: string, qty: number, tokenOverride?: strin
       await M.updateOne({ token }, { $pull: { items: { sku } }, $set: { lastActivityAt: new Date() } });
       throw Object.assign(new Error("This item is now out of stock and was removed from your bag"), { status: 409, code: "OUT_OF_STOCK" });
     }
-    if (qty > available) {
+
+    const isDecimal = isDecimalUnit(product?.uom, product?.uomType);
+    const unitLabel = isDecimal ? "Mtr" : "Pc(s)";
+
+    if (!isDecimal) {
+      if (!Number.isInteger(qty) || qty < 1) {
+        throw Object.assign(
+          new Error("This product is sold in pieces (Pc) and can only be purchased in whole numbers."),
+          { status: 400, code: "INVALID_QUANTITY" },
+        );
+      }
+    } else {
+      if (qty < 0.5) {
+        throw Object.assign(
+          new Error("Minimum order quantity for this fabric is 0.5 Mtr."),
+          { status: 400, code: "INVALID_QUANTITY" },
+        );
+      }
+    }
+
+    const roundedQty = Math.round(qty * 1000) / 1000;
+    if (roundedQty > available) {
       await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": available, lastActivityAt: new Date() } });
       throw Object.assign(
-        new Error(`Only ${available} Pc(s) available in stock. Quantity updated to maximum available.`),
+        new Error(`Only ${available} ${unitLabel} available in stock. Quantity updated to maximum available.`),
         { status: 409, code: "INSUFFICIENT_STOCK" },
       );
     }
-    await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": qty, lastActivityAt: new Date() } });
+    await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": roundedQty, lastActivityAt: new Date() } });
   }
   return getCartView(token);
 }

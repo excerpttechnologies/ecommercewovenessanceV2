@@ -174,7 +174,7 @@ export const POST = handler(async (req: NextRequest) => {
   const orderItems = await Promise.all(
     cart.lines.map(async (l) => {
       const rate = l.product.pricing.sellingPrice;
-      const gross = rate * l.qty;
+      const gross = Math.round(rate * l.qty * 100) / 100;
       const gstRate = l.product.pricing.gstPercent ?? 5;
       const resolvedImage = await resolveOrderItemImage(l.sku, l.product.images[0]);
       return {

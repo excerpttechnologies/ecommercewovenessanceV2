@@ -412,6 +412,8 @@ export type ProductCard = Pick<
   | "stock"
   | "images"
   | "isNewArrival"
+  | "uom"
+  | "uomType"
 > & Pick<Product, "source"> & {
   web?: Pick<NonNullable<Product["web"]>, "cardTitle" | "cardDescription" | "priceOverride">;
 };

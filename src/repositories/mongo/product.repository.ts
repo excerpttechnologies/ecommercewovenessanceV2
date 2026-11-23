@@ -12,6 +12,7 @@ import {
   categoryRefValue,
   mapProduct,
   productSort,
+  resolvePrimaryProductImage,
   skuCandidatesFromSlug,
   toProductCard,
 } from "@/lib/erp-mapping";
@@ -420,9 +421,9 @@ export class MongoProductRepository implements ProductRepository {
           if (params.priceMin != null && sellingPrice < params.priceMin) continue;
           if (params.priceMax != null && sellingPrice > params.priceMax) continue;
 
-          const primaryImage = (firstLabel && (firstLabel.imageUrl || firstLabel.image || firstLabel.filePath))
-            || p.image
-            || barcodeImageUrl(b);
+          const primaryImage = resolvePrimaryProductImage(b, firstLabel, p.image);
+          const uom = firstLabel?.[B.uom] || firstLabel?.[B.uomType] || "Pc";
+          const uomType = firstLabel?.[B.uomType] || firstLabel?.[B.uom] || "PC";
 
           const slug = `${slugName}-${b.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
@@ -432,6 +433,8 @@ export class MongoProductRepository implements ProductRepository {
             name: p.displayName || p.ecommItemCode || "Woven Essence Product",
             category: p.productType || "Sarees",
             subCategory: p.productType,
+            uom,
+            uomType,
             slug,
             pricing: {
               mrp,
@@ -629,8 +632,8 @@ export class MongoProductRepository implements ProductRepository {
       const db = conn.db;
 
       // 1. FAST PATH: Parallel indexed lookups on barcodeLabel and ecommerceProducts (<40ms)
-      const [label, ecom] = await Promise.all([
-        db.collection(ERP_BARCODE_COLLECTIONS.labels).findOne(
+      const [labels, ecom] = await Promise.all([
+        db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels).find(
           { [B.barcode]: upperSku },
           {
             projection: {
@@ -645,6 +648,8 @@ export class MongoProductRepository implements ProductRepository {
               [B.retailPrice]: 1,
               [B.offerPrice]: 1,
               [B.gstPercent]: 1,
+              [B.uom]: 1,
+              [B.uomType]: 1,
               imageUrl: 1,
               image: 1,
               filePath: 1,
@@ -652,7 +657,7 @@ export class MongoProductRepository implements ProductRepository {
               businessId: 1,
             },
           }
-        ),
+        ).toArray(),
         db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).findOne(
           { publishedBarcodes: upperSku, isPublished: true },
           {
@@ -669,10 +674,9 @@ export class MongoProductRepository implements ProductRepository {
         ),
       ]);
 
+      const label = labels.find((l) => (Number(l[B.qty]) || 0) > 0) || labels.find((l) => l[B.status] === "IN_STOCK") || labels[0];
       if (label) {
-
-        const inStock = label[B.status] === "IN_STOCK";
-        const totalQty = inStock ? (Number(label[B.qty]) || Number(label[B.qtyText]) || 1) : 0;
+        const totalQty = labels.reduce((sum, l) => sum + (l[B.status] === "IN_STOCK" ? (Number(l[B.qty]) || Number(l[B.qtyText]) || 0) : 0), 0);
         const mrp = Number(label[B.retailPrice]) || 0;
         const offer = Number(label[B.offerPrice]) || null;
         const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
@@ -681,7 +685,9 @@ export class MongoProductRepository implements ProductRepository {
         const name = labelName || ecom?.displayName || ecom?.ecommItemCode || "Woven Essence Product";
         const description = ecom?.printDescriptionOverride || label[B.printDescription] || label[B.description] || name;
 
-        const primaryImage = label.imageUrl || label.image || label.filePath || ecom?.image || barcodeImageUrl(cleanSku);
+        const primaryImage = resolvePrimaryProductImage(cleanSku, label, ecom?.image);
+        const uom = label[B.uom] || label[B.uomType] || "Pc";
+        const uomType = label[B.uomType] || label[B.uom] || "PC";
         const slugName = (ecom?.displayName || ecom?.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
@@ -693,6 +699,8 @@ export class MongoProductRepository implements ProductRepository {
           description,
           category: ecom?.productType || label[B.itemName] || "Sarees",
           subCategory: ecom?.productType || label[B.itemName] || "Sarees",
+          uom,
+          uomType,
           slug,
           pricing: {
             mrp,
@@ -745,6 +753,8 @@ export class MongoProductRepository implements ProductRepository {
               [B.printDescription]: 1,
               [B.itemName]: 1,
               [B.description]: 1,
+              [B.uom]: 1,
+              [B.uomType]: 1,
               imageUrl: 1,
               image: 1,
               filePath: 1,
@@ -763,7 +773,9 @@ export class MongoProductRepository implements ProductRepository {
         const offer: number | null = targetLabel && Number(targetLabel[B.offerPrice]) ? Number(targetLabel[B.offerPrice]) : null;
         const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
 
-        const primaryImage: string | undefined = targetLabel?.imageUrl || targetLabel?.image || targetLabel?.filePath || fallbackEcom.image || barcodeImageUrl(cleanSku);
+        const primaryImage: string | undefined = resolvePrimaryProductImage(cleanSku, targetLabel, fallbackEcom.image);
+        const uom = targetLabel?.[B.uom] || targetLabel?.[B.uomType] || "Pc";
+        const uomType = targetLabel?.[B.uomType] || targetLabel?.[B.uom] || "PC";
 
         const slugName = (fallbackEcom.displayName || fallbackEcom.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
@@ -780,6 +792,8 @@ export class MongoProductRepository implements ProductRepository {
           description,
           category: fallbackEcom.productType || "Sarees",
           subCategory: fallbackEcom.productType,
+          uom,
+          uomType,
           slug,
           pricing: {
             mrp,
@@ -839,6 +853,8 @@ export class MongoProductRepository implements ProductRepository {
             [B.retailPrice]: 1,
             [B.offerPrice]: 1,
             [B.gstPercent]: 1,
+            [B.uom]: 1,
+            [B.uomType]: 1,
             imageUrl: 1,
             image: 1,
             filePath: 1,
@@ -848,12 +864,11 @@ export class MongoProductRepository implements ProductRepository {
         }
       ).toArray();
 
-      const labelMap = new Map<string, AnyDoc>();
+      const labelsByBarcode = new Map<string, AnyDoc[]>();
       for (const l of labels) {
         const b = String(l[B.barcode] ?? "").toUpperCase();
-        if (!labelMap.has(b) || l[B.status] === "IN_STOCK") {
-          labelMap.set(b, l);
-        }
+        if (!labelsByBarcode.has(b)) labelsByBarcode.set(b, []);
+        labelsByBarcode.get(b)!.push(l);
       }
 
       // 2. Batched indexed query for parent ecommerceProducts at once (~40ms)
@@ -894,19 +909,17 @@ export class MongoProductRepository implements ProductRepository {
       const products: Product[] = [];
       for (const sku of skus) {
         const upper = sku.trim().toUpperCase();
-        const label = labelMap.get(upper);
+        const bLabels = labelsByBarcode.get(upper) ?? [];
         const ecom = ecomByBarcode.get(upper);
 
-        if (!label && !ecom) {
+        if (!bLabels.length) {
           const fallback = await this.erpGetBySku(sku, options);
           if (fallback) products.push(fallback);
           continue;
         }
 
-        const inStock = label ? label[B.status] === "IN_STOCK" : false;
-        const totalQty = label
-          ? (inStock ? (Number(label[B.qty]) || Number(label[B.qtyText]) || 1) : 0)
-          : 1;
+        const label = bLabels.find((l) => (Number(l[B.qty]) || 0) > 0) || bLabels.find((l) => l[B.status] === "IN_STOCK") || bLabels[0];
+        const totalQty = bLabels.reduce((sum, l) => sum + (l[B.status] === "IN_STOCK" ? (Number(l[B.qty]) || Number(l[B.qtyText]) || 0) : 0), 0);
 
         const mrp = (label && Number(label[B.retailPrice])) || Number(ecom?.barcodePriceOverride) || 0;
         const offer = label && Number(label[B.offerPrice]) ? Number(label[B.offerPrice]) : null;
@@ -916,7 +929,9 @@ export class MongoProductRepository implements ProductRepository {
         const name = labelName || ecom?.displayName || ecom?.ecommItemCode || sku;
         const description = ecom?.printDescriptionOverride || label?.[B.printDescription] || label?.[B.description] || name;
 
-        const primaryImage = label?.imageUrl || label?.image || label?.filePath || ecom?.image || barcodeImageUrl(sku);
+        const primaryImage = resolvePrimaryProductImage(sku, label, ecom?.image);
+        const uom = label?.[B.uom] || label?.[B.uomType] || "Pc";
+        const uomType = label?.[B.uomType] || label?.[B.uom] || "PC";
         const slugName = (ecom?.displayName || ecom?.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const slug = `${slugName}-${sku.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
@@ -928,6 +943,8 @@ export class MongoProductRepository implements ProductRepository {
           description,
           category: ecom?.productType || label?.[B.itemName] || "Sarees",
           subCategory: ecom?.productType || label?.[B.itemName] || "Sarees",
+          uom,
+          uomType,
           slug,
           pricing: {
             mrp,

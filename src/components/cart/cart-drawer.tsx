@@ -80,8 +80,9 @@ export function CartDrawer() {
                     unitType={l.product.uomType}
                     ariaLabel={`Quantity for CODE ${l.sku}`}
                     onChange={(qty) => updateQuantity(l.sku, qty)}
+                    showUnit
                   />
-                  <Price amount={l.product.pricing.sellingPrice * l.qty} size="sm" />
+                  <Price amount={Math.round(l.product.pricing.sellingPrice * l.qty * 100) / 100} size="sm" />
                 </div>
               </div>
             </li>

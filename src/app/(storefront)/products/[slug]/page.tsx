@@ -20,6 +20,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { slugify } from "@/lib/utils";
 import { JsonLd } from "@/components/seo/json-ld";
 import { OG_DEFAULTS, absoluteUrl, breadcrumbJsonLd, publicImage } from "@/lib/seo";
+import { isDecimalUnit } from "@/lib/product-quantity";
 import Link from "next/link";
 
 type ProductPageProps = {
@@ -139,7 +140,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             {product.stock.status === "out_of_stock" && <Badge tone="red">Sold out</Badge>}
           </div>
           <h1 className="mt-3 text-3xl uppercase leading-tight tracking-wide text-olive sm:text-4xl">Code {product.sku}</h1>
-          <p className="mt-1 text-xs text-muted">Available Qty: {Math.max(0, product.stock.qty)} Pc(s)</p>
+          <p className="mt-1 text-xs text-muted">Available Qty: {Math.max(0, product.stock.qty)} {isDecimalUnit(product.uom, product.uomType) ? "Mtr" : (product.uom || "Pc(s)")}</p>
           <div className="mt-4">
             <Price amount={product.pricing.sellingPrice} mrp={product.pricing.mrp} size="lg" />
             <p className="mt-1 text-xs text-muted">Inclusive of {product.pricing.gstPercent}% GST · Free shipping above ₹{(settings.commerce?.freeShippingAbove ?? 4999).toLocaleString("en-IN")}</p>

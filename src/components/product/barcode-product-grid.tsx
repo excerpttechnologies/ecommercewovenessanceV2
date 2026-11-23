@@ -188,6 +188,7 @@ import { swatchColor } from "@/lib/colour";
 import { barcodeProductPath } from "@/lib/paths";
 import { WishlistButton } from "./wishlist-button";
 import { ProductCardQuantitySelector } from "./ProductCardQuantitySelector";
+import { isDecimalUnit } from "@/lib/product-quantity";
 
 /** "1 Day" / "2 Days" for a product added by ERP in the last 48 hours. */
 function launchBadge(launchedAt?: string): string | undefined {
@@ -457,12 +458,14 @@ export function BarcodeProductGrid({
             </p>
           );
 
+          const isDecimal = isDecimalUnit(item.uom, item.uomType);
+          const addQty = isDecimal && (item.qty ?? 0) < 1 && (item.qty ?? 0) >= 0.5 ? (item.qty ?? 0) : 1;
           // Add to bag button (detail view only)
           const addButton = (
             <button
               type="button"
               disabled={outOfStock || adding}
-              onClick={() => add.mutate({ sku: item.barcode })}
+              onClick={() => add.mutate({ sku: item.barcode, qty: addQty })}
               className={cn(
                 "inline-flex w-full shrink-0 items-center justify-center gap-2.5 rounded-full bg-maroon px-5 font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold active:translate-y-0 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none",
                 "mt-2 h-12 text-sm"
@@ -494,7 +497,7 @@ export function BarcodeProductGrid({
                   {printDescription && <p className="text-sm text-muted">{printDescription}</p>}
 
                   <p className="text-xs text-muted">
-                    Available Qty: {item.qty ?? 0} {item.uom ?? "Pc(s)"}
+                    Available Qty: {item.qty ?? 0} {isDecimal ? "Mtr" : (item.uom ?? "Pc(s)")}
                   </p>
 
                   {classifications.length > 0 && (
@@ -584,6 +587,7 @@ export function BarcodeProductGrid({
                     sku={item.barcode}
                     maxQty={item.qty ?? undefined}
                     uom={item.uom ?? undefined}
+                    uomType={item.uomType ?? undefined}
                     onAdd={(qty) => add.mutate({ sku: item.barcode, qty })}
                     disabled={outOfStock}
                     adding={adding}

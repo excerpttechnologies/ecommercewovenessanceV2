@@ -14,35 +14,22 @@ import type { Order, OrderItem } from "@/domain/types";
  * 5. DigitalOcean Spaces public bucket root
  */
 const ERP_MEDIA_BASE = "https://erp.wovenessence.in";
-const BARCODE_FILE_NAME = /^\d{1,2}[A-Za-z]\d{3,6}$/i;
 
 /**
  * A stored image whose filename is ANOTHER barcode's number (e.g. 4A1708.jpg) is a sibling
  * barcode's photo living on the parent item row (e.g. 10-PRAWSILK), so it must not be shown
  * for other barcodes (e.g. 256550). Files named after anything else (hashes, item codes) are allowed.
  */
-export function imageBelongsToBarcode(src: string, barcode: string): boolean {
-  const stem = String(src || "").split(/[?#]/)[0].split("/").pop()?.replace(/\.[a-z0-9]+$/i, "");
-  if (!stem) return false;
-  if (!BARCODE_FILE_NAME.test(stem)) return true;
-  return barcode.toLowerCase() === stem.toLowerCase();
-}
-
-function formatImageUrl(url?: string | null): string | undefined {
-  if (!url || typeof url !== "string") return undefined;
-  const s = url.trim();
-  if (!s) return undefined;
-  if (/^https?:\/\//i.test(s)) return s;
-  if (s.startsWith("//")) return `https:${s}`;
-  if (s.startsWith("/")) return `${ERP_MEDIA_BASE}${s}`;
-  return `${ERP_MEDIA_BASE}/${s}`;
-}
+export { formatImageUrl, imageBelongsToBarcode } from "@/lib/image-matcher";
+import { formatImageUrl, imageBelongsToBarcode } from "@/lib/image-matcher";
+import { barcodeImageUrl } from "@/lib/erp-images";
 
 export async function resolveOrderItemImage(sku: string, currentImage?: string | null): Promise<string | undefined> {
-  const formattedCurrent = formatImageUrl(currentImage);
-  if (formattedCurrent) return formattedCurrent;
-
   const cleanSku = String(sku || "").trim();
+  if (!cleanSku) return undefined;
+
+  const formattedCurrent = formatImageUrl(currentImage);
+  if (formattedCurrent && imageBelongsToBarcode(formattedCurrent, cleanSku)) return formattedCurrent;
   if (!cleanSku) return undefined;
 
   try {
@@ -102,6 +89,9 @@ export async function resolveOrderItemImage(sku: string, currentImage?: string |
       const ecommImg = formatImageUrl(rawEcommImage);
       if (ecommImg) return ecommImg;
     }
+
+    const publicSpacesImage = barcodeImageUrl(cleanSku);
+    if (publicSpacesImage) return publicSpacesImage;
 
     // 4. Barcode prefix rule (e.g. 4A1200, 6A2197)
     const prefixMatch = /^(\d+[A-Za-z]+)/.exec(cleanSku);

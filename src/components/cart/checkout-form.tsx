@@ -637,6 +637,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { useUi } from "@/store/ui";
 import { OrderItemImage } from "@/components/ui/order-item-image";
+import { isDecimalUnit } from "@/lib/product-quantity";
 
 const STATES = ["Andhra Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Odisha", "Punjab", "Rajasthan", "Tamil Nadu", "Telangana", "Uttar Pradesh", "Uttarakhand", "West Bengal"];
 
@@ -841,8 +842,11 @@ export function CheckoutForm({ customer, razorpayEnabled, razorpayConfigured }: 
                   compact
                 />
               </span>
-              <span className="min-w-0 flex-1"><span className="line-clamp-2 uppercase tracking-wide">Code {l.sku}</span><span className="text-xs text-muted">× {l.qty}</span></span>
-              <span>{formatMoney(l.product.pricing.sellingPrice * l.qty, currency)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="line-clamp-2 uppercase tracking-wide">Code {l.sku}</span>
+                <span className="text-xs text-muted">× {l.qty} {isDecimalUnit(l.product.uom, l.product.uomType) ? "Mtr" : (l.product.uom || "Pc(s)")}</span>
+              </span>
+              <span>{formatMoney(Math.round(l.product.pricing.sellingPrice * l.qty * 100) / 100, currency)}</span>
             </li>
           ))}
         </ul>

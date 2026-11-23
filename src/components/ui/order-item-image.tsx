@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { ComingSoonImage } from "@/components/ui/coming-soon-image";
 import { isRemoteImageSource } from "@/lib/utils";
+import { imageBelongsToBarcode } from "@/lib/image-matcher";
 
 interface OrderItemImageProps {
   src?: string | null;
@@ -35,11 +36,17 @@ export function OrderItemImage({
   const candidateSources = useMemo(() => {
     const list: string[] = [];
     if (src && typeof src === "string" && src.trim()) {
-      list.push(src.trim());
+      const cleanSrc = src.trim();
+      if (!sku || imageBelongsToBarcode(cleanSrc, sku)) {
+        list.push(cleanSrc);
+      }
     }
     for (const fb of fallbackSources) {
       if (fb && typeof fb === "string" && fb.trim()) {
-        list.push(fb.trim());
+        const cleanFb = fb.trim();
+        if (!sku || imageBelongsToBarcode(cleanFb, sku)) {
+          list.push(cleanFb);
+        }
       }
     }
     if (sku && typeof sku === "string") {

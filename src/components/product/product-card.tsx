@@ -43,6 +43,8 @@ export function ProductCard({ p, priority }: { p: Card; priority?: boolean }) {
         <ProductCardQuantitySelector
           sku={p.sku}
           maxQty={p.stock.qty > 0 ? p.stock.qty : undefined}
+          uom={p.uom}
+          uomType={p.uomType}
           onAdd={(qty) => add.mutate({ sku: p.sku, qty })}
           disabled={out}
           adding={add.isPending && add.variables?.sku === p.sku}

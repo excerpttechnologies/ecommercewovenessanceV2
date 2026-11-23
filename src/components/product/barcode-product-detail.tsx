@@ -16,6 +16,7 @@ import { useCart, useWishlist } from "@/hooks/useCart";
 import { galleryViewLabel } from "@/lib/product-gallery";
 import { swatchColor } from "@/lib/colour";
 import { getDefaultProductQty } from "@/lib/product-quantity";
+import { isDecimalUnit } from "@/lib/product-quantity";
 import { cn, formatINR } from "@/lib/utils";
 
 type Neighbour = { href: string; name: string } | null;
@@ -43,13 +44,12 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   const selling = item.offerPrice && item.offerPrice < price ? item.offerPrice : price;
   const discount = selling < price && price > 0 ? Math.round(((price - selling) / price) * 100) : 0;
   const inStock = item.status === "IN_STOCK" && !(item.qty != null && item.qty <= 0);
-  const unit = item.uomType?.trim() || item.uom?.trim() || "";
-  const normalizedUnit = unit.replace(/[^a-z]/gi, "").toUpperCase();
-  const decimalQuantity = ["MTR", "MTRS", "METER", "METERS", "METRE", "METRES"].includes(normalizedUnit);
+  const decimalQuantity = isDecimalUnit(item.uom, item.uomType);
   const availableStock = item.qty != null && Number.isFinite(item.qty) ? Math.max(0, item.qty) : 1;
   const maxQty = decimalQuantity
-    ? Math.min(20, Math.floor((availableStock + Number.EPSILON) * 100) / 100)
-    : Math.min(20, Math.floor(availableStock));
+    ? Math.floor((availableStock + Number.EPSILON) * 100) / 100
+    : Math.floor(availableStock);
+  const minQty = decimalQuantity ? (availableStock >= 0.5 ? 0.5 : 0) : (availableStock >= 1 ? 1 : 0);
   const defaultQty = getDefaultProductQty(item.uom, item.uomType, availableStock, inStock);
   const [qty, setQty] = useState(() => defaultQty);
   const [draftQty, setDraftQty] = useState(() => defaultQty);
@@ -58,7 +58,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
   // The storefront shows the barcode as the product title; item names stay internal.
   const codeLabel = `Code ${item.barcode}`;
   const printDescription = item.printDescription?.trim() || undefined;
-  const availableQty = `${item.qty ?? 0} ${item.uom?.trim() || "Pc(s)"}`;
+  const availableQty = `${item.qty ?? 0} ${decimalQuantity ? "Mtr" : (item.uom?.trim() || "Pc(s)")}`;
   const canSubmit = inStock && !busy && draftQty > 0;
   const attrs = Object.entries(item.ecommerce?.attributes ?? {}).filter((e): e is [string, string] => Boolean(e[1]));
   const overview: ProductOverviewRow[] = [
@@ -213,17 +213,22 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {inStock && (
-              <QtyStepper
-                value={qty}
-                min={0}
-                max={maxQty}
-                unit={item.uom}
-                unitType={item.uomType}
-                ariaLabel="Quantity"
-                onChange={changeQuantity}
-                onDraftChange={setDraftQty}
-                size="product"
-              />
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-olive">Quantity:</span>
+                <QtyStepper
+                  value={qty}
+                  min={minQty}
+                  step={decimalQuantity ? 0.5 : 1}
+                  max={maxQty}
+                  unit={item.uom}
+                  unitType={item.uomType}
+                  ariaLabel="Quantity"
+                  onChange={changeQuantity}
+                  onDraftChange={setDraftQty}
+                  size="product"
+                  showUnit
+                />
+              </div>
             )}
             <button type="button" disabled={!canSubmit} onClick={addToBag} className="inline-flex h-12 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-full bg-maroon px-6 text-[15px] font-semibold text-white shadow-[0_10px_22px_-12px_rgba(219,26,114,0.9)] transition-all hover:-translate-y-0.5 hover:bg-gold disabled:translate-y-0 disabled:bg-[#e4e1e3] disabled:text-muted disabled:shadow-none">
               <ShoppingBag className="h-5 w-5" /> {inStock ? (busy ? "Adding…" : "Add to Bag") : "Unavailable"}
