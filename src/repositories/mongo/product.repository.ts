@@ -20,6 +20,7 @@ import {
 } from "@/lib/erp-mapping";
 import { loadClassificationNames } from "@/lib/erp-classification-names";
 import { barcodeImageUrl } from "@/lib/erp-images";
+import { cached } from "@/lib/cache";
 import { escapeRegex } from "@/lib/utils";
 import { ProductModel } from "@/models/erp/product.model";
 import { ProductWebMetaModel, type ProductWebMetaDoc } from "@/models/web/content.models";
@@ -304,26 +305,65 @@ export class MongoProductRepository implements ProductRepository {
     const items: ProductCard[] = [];
     const handledBarcodes = new Set<string>();
 
+    // Collect all barcodes across parent products for a single batched query
+    const allParentBarcodes: string[] = [];
     for (const p of ecomDocs) {
       const barcodes = Array.isArray(p.publishedBarcodes) && p.publishedBarcodes.length
         ? (p.publishedBarcodes as string[])
         : [String(p.barcode ?? "")].filter(Boolean);
-      barcodes.forEach((b) => handledBarcodes.add(b));
+      for (const b of barcodes) {
+        allParentBarcodes.push(b);
+        handledBarcodes.add(b);
+      }
+    }
 
-      // Fetch in-stock labels for this parent
-      const inStockLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
-        [B.barcode]: { $in: barcodes },
-        [B.status]: "IN_STOCK",
-        businessId: DEFAULT_BUSINESS_ID,
-      }).toArray();
+    // Single batched query for in-stock labels with lean projection
+    const inStockLabels = allParentBarcodes.length
+      ? await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
+          [B.barcode]: { $in: allParentBarcodes },
+          [B.status]: "IN_STOCK",
+        }, {
+          projection: {
+            [B.barcode]: 1,
+            [B.qty]: 1,
+            [B.retailPrice]: 1,
+            [B.offerPrice]: 1,
+            imageUrl: 1,
+            image: 1,
+            filePath: 1,
+          }
+        }).toArray()
+      : [];
 
-      const totalQty = inStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
+    const labelsByBarcode = new Map<string, AnyDoc[]>();
+    for (const l of inStockLabels) {
+      const b = String(l[B.barcode] ?? "");
+      let arr = labelsByBarcode.get(b);
+      if (!arr) {
+        arr = [];
+        labelsByBarcode.set(b, arr);
+      }
+      arr.push(l);
+    }
+
+    for (const p of ecomDocs) {
+      const barcodes = Array.isArray(p.publishedBarcodes) && p.publishedBarcodes.length
+        ? (p.publishedBarcodes as string[])
+        : [String(p.barcode ?? "")].filter(Boolean);
+
+      const parentInStockLabels: AnyDoc[] = [];
+      for (const b of barcodes) {
+        const found = labelsByBarcode.get(b);
+        if (found) parentInStockLabels.push(...found);
+      }
+
+      const totalQty = parentInStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
       if (params.inStock && totalQty <= 0) continue;
 
       let mrp = Number(p.barcodePriceOverride) || 0;
       let offer: number | null = null;
-      if (inStockLabels.length > 0) {
-        const firstWithPrice = inStockLabels.find((l) => l[B.retailPrice]);
+      if (parentInStockLabels.length > 0) {
+        const firstWithPrice = parentInStockLabels.find((l) => l[B.retailPrice]);
         if (firstWithPrice) {
           mrp = Number(firstWithPrice[B.retailPrice]) || mrp;
           offer = Number(firstWithPrice[B.offerPrice]) || null;
@@ -335,8 +375,8 @@ export class MongoProductRepository implements ProductRepository {
       if (params.priceMax != null && sellingPrice > params.priceMax) continue;
 
       let primaryImage: string | undefined = p.image;
-      if (!primaryImage && inStockLabels.length) {
-        primaryImage = inStockLabels[0].imageUrl || inStockLabels[0].image || inStockLabels[0].filePath;
+      if (!primaryImage && parentInStockLabels.length) {
+        primaryImage = parentInStockLabels[0].imageUrl || parentInStockLabels[0].image || parentInStockLabels[0].filePath;
       }
       if (!primaryImage && p.barcode) {
         primaryImage = barcodeImageUrl(p.barcode);
@@ -379,7 +419,19 @@ export class MongoProductRepository implements ProductRepository {
         const standaloneLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
           [B.barcode]: { $in: standaloneBarcodes },
           [B.status]: "IN_STOCK",
-          businessId: DEFAULT_BUSINESS_ID,
+        }, {
+          projection: {
+            [B.barcode]: 1,
+            [B.qty]: 1,
+            [B.retailPrice]: 1,
+            [B.offerPrice]: 1,
+            [B.itemName]: 1,
+            [B.description]: 1,
+            [B.printDescription]: 1,
+            imageUrl: 1,
+            image: 1,
+            filePath: 1,
+          }
         }).toArray();
 
         // Group by barcode
@@ -716,6 +768,10 @@ export class MongoProductRepository implements ProductRepository {
 
   async list(params: ProductListParams): Promise<Paginated<ProductCard>> {
     if (await this.isErpMode()) {
+      if (!params.q?.trim()) {
+        const cacheKey = `erp:list:${params.category ?? "all"}:${params.page ?? 1}:${params.limit ?? 24}:${params.sort ?? "default"}:${params.inStock ? 1 : 0}:${params.priceMin ?? ""}:${params.priceMax ?? ""}`;
+        return cached(cacheKey, 60_000, () => this.erpList(params));
+      }
       return this.erpList(params);
     }
 

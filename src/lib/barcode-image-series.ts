@@ -1626,57 +1626,59 @@ export function getBarcodeImageFilterOptions(group: StorefrontCategoryGroup) {
   });
 }
 
-export async function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
-  const barcodeLabels = getBarcodeLabels();
-  const groupIds = getAddOnGroupIds(group);
-  const [scopeResult, excludedBarcodes] = await Promise.all([
-    groupIds
-      ? getAddOnLabelIds(group, groupIds).then((ids) => ({ labelIds: ids }))
-      : getBarcodeImageScopes(group as EcommerceCategoryGroup).then((r) => ({ ...r })),
-    inactiveBarcodes(),
-  ]);
+export function getBarcodeImageSeries(group: StorefrontCategoryGroup) {
+  return cached(`erp:barcode-series:${group}`, 60_000, async () => {
+    const barcodeLabels = getBarcodeLabels();
+    const groupIds = getAddOnGroupIds(group);
+    const [scopeResult, excludedBarcodes] = await Promise.all([
+      groupIds
+        ? getAddOnLabelIds(group, groupIds).then((ids) => ({ labelIds: ids }))
+        : getBarcodeImageScopes(group as EcommerceCategoryGroup).then((r) => ({ ...r })),
+      inactiveBarcodes(),
+    ]);
 
-  const { labelIds } = scopeResult;
+    const { labelIds } = scopeResult;
 
-  if (!labelIds.length) {
-    return (["8A", "9A"] as const).map((prefix) => ({ title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`, items: [] as BarcodeProduct[] }));
-  }
+    if (!labelIds.length) {
+      return (["8A", "9A"] as const).map((prefix) => ({ title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`, items: [] as BarcodeProduct[] }));
+    }
 
-  const seenImages = new Set<string>();
-  const series = [];
-  for (const prefix of ["8A", "9A"] as const) {
-    const minFabricLength = minFabricLengthFor(group);
-    const result = await barcodeLabels.list({
-      labelIds,
-      resolveImages: true,
-      seriesPrefix: prefix,
-      excludedBarcodes,
-      availableOnly: true,
-      limit: 12,
-      ...(minFabricLength != null ? { minFabricLength } : {}),
-    });
-    const items = (await withAvailableImages(result.items))
-      .filter((item): item is typeof item & { image: string } => {
-        if (!item.image) return false;
-        const imageUrl = item.image.split("?")[0];
-        if (seenImages.has(imageUrl)) return false;
-        seenImages.add(imageUrl);
-        return true;
+    const seenImages = new Set<string>();
+    const series = [];
+    for (const prefix of ["8A", "9A"] as const) {
+      const minFabricLength = minFabricLengthFor(group);
+      const result = await barcodeLabels.list({
+        labelIds,
+        resolveImages: true,
+        seriesPrefix: prefix,
+        excludedBarcodes,
+        availableOnly: true,
+        limit: 12,
+        ...(minFabricLength != null ? { minFabricLength } : {}),
       });
-    series.push({
-      title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`,
-      items,
-    });
-  }
-  const items = await withPrintDescriptionOverrides(series.flatMap((group) => group.items));
-  const descriptionsById = new Map(items.map((item) => [item.id, item.printDescription]));
-  return series.map((group) => ({
-    ...group,
-    items: group.items.map((item) => {
-      const printDescription = descriptionsById.get(item.id);
-      return printDescription ? { ...item, printDescription } : item;
-    }),
-  }));
+      const items = (await withAvailableImages(result.items))
+        .filter((item): item is typeof item & { image: string } => {
+          if (!item.image) return false;
+          const imageUrl = item.image.split("?")[0];
+          if (seenImages.has(imageUrl)) return false;
+          seenImages.add(imageUrl);
+          return true;
+        });
+      series.push({
+        title: `${ERP_CATEGORY_TITLES[group]} - ${prefix} Series`,
+        items,
+      });
+    }
+    const items = await withPrintDescriptionOverrides(series.flatMap((group) => group.items));
+    const descriptionsById = new Map(items.map((item) => [item.id, item.printDescription]));
+    return series.map((group) => ({
+      ...group,
+      items: group.items.map((item) => {
+        const printDescription = descriptionsById.get(item.id);
+        return printDescription ? { ...item, printDescription } : item;
+      }),
+    }));
+  });
 }
 
 // Best Buy and New Arrivals repeat products of the other groups, so the homepage sections and filter chips leave them out.
@@ -1684,7 +1686,7 @@ const STOREFRONT_GROUPS = (Object.keys(ERP_CATEGORY_PRODUCT_TYPES) as Storefront
 
 /** The homepage shows ERP products only: per storefront category, its published products, newest first. */
 export const getErpHomeSections = cache(async (limitPerGroup = 8) => {
-  return deduplicateInFlight(`erp:home-sections:${limitPerGroup}`, async () => {
+  return cached(`erp:home-sections:${limitPerGroup}`, 60_000, async () => {
     const started = performance.now();
     const { value } = await withPerf(async () => {
       const sections = await Promise.all(STOREFRONT_GROUPS.map(async (group) => {

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+
+export const revalidate = 60;
 import type { CategoryNode } from "@/domain/types";
 import { getMasterData, getSite } from "@/repositories";
 import { collectionToListParams } from "@/repositories/web/site.repository";

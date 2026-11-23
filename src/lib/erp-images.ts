@@ -514,7 +514,7 @@ const OK_TTL = 6 * 3_600_000;
 const FAIL_TTL = 15 * 60_000;
 const HOST_DOWN_MS = 60_000;
 const MAX_ENTRIES = 50_000;
-const PROBE_TIMEOUT_MS = 4000;
+const PROBE_TIMEOUT_MS = 1000;
 
 /** Signed URLs change every hour; cache by the object URL instead. */
 const probeKey = (url: string) => (url.includes("X-Amz-Signature=") ? url.split("?")[0] : url);
@@ -532,6 +532,24 @@ export function probeImage(url: string, fetchImpl: typeof fetch = fetch): Promis
     return Promise.resolve(false);
   }
   if ((state.hostDownUntil.get(host) ?? 0) > Date.now()) return Promise.resolve(null);
+
+  // Fast path for trusted image storage hosts (DigitalOcean Spaces / ERP domain)
+  // Eliminates 3-5s server-side blocking network probes on every SSR page render
+  const isTrustedHost = host.includes("digitaloceanspaces.com") || host.includes("wovenessence.in");
+  if (isTrustedHost) {
+    if (!hit) {
+      state.cache.set(key, { ok: true, at: Date.now() });
+      // Asynchronously probe in background without stalling SSR
+      fetchImpl(url, { method: "HEAD", signal: AbortSignal.timeout(1500) })
+        .then((res) => {
+          const ok = res.status === 200 || res.status === 206;
+          state.cache.set(key, { ok, at: Date.now() });
+        })
+        .catch(() => {});
+      return Promise.resolve(true);
+    }
+  }
+
   const pending = state.inflight.get(key);
   if (pending) return pending;
 

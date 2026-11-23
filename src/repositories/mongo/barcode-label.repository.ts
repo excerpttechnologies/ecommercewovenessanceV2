@@ -883,14 +883,14 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     if (params.excludedBarcodes?.length) and.push({ [B.barcode]: { $nin: params.excludedBarcodes } });
     if (params.inStockStatusOnly) and.push({ [B.status]: "IN_STOCK" });
     if (params.availableOnly) {
-      const qty = {
-        $ifNull: [
-          { $convert: { input: `$${B.qty}`, to: "double", onError: null, onNull: null } },
-          { $convert: { input: `$${B.qtyText}`, to: "double", onError: null, onNull: null } },
-        ],
-      };
       and.push({ [B.status]: "IN_STOCK" });
-      and.push({ $expr: { $or: [{ $eq: [qty, null] }, { $gt: [qty, 0] }] } });
+      and.push({
+        $or: [
+          { qtyNum: { $gt: 0 } },
+          { [B.qty]: { $gt: 0 } },
+          { [B.qty]: { $ne: "0" } },
+        ],
+      });
     }
     if (params.minFabricLength != null) {
       const qty = {
