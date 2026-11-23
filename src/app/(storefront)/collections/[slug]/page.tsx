@@ -1,4 +1,5 @@
 // // src\app\(storefront)\collections\[slug]\page.tsx
+// export const revalidate = 60;
 
 // import type { Metadata } from "next";
 // import { notFound, permanentRedirect } from "next/navigation";
@@ -258,6 +259,8 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 
 // src\app\(storefront)\collections\[slug]\page.tsx
+
+export const revalidate = 60;
 
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";

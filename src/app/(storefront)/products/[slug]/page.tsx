@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+
+export const revalidate = 60;
 import { notFound } from "next/navigation";
 import { env } from "@/lib/env";
 import { getMasterData } from "@/repositories";
 import { getSettings } from "@/lib/site-data";
+import { applyHeldStock } from "@/lib/cart-server";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Price } from "@/components/ui/price";
@@ -25,7 +28,8 @@ type ProductPageProps = {
 };
 
 export async function generateMetadata({ params, searchParams }: ProductPageProps): Promise<Metadata> {
-  const p = await getMasterData().products.getBySlug((await params).slug);
+  const raw = await getMasterData().products.getBySlug((await params).slug);
+  const p = raw ? (await applyHeldStock([raw]))[0] : null;
   if (!p || p.stock.qty <= 0) {
     const query = await searchParams;
     if (p) return { title: "Product unavailable", robots: { index: false, follow: true } };
@@ -48,7 +52,8 @@ export async function generateMetadata({ params, searchParams }: ProductPageProp
 
 export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const master = getMasterData();
-  const product = await master.products.getBySlug((await params).slug);
+  const rawProduct = await master.products.getBySlug((await params).slug);
+  const product = rawProduct ? (await applyHeldStock([rawProduct]))[0] : null;
   if (!product || product.stock.qty <= 0) {
     if (product) notFound();
     const query = await searchParams;

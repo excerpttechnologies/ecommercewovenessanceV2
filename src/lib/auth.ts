@@ -7,13 +7,21 @@ export * from "./auth-core";
 /* ---------- Server-component / route helpers ---------- */
 
 export async function getCustomerSession(): Promise<CustomerSession | null> {
-  const jar = await cookies();
-  return verifySession<CustomerSession>(jar.get(CUSTOMER_COOKIE)?.value, "customer");
+  try {
+    const jar = await cookies();
+    return verifySession<CustomerSession>(jar.get(CUSTOMER_COOKIE)?.value, "customer");
+  } catch {
+    return null;
+  }
 }
 
 export async function getAdminSession(): Promise<AdminSession | null> {
-  const jar = await cookies();
-  return verifySession<AdminSession>(jar.get(ADMIN_COOKIE)?.value, "admin");
+  try {
+    const jar = await cookies();
+    return verifySession<AdminSession>(jar.get(ADMIN_COOKIE)?.value, "admin");
+  } catch {
+    return null;
+  }
 }
 
 export function hasPermission(session: AdminSession | null, perm: Permission | Permission[]): boolean {

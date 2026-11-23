@@ -33,7 +33,7 @@ async function getBarcodeProduct(sku: string) {
  * Availability therefore has to be on-hand minus what website orders are already holding, or the
  * same last piece could be sold twice before the ERP's own sales flow catches up.
  */
-async function applyHeldStock(products: Product[]): Promise<Product[]> {
+export async function applyHeldStock(products: Product[]): Promise<Product[]> {
   if (!products.length) return products;
   const keys = products.flatMap((product) => [product.sku, product.barcode ?? ""]).filter(Boolean);
   const held = await committedStockByBarcode(keys);
@@ -41,7 +41,7 @@ async function applyHeldStock(products: Product[]): Promise<Product[]> {
     const committed = held.get(product.sku) ?? (product.barcode ? held.get(product.barcode) : undefined) ?? 0;
     if (!committed) return product;
     const qty = Math.max(0, Math.round((product.stock.qty - committed) * 1000) / 1000);
-    return { ...product, stock: { ...product.stock, qty, status: stockStatus(qty) } };
+    return { ...product, stock: { ...product.stock, qty, status: stockStatus(qty) }, isActive: qty > 0 };
   });
 }
 
@@ -113,7 +113,7 @@ export async function getCartView(token?: string | null): Promise<CartView> {
 
   const { cart } = await rawCart(t);
   const items = cart.items ?? [];
-  const products = items.length ? await applyHeldStock(await getMasterData().products.getBySkus(items.map((i) => i.sku))) : [];
+  const products = items.length ? await applyHeldStock(await getMasterData().products.getBySkus(items.map((i) => i.sku), { skipCache: true })) : [];
   const bySku = new Map(products.map((p) => [p.sku, p]));
   const missingSkus = items.map((item) => item.sku).filter((sku) => !bySku.has(sku));
   const rawBarcodeProducts = missingSkus.length
@@ -140,27 +140,67 @@ export async function getCartView(token?: string | null): Promise<CartView> {
 
 export async function addToCart(sku: string, qty = 1): Promise<CartView> {
   const token = (await getCartToken())!;
-  const raw = (await getMasterData().products.getBySku(sku)) ?? (await getBarcodeProduct(sku));
+  const raw = (await getMasterData().products.getBySku(sku, { skipCache: true })) ?? (await getBarcodeProduct(sku));
   const product = raw ? (await applyHeldStock([raw]))[0] : null;
-  if (!product || !product.isActive) throw Object.assign(new Error("Product not available"), { status: 404, code: "NOT_FOUND" });
-  if (product.stock.qty <= 0) throw Object.assign(new Error("This item is out of stock"), { status: 409, code: "OUT_OF_STOCK" });
+  if (!product || !product.isActive) {
+    if (product && product.stock.qty <= 0) {
+      throw Object.assign(new Error("This item is out of stock"), { status: 409, code: "OUT_OF_STOCK" });
+    }
+    throw Object.assign(new Error("Product not available"), { status: 404, code: "NOT_FOUND" });
+  }
+  if (product.stock.qty <= 0) {
+    throw Object.assign(new Error("This item is out of stock"), { status: 409, code: "OUT_OF_STOCK" });
+  }
+
   const { M, cart } = await rawCart(token);
   const existing = (cart.items ?? []).find((i) => i.sku === sku);
-  const newQty = Math.min(product.stock.qty, (existing?.qty ?? 0) + qty);
-  if (existing) await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": newQty, lastActivityAt: new Date() } });
-  else await M.updateOne({ token }, { $push: { items: { sku, qty: newQty, addedAt: new Date() } }, $set: { lastActivityAt: new Date() } });
+  const currentInCart = existing?.qty ?? 0;
+
+  if (currentInCart >= product.stock.qty) {
+    throw Object.assign(
+      new Error(`You already have all available quantity (${product.stock.qty}) in your bag`),
+      { status: 409, code: "STOCK_EXCEEDED" },
+    );
+  }
+
+  if (currentInCart + qty > product.stock.qty) {
+    const remaining = product.stock.qty - currentInCart;
+    throw Object.assign(
+      new Error(`Only ${product.stock.qty} Pc(s) available in stock (${remaining} more can be added)`),
+      { status: 409, code: "INSUFFICIENT_STOCK" },
+    );
+  }
+
+  const newQty = currentInCart + qty;
+  if (existing) {
+    await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": newQty, lastActivityAt: new Date() } });
+  } else {
+    await M.updateOne({ token }, { $push: { items: { sku, qty: newQty, addedAt: new Date() } }, $set: { lastActivityAt: new Date() } });
+  }
   return getCartView(token);
 }
 
 export async function setCartQty(sku: string, qty: number): Promise<CartView> {
   const token = (await getCartToken())!;
   const { M } = await rawCart(token);
-  if (qty <= 0) await M.updateOne({ token }, { $pull: { items: { sku } }, $set: { lastActivityAt: new Date() } });
-  else {
-    const raw = (await getMasterData().products.getBySku(sku)) ?? (await getBarcodeProduct(sku));
+  if (qty <= 0) {
+    await M.updateOne({ token }, { $pull: { items: { sku } }, $set: { lastActivityAt: new Date() } });
+  } else {
+    const raw = (await getMasterData().products.getBySku(sku, { skipCache: true })) ?? (await getBarcodeProduct(sku));
     const product = raw ? (await applyHeldStock([raw]))[0] : null;
-    const capped = Math.min(qty, product?.stock.qty ?? qty);
-    await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": capped, lastActivityAt: new Date() } });
+    const available = product?.stock.qty ?? 0;
+    if (available <= 0) {
+      await M.updateOne({ token }, { $pull: { items: { sku } }, $set: { lastActivityAt: new Date() } });
+      throw Object.assign(new Error("This item is now out of stock and was removed from your bag"), { status: 409, code: "OUT_OF_STOCK" });
+    }
+    if (qty > available) {
+      await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": available, lastActivityAt: new Date() } });
+      throw Object.assign(
+        new Error(`Only ${available} Pc(s) available in stock. Quantity updated to maximum available.`),
+        { status: 409, code: "INSUFFICIENT_STOCK" },
+      );
+    }
+    await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": qty, lastActivityAt: new Date() } });
   }
   return getCartView(token);
 }

@@ -28,9 +28,9 @@ import type {
 export interface ProductRepository {
   list(params: ProductListParams): Promise<Paginated<ProductCard>>;
   facets(params: ProductListParams): Promise<ProductFacets>;
-  getBySlug(slug: string): Promise<Product | null>;
-  getBySku(sku: string): Promise<Product | null>;
-  getBySkus(skus: string[]): Promise<Product[]>;
+  getBySlug(slug: string, options?: { skipCache?: boolean }): Promise<Product | null>;
+  getBySku(sku: string, options?: { skipCache?: boolean }): Promise<Product | null>;
+  getBySkus(skus: string[], options?: { skipCache?: boolean }): Promise<Product[]>;
   search(q: string, limit?: number): Promise<ProductCard[]>;
   related(product: Product, limit?: number): Promise<ProductCard[]>;
   distinctValues(key: FilterKey, categorySlug?: string): Promise<string[]>;

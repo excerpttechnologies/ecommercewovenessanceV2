@@ -1486,8 +1486,10 @@ const getBarcodeImageScopes = cache(async (
 
 /** All ERP barcode-label images for a clothing category, paged and filtered for the storefront. */
 export function getBarcodeImageCatalog(group: StorefrontCategoryGroup, page: number, filters: BarcodeImageFilters = {}, limit = 48) {
-  const started = performance.now();
-  return withPerf(() => loadBarcodeImageCatalog(group, page, filters, limit)).then(({ value, ctx }) => {
+  const cacheKey = `erp:catalog:${group}:${page}:${limit}:${JSON.stringify(filters)}`;
+  return cached(cacheKey, 60_000, async () => {
+    const started = performance.now();
+    const { value, ctx } = await withPerf(() => loadBarcodeImageCatalog(group, page, filters, limit));
     logPerfIfSlow("catalog", performance.now() - started, {
       group,
       page,
