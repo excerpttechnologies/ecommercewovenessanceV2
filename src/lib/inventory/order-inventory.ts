@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { randomUUID } from "node:crypto";
 import { Types, type Model } from "mongoose";
 import { getErpConnection, getErpWriteConnection, getWebConnection, toObjectIdOrString } from "@/lib/db";
@@ -472,8 +473,8 @@ export async function processOrderInventory(
       try {
         const erpConn = await getErpWriteConnection();
         if (erpConn.db) {
-          const erpLabels = erpConn.db.collection(ERP_BARCODE_COLLECTIONS.labels);
-          const erpMovements = erpConn.db.collection("stockmovement");
+          const erpLabels = erpConn.db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels);
+          const erpMovements = erpConn.db.collection<AnyDoc>("stockmovement");
 
           for (const { allocations } of plannedByLine) {
             for (const allocation of allocations) {
@@ -691,8 +692,8 @@ export async function releaseOrderInventory(
       try {
         const erpConn = await getErpWriteConnection();
         if (erpConn.db) {
-          const erpLabels = erpConn.db.collection(ERP_BARCODE_COLLECTIONS.labels);
-          const erpMovements = erpConn.db.collection("stockmovement");
+          const erpLabels = erpConn.db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels);
+          const erpMovements = erpConn.db.collection<AnyDoc>("stockmovement");
 
           for (const line of lines) {
             for (const allocation of line.allocations ?? []) {
