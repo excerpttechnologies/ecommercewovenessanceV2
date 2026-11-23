@@ -20,6 +20,7 @@ import { barcodeImageUrl } from "@/lib/erp-images";
 import { cached } from "@/lib/cache";
 import { getProductMetaMap } from "@/lib/product-meta-cache";
 import { escapeRegex } from "@/lib/utils";
+import { normalizeBarcode, isBarcodeLike } from "@/lib/barcode-search";
 import { ProductModel } from "@/models/erp/product.model";
 import { ProductWebMetaModel, type ProductWebMetaDoc } from "@/models/web/content.models";
 import type { AnyDoc } from "@/models/_util";
@@ -266,40 +267,239 @@ export class MongoProductRepository implements ProductRepository {
     if (!conn.db) return { items: [], total: 0, page, limit, pages: 1 };
 
     const db = conn.db;
-    const query = (params.q ?? "").trim();
-    const upperQuery = query.toUpperCase();
-    const queryRx = query ? new RegExp(escapeRegex(query), "i") : null;
+    const rawQuery = (params.q ?? "").trim();
+    const normalizedQuery = normalizeBarcode(rawQuery);
+    const upperQuery = normalizedQuery;
+    const queryRx = rawQuery ? new RegExp(escapeRegex(rawQuery), "i") : null;
+    const isBarcodeQuery = isBarcodeLike(rawQuery);
 
-    // 1. Resolve matching barcodes from barcodeLabel (if query provided)
-    let matchingBarcodes: string[] = [];
-    if (query) {
-      // Fast path: indexed exact lookup first (10-50ms) for barcode, oldBarcode, or itemCode
-      const exactMatches = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
+    if (normalizedQuery) {
+      // -------------------------------------------------------------
+      // Priority 1: Exact Barcode Match
+      // -------------------------------------------------------------
+      const exactBarcodeLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
         $or: [
-          { [B.barcode]: upperQuery },
-          { [B.oldBarcode]: upperQuery },
-          { [B.itemCode]: upperQuery },
+          { [B.barcode]: normalizedQuery },
+          { [B.oldBarcode]: normalizedQuery },
+        ],
+      }, {
+        projection: {
+          [B.barcode]: 1,
+          [B.oldBarcode]: 1,
+          [B.qty]: 1,
+          [B.qtyText]: 1,
+          [B.retailPrice]: 1,
+          [B.offerPrice]: 1,
+          [B.itemName]: 1,
+          [B.itemCode]: 1,
+          [B.description]: 1,
+          [B.printDescription]: 1,
+          [B.uom]: 1,
+          [B.uomType]: 1,
+          imageUrl: 1,
+          image: 1,
+          filePath: 1,
+          [B.status]: 1,
+        }
+      }).toArray();
+
+      const exactEcomByBarcode = await db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).findOne({
+        isPublished: true,
+        status: "active",
+        $or: [
+          { barcode: normalizedQuery },
+          { publishedBarcodes: normalizedQuery },
+        ],
+      });
+
+      if (exactBarcodeLabels.length > 0 || exactEcomByBarcode) {
+        const productCategory = exactEcomByBarcode?.productType || exactBarcodeLabels[0]?.[B.itemName] || "Sarees";
+        if (params.category && !new RegExp(`^${escapeRegex(params.category)}$`, "i").test(productCategory)) {
+          return { items: [], total: 0, page: 1, limit, pages: 0 };
+        }
+
+        const inStockLabels = exactBarcodeLabels.filter((l) => String(l[B.status] ?? "").toUpperCase() === "IN_STOCK");
+        const bQty = inStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || Number(l[B.qtyText]) || 0), 0);
+        const firstLabel = inStockLabels[0] || exactBarcodeLabels[0];
+
+        const mrp = (firstLabel && Number(firstLabel[B.retailPrice])) || Number(exactEcomByBarcode?.barcodePriceOverride) || 0;
+        const offer = firstLabel && Number(firstLabel[B.offerPrice]) ? Number(firstLabel[B.offerPrice]) : null;
+        const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
+
+        if (params.priceMin != null && sellingPrice < params.priceMin) {
+          return { items: [], total: 0, page: 1, limit, pages: 0 };
+        }
+        if (params.priceMax != null && sellingPrice > params.priceMax) {
+          return { items: [], total: 0, page: 1, limit, pages: 0 };
+        }
+
+        const primaryImage = resolvePrimaryProductImage(normalizedQuery, firstLabel, exactEcomByBarcode?.image);
+        const uom = firstLabel?.[B.uom] || firstLabel?.[B.uomType] || "Pc";
+        const uomType = firstLabel?.[B.uomType] || firstLabel?.[B.uom] || "PC";
+
+        const displayName = exactEcomByBarcode?.displayName || firstLabel?.[B.itemName] || firstLabel?.[B.description] || firstLabel?.[B.printDescription] || exactEcomByBarcode?.ecommItemCode || normalizedQuery;
+        const slugName = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const slug = `${slugName}-${normalizedQuery.toLowerCase()}`.replace(/^-+|-+$/g, "");
+
+        const singleProduct: ProductCard = {
+          id: firstLabel ? String(firstLabel._id) : `${String(exactEcomByBarcode?._id ?? "prod")}-${normalizedQuery}`,
+          sku: normalizedQuery,
+          name: displayName,
+          category: productCategory,
+          subCategory: exactEcomByBarcode?.productType,
+          uom,
+          uomType,
+          slug,
+          pricing: {
+            mrp,
+            sellingPrice,
+            discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+            gstPercent: 5,
+            currency: "INR",
+          },
+          stock: {
+            qty: bQty,
+            status: bQty <= 0 ? "out_of_stock" : bQty <= 3 ? "low_stock" : "in_stock",
+          },
+          images: primaryImage ? [primaryImage] : [],
+          source: "erp",
+          isNewArrival: Boolean(exactEcomByBarcode?.isNewArrival),
+        };
+
+        return {
+          items: [singleProduct],
+          total: 1,
+          page: 1,
+          limit,
+          pages: 1,
+        };
+      }
+
+      // -------------------------------------------------------------
+      // Priority 2: Exact Product Code / SKU Match
+      // -------------------------------------------------------------
+      const exactCodeEcomDocs = await db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).find({
+        isPublished: true,
+        status: "active",
+        $or: [
+          { ecommItemCode: normalizedQuery },
+          { itemCode: normalizedQuery },
+        ],
+      }).toArray();
+
+      if (exactCodeEcomDocs.length > 0) {
+        const filteredEcom = params.category
+          ? exactCodeEcomDocs.filter((p) => new RegExp(`^${escapeRegex(params.category!)}$`, "i").test(p.productType || ""))
+          : exactCodeEcomDocs;
+
+        const codeItems: ProductCard[] = [];
+        for (const p of filteredEcom) {
+          const primaryBarcode = (Array.isArray(p.publishedBarcodes) && p.publishedBarcodes[0]) || p.barcode || normalizedQuery;
+          const pLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
+            [B.barcode]: primaryBarcode,
+          }, {
+            projection: {
+              [B.barcode]: 1,
+              [B.qty]: 1,
+              [B.retailPrice]: 1,
+              [B.offerPrice]: 1,
+              imageUrl: 1,
+              image: 1,
+              filePath: 1,
+              [B.uom]: 1,
+              [B.uomType]: 1,
+              [B.status]: 1,
+            }
+          }).toArray();
+
+          const inStockP = pLabels.filter((l) => String(l[B.status] ?? "").toUpperCase() === "IN_STOCK");
+          const pQty = inStockP.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
+          const firstL = inStockP[0] || pLabels[0];
+
+          const mrp = (firstL && Number(firstL[B.retailPrice])) || Number(p.barcodePriceOverride) || 0;
+          const offer = firstL && Number(firstL[B.offerPrice]) ? Number(firstL[B.offerPrice]) : null;
+          const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
+
+          if (params.priceMin != null && sellingPrice < params.priceMin) continue;
+          if (params.priceMax != null && sellingPrice > params.priceMax) continue;
+
+          const primaryImage = resolvePrimaryProductImage(primaryBarcode, firstL, p.image);
+          const uom = firstL?.[B.uom] || firstL?.[B.uomType] || "Pc";
+          const uomType = firstL?.[B.uomType] || firstL?.[B.uom] || "PC";
+          const displayName = p.displayName || p.ecommItemCode || normalizedQuery;
+          const slugName = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          const slug = `${slugName}-${primaryBarcode.toLowerCase()}`.replace(/^-+|-+$/g, "");
+
+          codeItems.push({
+            id: firstL ? String(firstL._id) : `${String(p._id)}-${primaryBarcode}`,
+            sku: primaryBarcode,
+            name: displayName,
+            category: p.productType || "Sarees",
+            subCategory: p.productType,
+            uom,
+            uomType,
+            slug,
+            pricing: {
+              mrp,
+              sellingPrice,
+              discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+              gstPercent: 5,
+              currency: "INR",
+            },
+            stock: {
+              qty: pQty,
+              status: pQty <= 0 ? "out_of_stock" : pQty <= 3 ? "low_stock" : "in_stock",
+            },
+            images: primaryImage ? [primaryImage] : [],
+            source: "erp",
+            isNewArrival: Boolean(p.isNewArrival),
+          });
+        }
+
+        return {
+          items: codeItems,
+          total: codeItems.length,
+          page: 1,
+          limit,
+          pages: 1,
+        };
+      }
+
+      // -------------------------------------------------------------
+      // Priority 3: Invalid Barcode Guard
+      // -------------------------------------------------------------
+      // If the query was formatted like a barcode or code token, and yielded
+      // NO exact barcode and NO exact product code in the ERP database,
+      // return 0 results rather than falling back to broad partial matches.
+      if (isBarcodeQuery) {
+        return {
+          items: [],
+          total: 0,
+          page: 1,
+          limit,
+          pages: 0,
+        };
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Priority 4: Partial Search Fallback (for general text queries)
+    // -------------------------------------------------------------
+    let matchingBarcodes: string[] = [];
+    if (rawQuery) {
+      const labelMatches = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
+        $or: [
+          { [B.barcode]: queryRx },
+          { [B.oldBarcode]: queryRx },
+          { [B.itemCode]: queryRx },
+          { [B.itemName]: queryRx },
+          { [B.description]: queryRx },
+          { [B.printDescription]: queryRx },
+          { [B.designNo]: queryRx },
         ],
       }, { projection: { [B.barcode]: 1 } }).limit(200).toArray();
 
-      if (exactMatches.length > 0) {
-        matchingBarcodes = [...new Set(exactMatches.map((l) => String(l[B.barcode] ?? "")).filter(Boolean))];
-      } else {
-        // Fallback to broader regex search for names, descriptions, or partial matches
-        const labelMatches = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
-          $or: [
-            { [B.barcode]: queryRx },
-            { [B.oldBarcode]: queryRx },
-            { [B.itemCode]: queryRx },
-            { [B.itemName]: queryRx },
-            { [B.description]: queryRx },
-            { [B.printDescription]: queryRx },
-            { [B.designNo]: queryRx },
-          ],
-        }, { projection: { [B.barcode]: 1 } }).limit(200).toArray();
-
-        matchingBarcodes = [...new Set(labelMatches.map((l) => String(l[B.barcode] ?? "")).filter(Boolean))];
-      }
+      matchingBarcodes = [...new Set(labelMatches.map((l) => String(l[B.barcode] ?? "")).filter(Boolean))];
     }
 
     // 2. Query parent EcommerceProducts
@@ -308,16 +508,12 @@ export class MongoProductRepository implements ProductRepository {
       status: "active",
     };
 
-    if (query) {
+    if (rawQuery) {
       const orClauses: AnyDoc[] = [
         { displayName: queryRx },
-        { ecommItemCode: upperQuery },
         { ecommItemCode: queryRx },
         { printDescriptionOverride: queryRx },
         { productType: queryRx },
-        { barcode: upperQuery },
-        { barcode: queryRx },
-        { publishedBarcodes: upperQuery },
       ];
       if (matchingBarcodes.length) {
         orClauses.push({ publishedBarcodes: { $in: matchingBarcodes } });
@@ -470,7 +666,7 @@ export class MongoProductRepository implements ProductRepository {
     }
 
     // 4. Standalone in-stock barcode labels (if query matched barcodes not in any parent ecommerce product)
-    if (query && matchingBarcodes.length) {
+    if (rawQuery && matchingBarcodes.length) {
       const standaloneBarcodes = matchingBarcodes.filter((b) => !handledBarcodes.has(b));
       if (standaloneBarcodes.length) {
         const standaloneChunks: string[][] = [];
@@ -559,7 +755,7 @@ export class MongoProductRepository implements ProductRepository {
       items.sort((a, b) => a.pricing.sellingPrice - b.pricing.sellingPrice);
     } else if (params.sort === "price_desc") {
       items.sort((a, b) => b.pricing.sellingPrice - a.pricing.sellingPrice);
-    } else if (query) {
+    } else if (rawQuery) {
       // Prioritize exact barcode / code matches to the top
       items.sort((a, b) => {
         const aExact = a.sku.toUpperCase() === upperQuery ? 1 : 0;

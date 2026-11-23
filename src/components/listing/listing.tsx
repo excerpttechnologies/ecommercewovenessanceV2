@@ -8,6 +8,7 @@ import { ErpImageGallery } from "@/components/home/sections";
 import { ProductGrid } from "@/components/product/product-grid";
 import { FacetSidebar } from "./facet-sidebar";
 import { Pagination, SortSelect } from "./toolbar";
+import { isBarcodeLike } from "@/lib/barcode-search";
 
 interface Props {
   title: string;
@@ -40,7 +41,14 @@ export async function Listing({ title, description, banner, breadcrumbs, params,
             <p className="text-sm text-muted"><span className="font-medium text-ink">{result.total}</span> {result.total === 1 ? "product" : "products"}</p>
             <Suspense><SortSelect /></Suspense>
           </div>
-          {result.items.length ? <ProductGrid items={result.items} cols={4} priorityCount={4} /> : <Empty title="Nothing matches those filters" text="Try clearing a filter or two." />}
+          {result.items.length ? (
+            <ProductGrid items={result.items} cols={4} priorityCount={4} />
+          ) : (
+            <Empty
+              title={isBarcodeLike(params.q) ? "No product found for this barcode." : "Nothing matches those filters"}
+              text={isBarcodeLike(params.q) ? "Please check the barcode number and try again." : "Try clearing a filter or two."}
+            />
+          )}
           <Suspense><Pagination page={result.page} pages={result.pages} /></Suspense>
         </div>
       </div>

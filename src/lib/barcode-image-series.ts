@@ -1103,6 +1103,7 @@ import { ADD_ON_CATEGORIES, ADD_ON_CATEGORY_SLUGS, getAddOnGroupIds, type AddOnC
 import { cached } from "@/lib/cache";
 import { logPerfIfSlow, measureDb, measureExternal, withPerf } from "@/lib/perf";
 import { imageBelongsToBarcode } from "@/lib/order-image-resolver";
+import { normalizeBarcode, isBarcodeLike } from "@/lib/barcode-search";
 
 const ERP_FILES_PATH = /^\/api\/files\/[a-z0-9]+\/[a-z0-9]+\.[a-z]+$/i;
 function isErpFilePath(url?: string): boolean {
@@ -1543,6 +1544,37 @@ async function loadBarcodeImageCatalog(group: StorefrontCategoryGroup, page: num
 
   const { labelIds, isAddOn } = scopeResult;
   if (!labelIds.length) return { items: [], total: 0, page, pages: 0 };
+
+  const rawQ = q?.trim();
+  const normalizedQ = normalizeBarcode(rawQ);
+  const isBarcode = isBarcodeLike(rawQ);
+
+  // Exact barcode search takes absolute priority within category listings
+  if (isBarcode && normalizedQ) {
+    const exactCatalog = await measureDb(() => barcodeLabels.list({
+      barcodes: [normalizedQ],
+      availableOnly: false,
+      resolveImages: true,
+      limit: 1,
+      page: 1,
+    }));
+    if (exactCatalog.items.length > 0) {
+      const items = await withProductWebOverrides(await withEcommerceDetails(exactCatalog.items));
+      return {
+        items,
+        total: 1,
+        page: 1,
+        pages: 1,
+      };
+    } else {
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        pages: 0,
+      };
+    }
+  }
 
   const hasClassifications = !isAddOn && Object.values(classifications).some(Boolean);
   const ecommerceConfig = scopeResult;

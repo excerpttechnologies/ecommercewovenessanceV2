@@ -9,6 +9,7 @@ import { api } from "@/hooks/api";
 import { Price } from "@/components/ui/price";
 import { useUi } from "@/store/ui";
 import { OrderItemImage } from "@/components/ui/order-item-image";
+import { isBarcodeLike } from "@/lib/barcode-search";
 
 export function SearchOverlay() {
   const open = useUi((s) => s.searchOpen);
@@ -55,7 +56,13 @@ export function SearchOverlay() {
         <div className="max-h-[60vh] overflow-y-auto p-2">
           {debounced.length < 2 && <p className="p-4 text-sm text-muted">Try “Kanchipuram”, “Yanai”, “linen” or a colour.</p>}
           {waitingForCurrentQuery && <p className="p-4 text-sm text-muted">Searching…</p>}
-          {!waitingForCurrentQuery && data?.length === 0 && <p className="p-4 text-sm text-muted">No products match “{debounced}”.</p>}
+          {!waitingForCurrentQuery && data?.length === 0 && (
+            <p className="p-4 text-sm text-muted">
+              {isBarcodeLike(debounced)
+                ? "No product found for this barcode."
+                : `No products match “${debounced}”.`}
+            </p>
+          )}
           {q.trim().length >= 2 && data?.map((p) => (
             <Link
               key={p.id}
