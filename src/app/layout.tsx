@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Dancing_Script, Inter, Playfair_Display, Poppins } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { ThemeStyle } from "@/components/ThemeStyle";
+import { GoogleAnalytics } from "@/components/seo/GoogleAnalytics";
 import { env } from "@/lib/env";
 import { getSettings } from "@/lib/site-data";
 import { BRAND, DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_OG_IMAGE, DEFAULT_TITLE, SITE_NAME } from "@/lib/seo";
@@ -75,6 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         <Providers>{children}</Providers>
+        <GoogleAnalytics />
       </body>
     </html>
   );

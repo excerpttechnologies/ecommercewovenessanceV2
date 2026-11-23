@@ -38,6 +38,22 @@ import type { InventoryProcessingStatus, OrderInventoryLine } from "@/domain/typ
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
+async function findErpDoc(
+  collection: unknown,
+  filter: Record<string, unknown>,
+): Promise<AnyDoc | null> {
+  return (collection as { findOne: (f: Record<string, unknown>) => Promise<AnyDoc | null> }).findOne(filter);
+}
+
+async function updateErpDoc(
+  collection: unknown,
+  filter: Record<string, unknown>,
+  update: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<{ matchedCount: number }> {
+  return (collection as { updateOne: (f: Record<string, unknown>, u: Record<string, unknown>, o?: Record<string, unknown>) => Promise<{ matchedCount: number }> }).updateOne(filter, update, options);
+}
+
 /** A typed failure so callers can tell "sold out" apart from "the ERP/database is unavailable". */
 export class InventoryError extends Error {
   readonly code: string;
@@ -473,13 +489,13 @@ export async function processOrderInventory(
       try {
         const erpConn = await getErpWriteConnection();
         if (erpConn.db) {
-          const erpLabels = erpConn.db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels);
-          const erpMovements = erpConn.db.collection<AnyDoc>("stockmovement");
+          const erpLabels = erpConn.db.collection(ERP_BARCODE_COLLECTIONS.labels);
+          const erpMovements = erpConn.db.collection("stockmovement");
 
           for (const { allocations } of plannedByLine) {
             for (const allocation of allocations) {
               const labelId = toObjectIdOrString(allocation.labelId);
-              const labelDoc = await erpLabels.findOne({ _id: labelId as any });
+              const labelDoc = await findErpDoc(erpLabels, { _id: labelId });
               if (!labelDoc) continue;
 
               const have = inHandQty(labelDoc);
@@ -487,10 +503,10 @@ export async function processOrderInventory(
               const left = Math.max(0, round(have - sold));
               const full = left <= 0.0005;
 
-              const updateFilter: AnyDoc = { _id: labelId as any, status: "IN_STOCK" };
+              const updateFilter: Record<string, unknown> = { _id: labelId, status: "IN_STOCK" };
               if (typeof labelDoc[B.qty] === "number") updateFilter[B.qty] = labelDoc[B.qty];
 
-              const updateSet: AnyDoc = full
+              const updateSet: Record<string, unknown> = full
                 ? {
                     status: "SOLD",
                     billingNo: orderNo,
@@ -503,7 +519,7 @@ export async function processOrderInventory(
                     updatedAt: now,
                   };
 
-              const res = await erpLabels.updateOne(updateFilter as any, {
+              const res = await updateErpDoc(erpLabels, updateFilter, {
                 $set: updateSet,
                 $push: {
                   sales: {
@@ -546,12 +562,13 @@ export async function processOrderInventory(
                   idempotencyKey: `${orderNo}:${allocation.labelId}:ECOM_OUT`,
                 };
 
-                await erpMovements.updateOne(
-                  { idempotencyKey: erpMovementDoc.idempotencyKey } as any,
-                  { $setOnInsert: erpMovementDoc as any },
+                await updateErpDoc(
+                  erpMovements,
+                  { idempotencyKey: erpMovementDoc.idempotencyKey },
+                  { $setOnInsert: erpMovementDoc },
                   { upsert: true },
                 ).catch((err) => {
-                  console.warn("[inventory] ERP stockmovement append failed", err?.message);
+                  console.warn("[inventory] ERP stockmovement append failed", (err as Error)?.message);
                 });
               }
             }
@@ -692,19 +709,19 @@ export async function releaseOrderInventory(
       try {
         const erpConn = await getErpWriteConnection();
         if (erpConn.db) {
-          const erpLabels = erpConn.db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels);
-          const erpMovements = erpConn.db.collection<AnyDoc>("stockmovement");
+          const erpLabels = erpConn.db.collection(ERP_BARCODE_COLLECTIONS.labels);
+          const erpMovements = erpConn.db.collection("stockmovement");
 
           for (const line of lines) {
             for (const allocation of line.allocations ?? []) {
               const labelId = toObjectIdOrString(String(allocation.barcodeLabelId));
-              const labelDoc = await erpLabels.findOne({ _id: labelId as any });
+              const labelDoc = await findErpDoc(erpLabels, { _id: labelId });
               if (!labelDoc) continue;
 
               const isSoldStatus = labelDoc.status === "SOLD";
               const returnQty = allocation.qty;
 
-              const updateSet: AnyDoc = {};
+              const updateSet: Record<string, unknown> = {};
               if (isSoldStatus) {
                 updateSet.status = "IN_STOCK";
                 updateSet.billingNo = "";
@@ -718,11 +735,12 @@ export async function releaseOrderInventory(
                 updateSet.updatedAt = now;
               }
 
-              await erpLabels.updateOne(
-                { _id: labelId as any },
+              await updateErpDoc(
+                erpLabels,
+                { _id: labelId },
                 {
                   $set: updateSet,
-                  $pull: { sales: { invoiceNo: orderNo } as AnyDoc },
+                  $pull: { sales: { invoiceNo: orderNo } },
                 },
               );
 
@@ -756,12 +774,13 @@ export async function releaseOrderInventory(
                 idempotencyKey: `${orderNo}:${allocation.barcodeLabelId}:POS_RETURN_IN`,
               };
 
-              await erpMovements.updateOne(
-                { idempotencyKey: erpReturnMovement.idempotencyKey } as any,
-                { $setOnInsert: erpReturnMovement as any },
+              await updateErpDoc(
+                erpMovements,
+                { idempotencyKey: erpReturnMovement.idempotencyKey },
+                { $setOnInsert: erpReturnMovement },
                 { upsert: true },
               ).catch((err) => {
-                console.warn("[inventory] ERP stockmovement return append failed", err?.message);
+                console.warn("[inventory] ERP stockmovement return append failed", (err as Error)?.message);
               });
             }
           }
