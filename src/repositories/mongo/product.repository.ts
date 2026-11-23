@@ -396,6 +396,7 @@ export class MongoProductRepository implements ProductRepository {
           mrp,
           sellingPrice,
           discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+          gstPercent: 5,
           currency: "INR",
         },
         stock: {
@@ -466,6 +467,7 @@ export class MongoProductRepository implements ProductRepository {
               mrp,
               sellingPrice,
               discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+              gstPercent: 5,
               currency: "INR",
             },
             stock: {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { randomUUID } from "node:crypto";
 import { Types, type Model } from "mongoose";
 import { getErpConnection, getErpWriteConnection, getWebConnection, toObjectIdOrString } from "@/lib/db";
