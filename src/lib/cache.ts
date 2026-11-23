@@ -79,6 +79,71 @@ export function invalidateCache(prefix: string) {
   }
 }
 
+/** Drop every entry whose key starts with any of the given `prefixes`. */
+export function invalidateCachePrefixes(prefixes: readonly string[] | string[]) {
+  for (const key of state.entries.keys()) {
+    if (prefixes.some((p) => key.startsWith(p))) {
+      state.entries.delete(key);
+    }
+  }
+}
+
+/**
+ * Stale-while-revalidate cache read-through.
+ * - While within TTL: returns cached value immediately.
+ * - Between TTL and TTL + staleMs: returns cached stale value immediately and refreshes in background.
+ * - Beyond TTL + staleMs or miss: awaits load().
+ */
+export function cachedSWR<T>(
+  key: string,
+  ttlMs: number,
+  staleMs: number,
+  load: () => Promise<T>,
+): Promise<T> {
+  const hit = state.entries.get(key);
+  const now = Date.now();
+
+  if (hit) {
+    const isFresh = hit.expiresAt > now;
+    const isStaleValid = now <= hit.expiresAt + Math.max(0, staleMs);
+
+    if (isFresh) {
+      return Promise.resolve(hit.value as T);
+    }
+
+    if (isStaleValid) {
+      if (!state.inflight.has(key)) {
+        const bgRun = load()
+          .then((value) => {
+            prune();
+            state.entries.set(key, { value, expiresAt: Date.now() + Math.max(0, ttlMs) });
+            return value;
+          })
+          .catch((err) => {
+            console.warn("[cache] SWR background refresh failed", key, (err as Error)?.message);
+            return hit.value as T;
+          })
+          .finally(() => state.inflight.delete(key));
+        state.inflight.set(key, bgRun as Promise<unknown>);
+      }
+      return Promise.resolve(hit.value as T);
+    }
+  }
+
+  const pending = state.inflight.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const run = load()
+    .then((value) => {
+      prune();
+      state.entries.set(key, { value, expiresAt: Date.now() + Math.max(0, ttlMs) });
+      return value;
+    })
+    .finally(() => state.inflight.delete(key));
+  state.inflight.set(key, run as Promise<unknown>);
+  return run;
+}
+
 /** Test/ops helper: clear everything. */
 export function clearCache() {
   state.entries.clear();

@@ -18,6 +18,10 @@ export type PerfContext = {
 
 const storage = new AsyncLocalStorage<PerfContext>();
 
+export function getPerfContext(): PerfContext | undefined {
+  return storage.getStore();
+}
+
 export function perfLogEnabled() {
   return process.env.PERF_LOG === "1";
 }

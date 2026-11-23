@@ -487,8 +487,6 @@ export class MongoProductRepository implements ProductRepository {
       items.sort((a, b) => a.pricing.sellingPrice - b.pricing.sellingPrice);
     } else if (params.sort === "price_desc") {
       items.sort((a, b) => b.pricing.sellingPrice - a.pricing.sellingPrice);
-    } else if (params.sort === "discount_desc") {
-      items.sort((a, b) => b.pricing.discountPercent - a.pricing.discountPercent);
     } else if (query) {
       // Prioritize exact barcode / code matches to the top
       items.sort((a, b) => {
