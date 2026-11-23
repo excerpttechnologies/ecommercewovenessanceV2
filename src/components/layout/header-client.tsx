@@ -1234,7 +1234,7 @@ function CartWishlistActions() {
     (state) => state.setCartOpen,
   );
 
-  // Bag badge counts unique cart lines, never summed metres + pieces (e.g. 3.75 Mtr + 1 Pc + 2 Pc ≠ 6.75).
+  // Bag badge counts unique cart lines, never summed metres + pieces (e.g. 3.75 Mtr + 1 Pc + 2 Pc is 3 lines, not 6.75).
   const count = cart?.lines.length ?? 0;
 
   return (

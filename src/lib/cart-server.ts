@@ -245,9 +245,11 @@ export async function setCartQty(sku: string, qty: number, tokenOverride?: strin
     const exists = (cart.items ?? []).some((item) => item.sku === sku);
     if (exists) {
       await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": roundedQty, lastActivityAt: new Date() } });
-    } else {
+    } else if (position != null) {
+      // Only Undo re-adds a missing line. A stale quantity update (no position) must not
+      // resurrect a line that another action just removed.
       const lineCount = (cart.items ?? []).length;
-      const insertAt = position == null ? lineCount : Math.max(0, Math.min(Math.trunc(position), lineCount));
+      const insertAt = Math.max(0, Math.min(Math.trunc(position), lineCount));
       await M.updateOne(
         { token },
         {
