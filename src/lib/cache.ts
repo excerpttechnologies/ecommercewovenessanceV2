@@ -43,6 +43,33 @@ function prune() {
   }
 }
 
+/**
+ * Deterministic JSON for cache keys: object keys are sorted, array order is
+ * treated as a set (filters), and undefined values are dropped.
+ */
+export function stableKey(value: unknown): string {
+  return JSON.stringify(normalizeKey(value));
+}
+
+function normalizeKey(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .map(normalizeKey)
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (value && typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    return Object.keys(source)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        const next = normalizeKey(source[key]);
+        if (next !== undefined) acc[key] = next;
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
 /** Cached read-through. `key` must include every input that changes the result. */
 export function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
   const hit = state.entries.get(key);

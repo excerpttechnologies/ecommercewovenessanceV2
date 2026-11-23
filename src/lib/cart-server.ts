@@ -199,9 +199,9 @@ export async function addToCart(sku: string, qty = 1, tokenOverride?: string): P
   return getCartView(token);
 }
 
-export async function setCartQty(sku: string, qty: number, tokenOverride?: string): Promise<CartView> {
+export async function setCartQty(sku: string, qty: number, tokenOverride?: string, position?: number): Promise<CartView> {
   const token = tokenOverride ?? (await getCartToken())!;
-  const { M } = await rawCart(token);
+  const { M, cart } = await rawCart(token);
   if (qty <= 0) {
     await M.updateOne({ token }, { $pull: { items: { sku } }, $set: { lastActivityAt: new Date() } });
   } else {
@@ -240,7 +240,22 @@ export async function setCartQty(sku: string, qty: number, tokenOverride?: strin
         { status: 409, code: "INSUFFICIENT_STOCK" },
       );
     }
-    await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": roundedQty, lastActivityAt: new Date() } });
+    // Undo re-adds a line that was just pulled. `position` restores it where it was;
+    // without it the item is appended like a normal add.
+    const exists = (cart.items ?? []).some((item) => item.sku === sku);
+    if (exists) {
+      await M.updateOne({ token, "items.sku": sku }, { $set: { "items.$.qty": roundedQty, lastActivityAt: new Date() } });
+    } else {
+      const lineCount = (cart.items ?? []).length;
+      const insertAt = position == null ? lineCount : Math.max(0, Math.min(Math.trunc(position), lineCount));
+      await M.updateOne(
+        { token },
+        {
+          $push: { items: { $each: [{ sku, qty: roundedQty, addedAt: new Date() }], $position: insertAt } },
+          $set: { lastActivityAt: new Date() },
+        },
+      );
+    }
   }
   return getCartView(token);
 }

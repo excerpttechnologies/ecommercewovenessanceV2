@@ -1274,20 +1274,22 @@ async function getAddOnLabelIds(
   group: StorefrontCategoryGroup,
   groupIds: readonly string[],
 ): Promise<string[]> {
-  const [groupLabelIds, config] = await Promise.all([
-    measureDb(() => getBarcodeLabels().getLabelIdsForProductGroups([...groupIds])),
-    getStorefrontFilterConfig(group),
-  ]);
-  const productTypeLabelIds = config.productTypes.length
-    ? await measureDb(() => getBarcodeLabels().getLabelIdsForProductTypes(
-        config.productTypes,
-        undefined,
-        undefined,
-        undefined,
-        config.businessId,
-      ))
-    : [];
-  return [...new Set([...groupLabelIds, ...productTypeLabelIds])];
+  return cached(`erp:addon-label-ids:${group}:${groupIds.join(",")}`, CONFIG_TTL_MS, async () => {
+    const [groupLabelIds, config] = await Promise.all([
+      measureDb(() => getBarcodeLabels().getLabelIdsForProductGroups([...groupIds])),
+      getStorefrontFilterConfig(group),
+    ]);
+    const productTypeLabelIds = config.productTypes.length
+      ? await measureDb(() => getBarcodeLabels().getLabelIdsForProductTypes(
+          config.productTypes,
+          undefined,
+          undefined,
+          undefined,
+          config.businessId,
+        ))
+      : [];
+    return [...new Set([...groupLabelIds, ...productTypeLabelIds])];
+  });
 }
 
 /**
@@ -1471,17 +1473,20 @@ const inactiveBarcodes = () =>
     return metas.map((meta) => meta.sku);
   }));
 
-const getBarcodeImageScopes = cache(async (
+const getBarcodeImageScopes = cache((
   group: EcommerceCategoryGroup,
   subgroupId?: string,
   classifications: EcommerceClassificationFilters = {},
 ) => {
-  const { productTypes, businessId, configuredFilters } = await getStorefrontFilterConfig(group);
-  const hasClassifications = Object.values(classifications).some(Boolean);
-  const labelIds = measureDb(() => hasClassifications
-    ? getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications, businessId)
-    : getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, undefined, businessId));
-  return { labelIds: await labelIds, productTypes, businessId, configuredFilters };
+  const cacheKey = `erp:scopes:${group}:${subgroupId ?? ""}:${JSON.stringify(classifications)}`;
+  return cached(cacheKey, CONFIG_TTL_MS, async () => {
+    const { productTypes, businessId, configuredFilters } = await getStorefrontFilterConfig(group);
+    const hasClassifications = Object.values(classifications).some(Boolean);
+    const labelIds = measureDb(() => hasClassifications
+      ? getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, classifications, businessId)
+      : getBarcodeLabels().getLabelIdsForProductTypes(productTypes, subgroupId, undefined, undefined, businessId));
+    return { labelIds: await labelIds, productTypes, businessId, configuredFilters };
+  });
 });
 
 /** All ERP barcode-label images for a clothing category, paged and filtered for the storefront. */

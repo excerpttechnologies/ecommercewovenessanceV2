@@ -348,22 +348,36 @@ export class MongoProductRepository implements ProductRepository {
       }
     }
 
-    // Single batched query for in-stock labels with lean projection
-    const inStockLabels = allParentBarcodes.length
-      ? await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
-          [B.barcode]: { $in: allParentBarcodes },
-          [B.status]: "IN_STOCK",
-        }, {
-          projection: {
-            [B.barcode]: 1,
-            [B.qty]: 1,
-            [B.retailPrice]: 1,
-            [B.offerPrice]: 1,
-            imageUrl: 1,
-            image: 1,
-            filePath: 1,
-          }
-        }).toArray()
+    // Single batched query for in-stock labels with lean projection and chunking
+    const CHUNK_SIZE = 500;
+    const barcodeChunks: string[][] = [];
+    for (let i = 0; i < allParentBarcodes.length; i += CHUNK_SIZE) {
+      barcodeChunks.push(allParentBarcodes.slice(i, i + CHUNK_SIZE));
+    }
+    const inStockLabels = barcodeChunks.length
+      ? (
+          await Promise.all(
+            barcodeChunks.map((chunk) =>
+              db.collection(ERP_BARCODE_COLLECTIONS.labels).find(
+                {
+                  [B.barcode]: { $in: chunk },
+                  [B.status]: "IN_STOCK",
+                },
+                {
+                  projection: {
+                    [B.barcode]: 1,
+                    [B.qty]: 1,
+                    [B.retailPrice]: 1,
+                    [B.offerPrice]: 1,
+                    imageUrl: 1,
+                    image: 1,
+                    filePath: 1,
+                  },
+                },
+              ).toArray(),
+            ),
+          )
+        ).flat()
       : [];
 
     const labelsByBarcode = new Map<string, AnyDoc[]>();
@@ -459,23 +473,35 @@ export class MongoProductRepository implements ProductRepository {
     if (query && matchingBarcodes.length) {
       const standaloneBarcodes = matchingBarcodes.filter((b) => !handledBarcodes.has(b));
       if (standaloneBarcodes.length) {
-        const standaloneLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
-          [B.barcode]: { $in: standaloneBarcodes },
-          [B.status]: "IN_STOCK",
-        }, {
-          projection: {
-            [B.barcode]: 1,
-            [B.qty]: 1,
-            [B.retailPrice]: 1,
-            [B.offerPrice]: 1,
-            [B.itemName]: 1,
-            [B.description]: 1,
-            [B.printDescription]: 1,
-            imageUrl: 1,
-            image: 1,
-            filePath: 1,
-          }
-        }).toArray();
+        const standaloneChunks: string[][] = [];
+        for (let i = 0; i < standaloneBarcodes.length; i += CHUNK_SIZE) {
+          standaloneChunks.push(standaloneBarcodes.slice(i, i + CHUNK_SIZE));
+        }
+        const standaloneResults = await Promise.all(
+          standaloneChunks.map((chunk) =>
+            db.collection(ERP_BARCODE_COLLECTIONS.labels).find(
+              {
+                [B.barcode]: { $in: chunk },
+                [B.status]: "IN_STOCK",
+              },
+              {
+                projection: {
+                  [B.barcode]: 1,
+                  [B.qty]: 1,
+                  [B.retailPrice]: 1,
+                  [B.offerPrice]: 1,
+                  [B.itemName]: 1,
+                  [B.description]: 1,
+                  [B.printDescription]: 1,
+                  imageUrl: 1,
+                  image: 1,
+                  filePath: 1,
+                },
+              },
+            ).toArray(),
+          ),
+        );
+        const standaloneLabels = standaloneResults.flat();
 
         // Group by barcode
         const byBarcode = new Map<string, AnyDoc[]>();

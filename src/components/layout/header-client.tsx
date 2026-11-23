@@ -1234,7 +1234,8 @@ function CartWishlistActions() {
     (state) => state.setCartOpen,
   );
 
-  const count = cart?.totals.itemCount ?? 0;
+  // Bag badge counts unique cart lines, never summed metres + pieces (e.g. 3.75 Mtr + 1 Pc + 2 Pc ≠ 6.75).
+  const count = cart?.lines.length ?? 0;
 
   return (
     <>
@@ -1253,7 +1254,7 @@ function CartWishlistActions() {
 
       <button
         className={iconBtn("relative")}
-        aria-label={`Cart, ${count} items`}
+        aria-label={`Cart, ${count} ${count === 1 ? "item" : "items"}`}
         onClick={() => setCartOpen(true)}
       >
         <ShoppingCart

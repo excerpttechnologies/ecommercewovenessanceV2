@@ -1,19 +1,24 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ShoppingBag } from "lucide-react";
 import { useRef, useState, type MouseEvent } from "react";
 import { useCart } from "@/hooks/useCart";
+import { useCartLineRemoval } from "@/hooks/useCartLineRemoval";
 import { formatMoney } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 import { Button, buttonClass } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Price } from "@/components/ui/price";
 import { useUi } from "@/store/ui";
 import { QtyStepper } from "./qty-stepper";
+import { RemoveLineButton } from "./remove-line-button";
 import { OrderItemImage } from "@/components/ui/order-item-image";
 
 export function CartPage() {
   const { cart, update, coupon, isLoading } = useCart();
+  const { removeLine, isRemoving, removeError } = useCartLineRemoval();
   const router = useRouter();
   const currency = useUi((s) => s.currency);
   const [code, setCode] = useState("");
@@ -39,11 +44,20 @@ export function CartPage() {
   };
   if (isLoading || !cart) return <div className="mx-auto max-w-site px-4 py-16 text-sm text-muted sm:px-6">Loading your bag…</div>;
   const t = cart.totals;
+  const lineCount = cart.lines.length;
   return (
     <div className="mx-auto max-w-site px-4 py-8 sm:px-6">
       <h1 className="text-4xl font-bold">Your bag</h1>
-      {cart.lines.length === 0 ? (
-        <div className="mt-8"><Empty title="Your bag is empty" text="Handloom worth keeping, waiting to be found." href="/collections/sarees" cta="Shop" /></div>
+      {lineCount === 0 ? (
+        <div className="mt-8">
+          <Empty
+            icon={<ShoppingBag className="h-8 w-8" strokeWidth={1.5} />}
+            title="Your bag is empty"
+            text="Handloom worth keeping, waiting to be found."
+            href="/collections/sarees"
+            cta="Continue shopping"
+          />
+        </div>
       ) : (
         <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_380px]">
           <ul className="divide-y divide-line">
@@ -52,42 +66,52 @@ export function CartPage() {
                 {cart.unavailable.length} item(s) are no longer available and have been removed from your bag.
               </li>
             )}
-            {cart.lines.map((l) => (
-              <li key={l.sku} className="flex gap-5 py-5">
-                <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
-                  <OrderItemImage
-                    src={l.product.images[0]}
-                    sku={l.sku}
-                    fallbackSources={l.product.images.slice(1)}
-                    alt={`Code ${l.sku}`}
-                    fill
-                    sizes="112px"
-                  />
-                </Link>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="text-base uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
-                  <Price amount={l.product.pricing.sellingPrice} mrp={l.product.pricing.mrp} size="sm" className="mt-1" />
-                  {l.product.stock.qty <= 3 && <p className="mt-1 text-xs text-gold">Only {l.product.stock.qty} left</p>}
-                  <div className="mt-auto flex items-center justify-between pt-3">
-                    <QtyStepper
-                      value={l.qty}
-                      max={l.product.stock.qty}
-                      unit={l.product.uom}
-                      unitType={l.product.uomType}
-                      ariaLabel={`Quantity for CODE ${l.sku}`}
-                      onChange={(qty) => updateQuantity(l.sku, qty)}
-                      showUnit
+            {cart.lines.map((l, index) => {
+              const removing = isRemoving(l.sku);
+              return (
+                <li key={l.sku} className={cn("flex gap-5 py-5", removing && "we-cart-line-out")}>
+                  <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
+                    <OrderItemImage
+                      src={l.product.images[0]}
+                      sku={l.sku}
+                      fallbackSources={l.product.images.slice(1)}
+                      alt={`Code ${l.sku}`}
+                      fill
+                      sizes="112px"
                     />
-                    <span className="font-medium">{formatMoney(Math.round(l.product.pricing.sellingPrice * l.qty * 100) / 100, currency)}</span>
+                  </Link>
+                  <div className="relative flex min-w-0 flex-1 flex-col pr-10">
+                    <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="text-base uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
+                    <RemoveLineButton
+                      sku={l.sku}
+                      disabled={removing}
+                      onRemove={() => void removeLine(l, index)}
+                      className="absolute -right-2 -top-2"
+                    />
+                    <Price amount={l.product.pricing.sellingPrice} mrp={l.product.pricing.mrp} size="sm" className="mt-1" />
+                    {l.product.stock.qty <= 3 && <p className="mt-1 text-xs text-gold">Only {l.product.stock.qty} left</p>}
+                    <div className="mt-auto flex items-center justify-between pt-3">
+                      <QtyStepper
+                        value={l.qty}
+                        max={l.product.stock.qty}
+                        unit={l.product.uom}
+                        unitType={l.product.uomType}
+                        ariaLabel={`Quantity for CODE ${l.sku}`}
+                        onChange={(qty) => updateQuantity(l.sku, qty)}
+                        showUnit
+                      />
+                      <span className="font-medium">{formatMoney(Math.round(l.product.pricing.sellingPrice * l.qty * 100) / 100, currency)}</span>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
 
           <aside className="h-fit rounded-lg border border-line bg-white/60 p-6">
             <h2 className="text-2xl">Order summary</h2>
             {update.isError && <p role="alert" className="mt-2 text-xs text-red-700">{(update.error as Error).message}</p>}
+            {removeError && <p role="alert" className="mt-2 text-xs text-red-700">{(removeError as Error).message}</p>}
             <form className="mt-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (code.trim()) coupon.mutate(code.trim().toUpperCase()); }}>
               <Input placeholder="Coupon code" value={code} onChange={(e) => setCode(e.target.value)} disabled={!!cart.couponCode} />
               {cart.couponCode ? <Button type="button" variant="outline" onClick={() => coupon.mutate(null)}>Remove</Button> : <Button type="submit" variant="secondary" loading={coupon.isPending}>Apply</Button>}
@@ -95,7 +119,7 @@ export function CartPage() {
             {coupon.isError && <p className="mt-2 text-xs text-red-700">{(coupon.error as Error).message}</p>}
             {cart.couponCode && !t.couponError && <p className="mt-2 text-xs text-olive">Coupon {cart.couponCode} applied.</p>}
             <dl className="mt-5 space-y-2 text-sm">
-              <Row k={`Subtotal (${t.itemCount} items)`} v={formatMoney(t.subTotal, currency)} />
+              <Row k={`Subtotal (${lineCount} ${lineCount === 1 ? "item" : "items"})`} v={formatMoney(t.subTotal, currency)} />
               {t.productDiscount > 0 && <Row k="You save" v={`− ${formatMoney(t.productDiscount, currency)}`} tone="olive" />}
               {t.couponDiscount > 0 && <Row k={`Coupon ${cart.couponCode}`} v={`− ${formatMoney(t.couponDiscount, currency)}`} tone="olive" />}
               <Row k="Shipping" v={t.shippingCharge === 0 ? "Free" : formatMoney(t.shippingCharge, currency)} />

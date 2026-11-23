@@ -76,7 +76,13 @@ export function useCart() {
     onError: goToLoginIfLoggedOut,
   });
   const update = useMutation({
-    mutationFn: async (v: { sku: string; qty: number }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: v })).data,
+    mutationFn: async (v: { sku: string; qty: number; position?: number }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: v })).data,
+    onSuccess: set,
+    onError: goToLoginIfLoggedOut,
+  });
+  /** Removes one line regardless of its unit/quantity. Undo uses `update` with the old position. */
+  const remove = useMutation({
+    mutationFn: async (v: { sku: string }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: { sku: v.sku, qty: 0 } })).data,
     onSuccess: set,
     onError: goToLoginIfLoggedOut,
   });
@@ -86,7 +92,7 @@ export function useCart() {
     onSuccess: set,
     onError: goToLoginIfLoggedOut,
   });
-  return { ...query, cart: query.data, add, update, coupon, refresh: () => qc.invalidateQueries({ queryKey: KEY }) };
+  return { ...query, cart: query.data, add, update, remove, coupon, refresh: () => qc.invalidateQueries({ queryKey: KEY }) };
 }
 
 export function useWishlist() {

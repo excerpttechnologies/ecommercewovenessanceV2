@@ -861,6 +861,67 @@ const JOIN_STAGES: PipelineStage[] = [
   },
 ];
 
+/** Shared filter builder for list(), count() and their tests. */
+export function buildBarcodeMatch(params: BarcodeListParams): FilterQuery<AnyDoc> {
+  const and: FilterQuery<AnyDoc>[] = [];
+  if (params.labelIds?.length) and.push({ _id: { $in: params.labelIds.map(toObjectIdOrString) } });
+  if (params.barcodes?.length) and.push({ [B.barcode]: { $in: params.barcodes } });
+  if (params.excludedBarcodes?.length) and.push({ [B.barcode]: { $nin: params.excludedBarcodes } });
+  if (params.inStockStatusOnly) and.push({ [B.status]: "IN_STOCK" });
+  if (params.availableOnly) {
+    and.push({ [B.status]: "IN_STOCK" });
+    and.push({
+      $or: [
+        { qtyNum: { $gt: 0 } },
+        { [B.qty]: { $gt: 0 } },
+        { [B.qty]: { $ne: "0" } },
+      ],
+    });
+  }
+  if (params.minFabricLength != null) {
+    const qty = {
+      $ifNull: [
+        { $convert: { input: `$${B.qty}`, to: "double", onError: null, onNull: null } },
+        { $convert: { input: `$${B.qtyText}`, to: "double", onError: null, onNull: null } },
+      ],
+    };
+    and.push({ $expr: { $gt: [qty, params.minFabricLength] } });
+  }
+  if (params.seriesPrefix?.trim()) {
+    and.push({
+      [B.barcode]: new RegExp(`^${escapeRegex(params.seriesPrefix.trim())}`, "i"),
+    });
+  }
+  if (params.status) and.push({ [B.status]: params.status });
+  if (params.group) and.push({ [B.groupId]: params.group });
+  if (params.business) and.push({ [B.businessId]: params.business });
+  const scopes = [
+    ...(params.groupIds?.length ? [{ [B.groupId]: { $in: params.groupIds } }] : []),
+    ...(params.businessIds?.length ? [{ [B.businessId]: { $in: params.businessIds } }] : []),
+  ];
+  if (scopes.length) and.push({ $or: scopes });
+  if (params.uomType) and.push({ [B.uomType]: params.uomType });
+  // NEW (price filter): keeps labels whose shopper price is within priceMin..priceMax.
+  // Shopper price = offerPrice when it is set and below retailPrice, else retailPrice (same rule as the price sort).
+  // Labels without a price are left out while a price filter is active.
+  if (params.priceMin != null || params.priceMax != null) {
+    const num = (field: string) => ({ $convert: { input: `$${field}`, to: "double", onError: null, onNull: null } });
+    const retail = num(B.retailPrice);
+    const offer = num(B.offerPrice);
+    const price = { $cond: [{ $and: [{ $gt: [offer, 0] }, { $lt: [offer, { $ifNull: [retail, Number.MAX_VALUE] }] }] }, offer, retail] };
+    const conditions: unknown[] = [{ $ne: [price, null] }];
+    if (params.priceMin != null) conditions.push({ $gte: [price, params.priceMin] });
+    if (params.priceMax != null) conditions.push({ $lte: [price, params.priceMax] });
+    and.push({ $expr: { $and: conditions } });
+  }
+  if (params.q?.trim()) {
+    const rx = new RegExp(escapeRegex(params.q.trim()), "i");
+    and.push({ $or: BARCODE_SEARCH_FIELDS.map((f) => ({ [f]: rx })) });
+  }
+  if (!and.length) return {};
+  return and.length === 1 ? and[0] : { $and: and };
+}
+
 export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
   constructor(private readonly conn: () => Promise<Connection>) {}
 
@@ -877,63 +938,14 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
   }
 
   private match(params: BarcodeListParams): FilterQuery<AnyDoc> {
-    const and: FilterQuery<AnyDoc>[] = [];
-    if (params.labelIds?.length) and.push({ _id: { $in: params.labelIds.map(toObjectIdOrString) } });
-    if (params.barcodes?.length) and.push({ [B.barcode]: { $in: params.barcodes } });
-    if (params.excludedBarcodes?.length) and.push({ [B.barcode]: { $nin: params.excludedBarcodes } });
-    if (params.inStockStatusOnly) and.push({ [B.status]: "IN_STOCK" });
-    if (params.availableOnly) {
-      and.push({ [B.status]: "IN_STOCK" });
-      and.push({
-        $or: [
-          { qtyNum: { $gt: 0 } },
-          { [B.qty]: { $gt: 0 } },
-          { [B.qty]: { $ne: "0" } },
-        ],
-      });
-    }
-    if (params.minFabricLength != null) {
-      const qty = {
-        $ifNull: [
-          { $convert: { input: `$${B.qty}`, to: "double", onError: null, onNull: null } },
-          { $convert: { input: `$${B.qtyText}`, to: "double", onError: null, onNull: null } },
-        ],
-      };
-      and.push({ $expr: { $gt: [qty, params.minFabricLength] } });
-    }
-    if (params.seriesPrefix?.trim()) {
-      and.push({
-        [B.barcode]: new RegExp(`^${escapeRegex(params.seriesPrefix.trim())}`, "i"),
-      });
-    }
-    if (params.status) and.push({ [B.status]: params.status });
-    if (params.group) and.push({ [B.groupId]: params.group });
-    if (params.business) and.push({ [B.businessId]: params.business });
-    const scopes = [
-      ...(params.groupIds?.length ? [{ [B.groupId]: { $in: params.groupIds } }] : []),
-      ...(params.businessIds?.length ? [{ [B.businessId]: { $in: params.businessIds } }] : []),
-    ];
-    if (scopes.length) and.push({ $or: scopes });
-    if (params.uomType) and.push({ [B.uomType]: params.uomType });
-    // NEW (price filter): keeps labels whose shopper price is within priceMin..priceMax.
-    // Shopper price = offerPrice when it is set and below retailPrice, else retailPrice (same rule as the price sort).
-    // Labels without a price are left out while a price filter is active.
-    if (params.priceMin != null || params.priceMax != null) {
-      const num = (field: string) => ({ $convert: { input: `$${field}`, to: "double", onError: null, onNull: null } });
-      const retail = num(B.retailPrice);
-      const offer = num(B.offerPrice);
-      const price = { $cond: [{ $and: [{ $gt: [offer, 0] }, { $lt: [offer, { $ifNull: [retail, Number.MAX_VALUE] }] }] }, offer, retail] };
-      const conditions: unknown[] = [{ $ne: [price, null] }];
-      if (params.priceMin != null) conditions.push({ $gte: [price, params.priceMin] });
-      if (params.priceMax != null) conditions.push({ $lte: [price, params.priceMax] });
-      and.push({ $expr: { $and: conditions } });
-    }
-    if (params.q?.trim()) {
-      const rx = new RegExp(escapeRegex(params.q.trim()), "i");
-      and.push({ $or: BARCODE_SEARCH_FIELDS.map((f) => ({ [f]: rx })) });
-    }
-    if (!and.length) return {};
-    return and.length === 1 ? and[0] : { $and: and };
+    return buildBarcodeMatch(params);
+  }
+
+  /** Count matching labels with the exact filter list() uses. */
+  async count(params: BarcodeListParams): Promise<number> {
+    const match = this.match(params);
+    const M = await this.M();
+    return Object.keys(match).length ? M.countDocuments(match) : M.estimatedDocumentCount();
   }
 
   /** Raw docs -> domain rows. A record that cannot be mapped is logged and skipped, never fatal. */
@@ -1238,13 +1250,23 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     if (!codes.length) return [];
     // A barcode typed into the ERP form may differ in case ("8a1935" for 8A1935): match case-insensitively,
     // through exact variants so the barcode index is still used.
-    const variants = [...new Set(codes.flatMap((code) => [code, code.toUpperCase(), code.toLowerCase()]))];
-    const labels = await connection.db!.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels)
-      .find(
-        { [B.barcode]: { $in: variants } },
-        { projection: { _id: 1, [B.barcode]: 1, [B.businessId]: 1, currentBusinessId: 1 } },
+    const variants = [...new Set(codes.flatMap((code) => [code.trim(), code.trim().toUpperCase()]))];
+    const CHUNK_SIZE = 500;
+    const chunks: string[][] = [];
+    for (let i = 0; i < variants.length; i += CHUNK_SIZE) {
+      chunks.push(variants.slice(i, i + CHUNK_SIZE));
+    }
+    const chunkResults = await Promise.all(
+      chunks.map((chunk) =>
+        connection.db!.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels)
+          .find(
+            { [B.barcode]: { $in: chunk } },
+            { projection: { _id: 1, [B.barcode]: 1, [B.businessId]: 1, currentBusinessId: 1 } },
+          )
+          .toArray()
       )
-      .toArray();
+    );
+    const labels = chunkResults.flat();
     const byCode = new Map<string, AnyDoc[]>();
     for (const label of labels) {
       const code = String(label[B.barcode] ?? "").toUpperCase();

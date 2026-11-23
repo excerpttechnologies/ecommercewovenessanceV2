@@ -53,10 +53,20 @@ export const POST = handler(async (req: NextRequest) => {
   return ok(strip(await addToCart(b.data.sku, b.data.qty)));
 });
 
-/** PATCH /api/v1/cart { sku, qty } — set quantity, 0 removes (login required) */
+/**
+ * PATCH /api/v1/cart { sku, qty, position? } — set quantity (0 removes) for the current
+ * customer's cart. `position` is only used by Undo to put a removed line back where it was.
+ */
 export const PATCH = handler(async (req: NextRequest) => {
   await requireCustomer();
-  const b = await parseBody(req, z.object({ sku: z.string().min(1), qty: z.number().min(0).max(9999) }));
+  const b = await parseBody(
+    req,
+    z.object({
+      sku: z.string().min(1),
+      qty: z.number().min(0).max(9999),
+      position: z.number().int().min(0).max(999).optional(),
+    }),
+  );
   if (!b.ok) return b.res;
-  return ok(strip(await setCartQty(b.data.sku, b.data.qty)));
+  return ok(strip(await setCartQty(b.data.sku, b.data.qty, undefined, b.data.position)));
 });

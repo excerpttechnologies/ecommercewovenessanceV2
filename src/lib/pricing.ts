@@ -31,7 +31,10 @@ export interface ShippingRules {
 }
 
 export interface CartTotals {
+  /** Number of units (metres or pieces). Useful for fulfilment, never for the bag badge. */
   itemCount: number;
+  /** Number of unique bag lines. This is what the bag badge/title shows. */
+  lineCount: number;
   subTotal: number; // sum of selling price × qty (GST inclusive, as ERP prices are)
   mrpTotal: number;
   productDiscount: number; // mrp − selling
@@ -106,6 +109,7 @@ export function computeTotals(lines: CartLine[], opts: { coupon?: CouponLike | n
 
   return {
     itemCount,
+    lineCount: lines.length,
     subTotal,
     mrpTotal,
     productDiscount,
