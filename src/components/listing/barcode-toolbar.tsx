@@ -4,7 +4,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BARCODE_SORTS, type BarcodeSort } from "@/domain/types";
 import { cn } from "@/lib/utils";
 
-const SORT_LABELS: Record<BarcodeSort, string> = { newest: "Newest", price_asc: "Price: Low to High", price_desc: "Price: High to Low", name_asc: "Name: A to Z" };
+const SORT_LABELS: Record<BarcodeSort, string> = {
+  featured: "Featured",
+  name_asc: "Name: A to Z",
+  name_desc: "Name: Z to A",
+  price_asc: "Price: Low to High",
+  price_desc: "Price: High to Low",
+  newest: "Newest First",
+  oldest: "Oldest First",
+};
 
 function useParamSetter() {
   const sp = useSearchParams();
@@ -25,11 +33,16 @@ function useParamSetter() {
 export function BarcodeSortSelect() {
   const { sp, set } = useParamSetter();
   const raw = sp.get("sort");
-  const value: BarcodeSort = BARCODE_SORTS.includes(raw as BarcodeSort) ? (raw as BarcodeSort) : "newest";
+  const value: BarcodeSort = BARCODE_SORTS.includes(raw as BarcodeSort) ? (raw as BarcodeSort) : "featured";
   return (
     <label className="relative flex h-9 min-w-[190px] items-center rounded-lg border border-line bg-white pl-3.5 pr-8 text-[13px] text-olive focus-within:border-maroon">
       <span className="mr-1 shrink-0 text-olive/80">Sort by:</span>
-      <select value={value} onChange={(e) => set("sort", e.target.value === "newest" ? null : e.target.value)} aria-label="Sort products" className="w-full cursor-pointer appearance-none bg-transparent font-medium focus:outline-none">
+      <select
+        value={value}
+        onChange={(e) => set("sort", e.target.value)}
+        aria-label="Sort products"
+        className="w-full cursor-pointer appearance-none bg-transparent font-medium focus:outline-none"
+      >
         {BARCODE_SORTS.map((k) => (
           <option key={k} value={k}>{SORT_LABELS[k]}</option>
         ))}

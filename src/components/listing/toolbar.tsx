@@ -2,7 +2,16 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SORT_KEYS, type SortKey } from "@/domain/types";
 
-const LABELS: Record<SortKey, string> = { featured: "Featured", newest: "Newest", price_asc: "Price: low to high", price_desc: "Price: high to low", best_selling: "Best selling" };
+const LABELS: Record<SortKey, string> = {
+  featured: "Featured",
+  name_asc: "Name: A to Z",
+  name_desc: "Name: Z to A",
+  price_asc: "Price: Low to High",
+  price_desc: "Price: High to Low",
+  newest: "Newest First",
+  oldest: "Oldest First",
+  best_selling: "Best selling",
+};
 
 export function SortSelect() {
   const sp = useSearchParams();

@@ -356,7 +356,7 @@ function EmptyResult({ newArrivals, filtered }: { newArrivals: boolean; filtered
 }
 
 /** URL keys that narrow or reorder a listing; such views point their canonical at the plain collection. */
-const NARROWING_KEYS = ["group", "business", "status", "uomType", "subgroup", "weave", "fabric", "craft", "occasion", "color", "q", "sort", "view", "priceMin", "priceMax", "inStock", "discountMin"];
+const NARROWING_KEYS = ["group", "business", "status", "uomType", "subgroup", "category", "weave", "fabric", "craft", "occasion", "color", "q", "sort", "view", "priceMin", "priceMax", "inStock", "discountMin"];
 
 function pageNumber(sp: SP): number {
   const raw = firstParam(sp.page);
@@ -365,7 +365,7 @@ function pageNumber(sp: SP): number {
 }
 
 /** URL keys that change which products show (sort and view do not). */
-const FILTER_ONLY_KEYS = ["q", "group", "business", "status", "uomType", "subgroup", "weave", "fabric", "craft", "occasion", "color", "priceMin", "priceMax", "inStock", "discountMin"];
+const FILTER_ONLY_KEYS = ["q", "group", "business", "status", "uomType", "subgroup", "category", "weave", "fabric", "craft", "occasion", "color", "priceMin", "priceMax", "inStock", "discountMin"];
 
 /**
  * Canonical + robots for a listing URL: page 2+ is its own canonical page; filtered, sorted or searched
@@ -416,12 +416,14 @@ export default async function CollectionPage({ params, searchParams }: { params:
     const selectedBarcode = firstParam(sp.barcode)?.trim();
     if (selectedBarcode) permanentRedirect(barcodeProductPath(slug, selectedBarcode));
     const page = pageNumber(sp);
+    const rawSubgroup = firstParam(sp.subgroup) || firstParam(sp.category);
+    const subgroup = rawSubgroup && rawSubgroup.toLowerCase() !== "all" ? rawSubgroup : undefined;
     const filters = {
       group: firstParam(sp.group),
       business: firstParam(sp.business),
       status: firstParam(sp.status),
       uomType: firstParam(sp.uomType),
-      subgroup: firstParam(sp.subgroup),
+      subgroup,
       weave: allParams(sp.weave),
       fabric: allParams(sp.fabric),
       craft: allParams(sp.craft),
@@ -492,7 +494,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
               <p className="mt-3 max-w-xl font-display text-base text-ink/75 sm:text-lg">{copy.intro}</p>
             </div>
             <div className="flex min-w-0 flex-col gap-4 lg:max-w-[820px] lg:items-end">
-              <Suspense><BarcodeCollectionFilters facets={facets!} /></Suspense>
+              <Suspense><BarcodeCollectionFilters facets={facets!} collectionSlug={slug} /></Suspense>
               <div className="flex flex-wrap items-center gap-3 lg:justify-end">
                 <p className="mr-auto text-sm text-muted lg:mr-3">
                   {result.total ? <>Showing {first}–{last} of {result.total} products</> : "No products"}
@@ -504,7 +506,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
           </div>
           {/* Desktop: filter column on the left, products on the right. Below lg the drawer takes over. */}
           <div className="mt-8 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-7 xl:grid-cols-[260px_minmax(0,1fr)]">
-            <Suspense><BarcodeFilterSidebar facets={facets!} /></Suspense>
+            <Suspense><BarcodeFilterSidebar facets={facets!} collectionSlug={slug} /></Suspense>
             <div className="min-w-0">
             {result.items.length ? (
               <BarcodeProductGrid items={result.items} collectionSlug={slug} layout={layout} />

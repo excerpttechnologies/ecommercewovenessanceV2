@@ -708,10 +708,36 @@ function createdAtWindow(hours: number): Record<string, unknown>[] {
   ];
 }
 
+function nameSortStages(asc: boolean): PipelineStage[] {
+  return [
+    {
+      $addFields: {
+        __sortName: {
+          $toLower: {
+            $ifNull: [
+              `$${B.description}`,
+              { $ifNull: [`$${B.printDescription}`, { $ifNull: [`$${B.itemName}`, `$${B.itemCode}`] }] },
+            ],
+          },
+        },
+      },
+    },
+    {
+      $sort: {
+        __sortName: asc ? 1 : -1,
+        _id: -1,
+      },
+    },
+  ];
+}
+
 /** Listing order: price sorts use the shopper price, name sorts alphabetically on the label text, newest is the default. */
 function sortStages(sort?: BarcodeSort): PipelineStage[] {
   if (sort === "price_asc" || sort === "price_desc") return priceSortStages(sort);
-  if (sort === "name_asc") return [{ $sort: { [B.description]: 1 as const, _id: -1 as const } }];
+  if (sort === "name_asc") return nameSortStages(true);
+  if (sort === "name_desc") return nameSortStages(false);
+  if (sort === "oldest") return [{ $sort: { _id: 1 as const } }];
+  // "featured", "newest", or default
   return [{ $sort: { _id: -1 as const } }];
 }
 
@@ -1212,9 +1238,18 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     if (subgroupId && barcodeReferences.length) {
       const itemIds = [...new Set(barcodeReferences.flatMap((reference) => (reference.itemId ? [reference.itemId] : [])))]
         .flatMap((itemId) => [itemId, toObjectIdOrString(itemId)]);
+      let resolvedSubgroupIds: (string | Types.ObjectId)[] = [subgroupId, toObjectIdOrString(subgroupId)];
+      if (!/^[a-f0-9]{24}$/i.test(subgroupId)) {
+        const matchedGroups = await connection.db!.collection<{ _id: ErpId }>("productgroup")
+          .find({ $or: [{ name: new RegExp(`^${escapeRegex(subgroupId)}$`, "i") }, { subgroupName: new RegExp(`^${escapeRegex(subgroupId)}$`, "i") }] }, { projection: { _id: 1 } })
+          .toArray();
+        if (matchedGroups.length) {
+          resolvedSubgroupIds = matchedGroups.flatMap((g) => [String(g._id), g._id]);
+        }
+      }
       const items = await connection.db!.collection<{ _id: ErpId; subGroupId?: unknown }>("item")
         .find(
-          { _id: { $in: itemIds }, subGroupId: { $in: [subgroupId, toObjectIdOrString(subgroupId)] } },
+          { _id: { $in: itemIds }, subGroupId: { $in: resolvedSubgroupIds } },
           { projection: { _id: 1 } },
         )
         .toArray();

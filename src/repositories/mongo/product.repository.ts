@@ -755,6 +755,12 @@ export class MongoProductRepository implements ProductRepository {
       items.sort((a, b) => a.pricing.sellingPrice - b.pricing.sellingPrice);
     } else if (params.sort === "price_desc") {
       items.sort((a, b) => b.pricing.sellingPrice - a.pricing.sellingPrice);
+    } else if (params.sort === "name_asc") {
+      items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    } else if (params.sort === "name_desc") {
+      items.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: "base" }));
+    } else if (params.sort === "oldest") {
+      items.reverse();
     } else if (rawQuery) {
       // Prioritize exact barcode / code matches to the top
       items.sort((a, b) => {

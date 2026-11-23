@@ -242,7 +242,10 @@ import type { BarcodeFacets, FacetOption } from "@/domain/types";
 import { swatchColor } from "@/lib/colour";
 import { cn } from "@/lib/utils";
 
-type Props = { facets: BarcodeFacets };
+type Props = {
+  facets: BarcodeFacets;
+  collectionSlug?: string;
+};
 
 const MAX_CHIPS = 7;
 const PRICE_KEYS = ["priceMin", "priceMax"] as const;
@@ -267,6 +270,8 @@ function useFilterUrl() {
       if (value) next.set(key, value);
       else next.delete(key);
     }
+    if (values.subgroup !== undefined) next.delete("category");
+    if (values.category !== undefined) next.delete("subgroup");
     next.delete("page");
     push(next);
   };
@@ -274,6 +279,8 @@ function useFilterUrl() {
   const updateSelection = (key: string, values: string[]) => {
     const next = new URLSearchParams(sp.toString());
     next.delete(key);
+    if (key === "subgroup") next.delete("category");
+    if (key === "category") next.delete("subgroup");
     values.forEach((value) => next.append(key, value));
     next.delete("page");
     push(next);
@@ -291,7 +298,22 @@ function useFilterUrl() {
 
 type Choice = { key: string; label: string; options: FacetOption[]; selectionMode?: "single" | "multiple" };
 
-function facetChoices(facets: BarcodeFacets): Choice[] {
+function facetChoices(facets: BarcodeFacets, isFabrics = false): Choice[] {
+  if (isFabrics) {
+    // Fabrics collection: ONLY Category filter (All category + fabrics)
+    const rawOptions = facets.subgroup ?? [];
+    const fabricsOption = rawOptions.find((o) => o.label.toLowerCase() === "fabrics")
+      ?? { value: rawOptions[0]?.value ?? "fabrics", label: "fabrics", count: facets.total };
+
+    return [
+      {
+        key: "subgroup",
+        label: "Category",
+        options: [{ ...fabricsOption, label: "fabrics" }],
+      },
+    ];
+  }
+
   return [
     { key: "subgroup", label: "Category", options: facets.subgroup ?? [] },
     ...(facets.configuredFilters ?? []).map(({ key, label, selectionMode }) => ({
@@ -358,7 +380,7 @@ function PriceFilter({ onApply }: { onApply?: () => void }) {
 }
 
 /** Search box + price + every facet group; shared by the desktop sidebar and the mobile drawer. */
-function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () => void }) {
+function FilterBody({ choices, facets, onSearch }: { choices: Choice[]; facets: BarcodeFacets; onSearch?: () => void }) {
   const { sp, update, updateSelection } = useFilterUrl();
   return (
     <>
@@ -377,7 +399,10 @@ function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () =>
       </form>
       <PriceFilter />
       {choices.filter((c) => c.options.length > 0).map(({ key, label, options, selectionMode }, index) => {
-        const selected = sp.getAll(key);
+        const selected = [
+          ...sp.getAll(key),
+          ...(key === "subgroup" && sp.get("category") ? [sp.get("category")!] : []),
+        ];
         const current = selected[0] ?? "";
         const toggle = (value: string) => {
           if (selectionMode !== "multiple") {
@@ -388,11 +413,17 @@ function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () =>
             ? selected.filter((item) => item !== value)
             : [...selected, value]);
         };
+        const isAllActive = !selected.length || selected.includes("all") || selected.includes("");
         return (
           <FilterGroup key={key} title={label} defaultOpen={index < 3 || selected.length > 0}>
             <ul className="we-scroller max-h-72 space-y-0.5 overflow-y-auto pr-1">
               <li>
-                <OptionRow label={`All ${label.toLowerCase()}`} active={!selected.length} onClick={() => update(key, "")} />
+                <OptionRow
+                  label={`All ${label.toLowerCase()}`}
+                  count={facets.total}
+                  active={isAllActive}
+                  onClick={() => update(key, "")}
+                />
               </li>
               {options.map((option) => (
                 <li key={option.value}>
@@ -400,7 +431,7 @@ function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () =>
                     label={option.label}
                     count={option.count}
                     swatch={key === "color" ? swatchColor(option.swatch ?? option.value) : undefined}
-                    active={selected.includes(option.value)}
+                    active={!isAllActive && (selected.includes(option.value) || selected.includes(option.label.toLowerCase()))}
                     onClick={() => toggle(option.value)}
                   />
                 </li>
@@ -414,10 +445,17 @@ function FilterBody({ choices, onSearch }: { choices: Choice[]; onSearch?: () =>
 }
 
 /** Desktop (lg+) filter column beside the product grid; small screens use the drawer instead. */
-export function BarcodeFilterSidebar({ facets }: Props) {
+export function BarcodeFilterSidebar({ facets, collectionSlug }: Props) {
+  const pathname = usePathname();
+  const isFabrics = collectionSlug === "fabrics" || pathname?.endsWith("/collections/fabrics") || pathname?.includes("/collections/fabrics");
   const { sp, clearAll } = useFilterUrl();
-  const choices = facetChoices(facets);
-  const activeCount = ["q", ...PRICE_KEYS, ...choices.map((c) => c.key)].filter((k) => sp.get(k)).length;
+  const choices = facetChoices(facets, isFabrics);
+  const activeCount = [
+    ...PRICE_KEYS,
+    ...choices.map((c) => c.key),
+    ...(sp.get("category") ? ["category"] : []),
+    ...(sp.get("q") ? ["q"] : []),
+  ].filter((k) => sp.get(k)).length;
   return (
     <aside aria-label="Product filters" className="hidden lg:block">
       <div className="sticky top-4 rounded-lg border border-line bg-white">
@@ -429,7 +467,7 @@ export function BarcodeFilterSidebar({ facets }: Props) {
           <button type="button" onClick={clearAll} disabled={!activeCount} className="text-xs font-semibold text-maroon hover:underline disabled:text-muted disabled:no-underline disabled:opacity-60">Clear all</button>
         </div>
         <div className="we-scroller max-h-[calc(100vh-4.5rem)] overflow-y-auto px-4 py-2">
-          <FilterBody choices={choices} />
+          <FilterBody choices={choices} facets={facets} />
         </div>
       </div>
     </aside>
@@ -440,26 +478,40 @@ export function BarcodeFilterSidebar({ facets }: Props) {
  * ERP collection filters: quick chips for the most-used fabric (or subgroup) values, and (below lg)
  * a Filters drawer holding every facet. Each facet is single-select and synced to one URL key.
  */
-export function BarcodeCollectionFilters({ facets }: Props) {
+export function BarcodeCollectionFilters({ facets, collectionSlug }: Props) {
+  const pathname = usePathname();
+  const isFabrics = collectionSlug === "fabrics" || pathname?.endsWith("/collections/fabrics") || pathname?.includes("/collections/fabrics");
   const { sp, update, updateSelection, clearAll } = useFilterUrl();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const choices = facetChoices(facets);
-  const activeKeys = ["q", ...PRICE_KEYS, ...choices.map((c) => c.key)].filter((k) => sp.get(k));
+  const choices = facetChoices(facets, isFabrics);
+  const activeKeys = [
+    ...PRICE_KEYS,
+    ...choices.map((c) => c.key),
+    ...(sp.get("category") ? ["category"] : []),
+    ...(sp.get("q") ? ["q"] : []),
+  ].filter((k) => sp.get(k));
 
   // Chips come from the first facet that has values, most-stocked first.
-  const chipKeys = [...(facets.configuredFilters ?? []).map((filter) => filter.key), "subgroup"];
+  const chipKeys = isFabrics
+    ? ["subgroup"]
+    : [...(facets.configuredFilters ?? []).map((filter) => filter.key), "subgroup"];
   const chipKey = chipKeys.find((k) => (choices.find((c) => c.key === k)?.options.length ?? 0) > 0);
   const chipOptions = chipKey ? [...choices.find((c) => c.key === chipKey)!.options].sort((a, b) => b.count - a.count).slice(0, MAX_CHIPS) : [];
-  const chipValues = chipKey ? sp.getAll(chipKey) : [];
+  const chipValues = chipKey ? [
+    ...sp.getAll(chipKey),
+    ...(chipKey === "subgroup" && sp.get("category") ? [sp.get("category")!] : []),
+  ] : [];
   const chipValue = chipValues[0] ?? "";
+  const isAllChipsActive = !chipValues.length || chipValues.includes("all") || chipValues.includes("");
+
   // Keep a selected value visible even when it is not one of the top chips.
   const selectedExtras = chipKey
     ? chipValues
-        .filter((value) => !chipOptions.some((option) => option.value === value))
+        .filter((value) => !chipOptions.some((option) => option.value === value || option.label.toLowerCase() === value.toLowerCase()))
         .flatMap((value) => {
-          const option = choices.find((choice) => choice.key === chipKey)?.options.find((item) => item.value === value);
+          const option = choices.find((choice) => choice.key === chipKey)?.options.find((item) => item.value === value || item.label.toLowerCase() === value.toLowerCase());
           return option ? [option] : [];
         })
     : [];
@@ -476,9 +528,9 @@ export function BarcodeCollectionFilters({ facets }: Props) {
       <div className="flex min-w-0 items-center gap-2.5 lg:items-start">
         {chipKey && (
           <div className="we-scroller flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 lg:flex-wrap lg:py-0 lg:justify-end lg:overflow-visible">
-            <Chip label="All" active={!chipValues.length} onClick={() => update(chipKey, "")} />
+            <Chip label="All" active={isAllChipsActive} onClick={() => update(chipKey, "")} />
             {[...chipOptions, ...selectedExtras].map((o) => (
-              <Chip key={o.value} label={o.label} active={chipValues.includes(o.value)} onClick={() => {
+              <Chip key={o.value} label={o.label} active={!isAllChipsActive && (chipValues.includes(o.value) || chipValues.includes(o.label.toLowerCase()))} onClick={() => {
                 const choice = choices.find((item) => item.key === chipKey);
                 if (choice?.selectionMode === "multiple") {
                   updateSelection(chipKey, chipValues.includes(o.value)
@@ -512,7 +564,7 @@ export function BarcodeCollectionFilters({ facets }: Props) {
             <button type="button" onClick={() => setOpen(false)} aria-label="Close filters" className="rounded-full p-1.5 hover:bg-maroon/10"><X className="h-5 w-5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            <FilterBody choices={choices} onSearch={() => setOpen(false)} />
+            <FilterBody choices={choices} facets={facets} onSearch={() => setOpen(false)} />
           </div>
           <div className="flex gap-3 border-t border-line px-5 py-4">
             <button type="button" onClick={clearAll} disabled={!activeKeys.length} className="h-11 flex-1 rounded-lg border border-line text-sm font-semibold text-olive hover:border-maroon hover:text-maroon disabled:opacity-40">Clear all</button>

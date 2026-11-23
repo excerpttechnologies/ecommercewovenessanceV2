@@ -415,6 +415,12 @@ export function productSort(sort: SortKey): Record<string, 1 | -1> {
       return { [PRODUCT_FIELDS.sellingPrice]: -1, _id: 1 };
     case "newest":
       return { [PRODUCT_FIELDS.createdAt]: -1, _id: -1 };
+    case "oldest":
+      return { [PRODUCT_FIELDS.createdAt]: 1, _id: 1 };
+    case "name_asc":
+      return { [PRODUCT_FIELDS.name]: 1, _id: -1 };
+    case "name_desc":
+      return { [PRODUCT_FIELDS.name]: -1, _id: -1 };
     case "best_selling":
       // TODO: ERP has no sales counter on products. Phase 2 sorts by productWebMeta.salesCount
       // (aggregated nightly from web orders). Until then: discount + recency as a proxy.

@@ -646,7 +646,16 @@ export interface Store {
 export const FILTER_KEYS = ["fabric", "weave", "craft", "occasion", "color", "motif", "border"] as const;
 export type FilterKey = (typeof FILTER_KEYS)[number];
 
-export const SORT_KEYS = ["featured", "price_asc", "price_desc", "newest", "best_selling"] as const;
+export const SORT_KEYS = [
+  "featured",
+  "name_asc",
+  "name_desc",
+  "price_asc",
+  "price_desc",
+  "newest",
+  "oldest",
+  "best_selling",
+] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 
 export interface ProductListParams {
@@ -782,7 +791,15 @@ export interface BarcodeListParams {
   limit?: number;
 }
 
-export const BARCODE_SORTS = ["newest", "price_asc", "price_desc", "name_asc"] as const;
+export const BARCODE_SORTS = [
+  "featured",
+  "name_asc",
+  "name_desc",
+  "price_asc",
+  "price_desc",
+  "newest",
+  "oldest",
+] as const;
 export type BarcodeSort = (typeof BARCODE_SORTS)[number];
 
 export interface BarcodeFacets {
