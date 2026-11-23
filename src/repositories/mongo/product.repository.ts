@@ -92,14 +92,24 @@ export class MongoProductRepository implements ProductRepository {
   /**
    * True if running directly against RetailERP or if the connected DB has the ERP ecommerceproduct collection.
    */
+  private _isErpModeCache?: boolean;
   private async isErpMode(): Promise<boolean> {
-    if (this.source === "erp") return true;
+    if (this._isErpModeCache !== undefined) return this._isErpModeCache;
+    if (this.source === "erp") {
+      this._isErpModeCache = true;
+      return true;
+    }
     try {
       const c = await this.conn();
-      if (!c.db) return false;
+      if (!c.db) {
+        this._isErpModeCache = false;
+        return false;
+      }
       const collections = await c.db.listCollections({ name: ERP_BARCODE_COLLECTIONS.ecommerceProducts }).toArray();
-      return collections.length > 0;
+      this._isErpModeCache = collections.length > 0;
+      return this._isErpModeCache;
     } catch {
+      this._isErpModeCache = false;
       return false;
     }
   }
@@ -618,28 +628,130 @@ export class MongoProductRepository implements ProductRepository {
       if (!conn.db) return null;
       const db = conn.db;
 
-      // 1. Try ecommerceproduct
-      const ecom = await db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).findOne({
+      // 1. FAST PATH: Parallel indexed lookups on barcodeLabel and ecommerceProducts (<40ms)
+      const [label, ecom] = await Promise.all([
+        db.collection(ERP_BARCODE_COLLECTIONS.labels).findOne(
+          { [B.barcode]: upperSku },
+          {
+            projection: {
+              [B.barcode]: 1,
+              [B.itemCode]: 1,
+              [B.itemName]: 1,
+              [B.printDescription]: 1,
+              [B.description]: 1,
+              [B.qty]: 1,
+              [B.qtyText]: 1,
+              [B.status]: 1,
+              [B.retailPrice]: 1,
+              [B.offerPrice]: 1,
+              [B.gstPercent]: 1,
+              imageUrl: 1,
+              image: 1,
+              filePath: 1,
+              itemId: 1,
+              businessId: 1,
+            },
+          }
+        ),
+        db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).findOne(
+          { publishedBarcodes: upperSku, isPublished: true },
+          {
+            projection: {
+              displayName: 1,
+              ecommItemCode: 1,
+              productType: 1,
+              printDescriptionOverride: 1,
+              isNewArrival: 1,
+              image: 1,
+              slug: 1,
+            },
+          }
+        ),
+      ]);
+
+      if (label) {
+
+        const inStock = label[B.status] === "IN_STOCK";
+        const totalQty = inStock ? (Number(label[B.qty]) || Number(label[B.qtyText]) || 1) : 0;
+        const mrp = Number(label[B.retailPrice]) || 0;
+        const offer = Number(label[B.offerPrice]) || null;
+        const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
+
+        const labelName = label[B.printDescription] || label[B.itemName] || label[B.description] || cleanSku;
+        const name = labelName || ecom?.displayName || ecom?.ecommItemCode || "Woven Essence Product";
+        const description = ecom?.printDescriptionOverride || label[B.printDescription] || label[B.description] || name;
+
+        const primaryImage = label.imageUrl || label.image || label.filePath || ecom?.image || barcodeImageUrl(cleanSku);
+        const slugName = (ecom?.displayName || ecom?.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
+
+        const product: Product = {
+          id: String(ecom?._id || label._id),
+          sku: String(label[B.barcode] || cleanSku),
+          barcode: String(label[B.barcode] || cleanSku),
+          name,
+          description,
+          category: ecom?.productType || label[B.itemName] || "Sarees",
+          subCategory: ecom?.productType || label[B.itemName] || "Sarees",
+          slug,
+          pricing: {
+            mrp,
+            sellingPrice,
+            discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+            gstPercent: Number(label[B.gstPercent]) || 5,
+            currency: "INR",
+          },
+          stock: {
+            qty: totalQty,
+            status: totalQty <= 0 ? "out_of_stock" : totalQty <= 3 ? "low_stock" : "in_stock",
+          },
+          images: primaryImage ? [primaryImage] : [],
+          source: "erp",
+          isActive: totalQty > 0,
+          isNewArrival: Boolean(ecom?.isNewArrival),
+          occasion: [],
+          blouseIncluded: false,
+          dimensions: {},
+          tags: [],
+        };
+
+        const hydrated = await this.hydrate([product]);
+        return hydrated[0] ?? product;
+      }
+
+      // 2. Fallback: Try parent ecommerceproduct directly
+      const fallbackEcom = ecom ?? (await db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).findOne({
         isPublished: true,
         $or: [
           { barcode: upperSku },
-          { barcode: cleanSku },
           { publishedBarcodes: upperSku },
-          { publishedBarcodes: cleanSku },
           { ecommItemCode: upperSku },
-          { ecommItemCode: cleanSku },
         ],
-      });
+      }));
 
-      if (ecom) {
-        const barcodes = Array.isArray(ecom.publishedBarcodes) && ecom.publishedBarcodes.length
-          ? (ecom.publishedBarcodes as string[])
-          : [String(ecom.barcode ?? "")].filter(Boolean);
+      if (fallbackEcom) {
+        const barcodes = Array.isArray(fallbackEcom.publishedBarcodes) && fallbackEcom.publishedBarcodes.length
+          ? (fallbackEcom.publishedBarcodes as string[])
+          : [String(fallbackEcom.barcode ?? "")].filter(Boolean);
 
-        const inStockLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find({
-          [B.barcode]: { $in: barcodes },
-          [B.status]: "IN_STOCK",
-        }).toArray();
+        const inStockLabels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find(
+          { [B.barcode]: { $in: barcodes }, [B.status]: "IN_STOCK" },
+          {
+            projection: {
+              [B.barcode]: 1,
+              [B.qty]: 1,
+              [B.retailPrice]: 1,
+              [B.offerPrice]: 1,
+              [B.printDescription]: 1,
+              [B.itemName]: 1,
+              [B.description]: 1,
+              imageUrl: 1,
+              image: 1,
+              filePath: 1,
+            },
+            limit: 20,
+          }
+        ).toArray();
 
         const specificLabel = inStockLabels.find((l) => String(l[B.barcode]).toUpperCase() === upperSku);
         const totalQty = specificLabel
@@ -647,27 +759,27 @@ export class MongoProductRepository implements ProductRepository {
           : inStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
 
         const targetLabel = specificLabel || inStockLabels.find((l) => l[B.retailPrice]) || inStockLabels[0];
-        const mrp = (targetLabel && Number(targetLabel[B.retailPrice])) || Number(ecom.barcodePriceOverride) || 0;
+        const mrp = (targetLabel && Number(targetLabel[B.retailPrice])) || Number(fallbackEcom.barcodePriceOverride) || 0;
         const offer: number | null = targetLabel && Number(targetLabel[B.offerPrice]) ? Number(targetLabel[B.offerPrice]) : null;
         const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
 
-        const primaryImage: string | undefined = targetLabel?.imageUrl || targetLabel?.image || targetLabel?.filePath || ecom.image || barcodeImageUrl(cleanSku);
+        const primaryImage: string | undefined = targetLabel?.imageUrl || targetLabel?.image || targetLabel?.filePath || fallbackEcom.image || barcodeImageUrl(cleanSku);
 
-        const slugName = (ecom.displayName || ecom.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const slugName = (fallbackEcom.displayName || fallbackEcom.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
         const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
         const labelName = targetLabel?.[B.printDescription] || targetLabel?.[B.itemName] || targetLabel?.[B.description];
-        const name = labelName || ecom.displayName || ecom.ecommItemCode || "Woven Essence Product";
-        const description = ecom.printDescriptionOverride || targetLabel?.[B.printDescription] || targetLabel?.[B.description] || ecom.displayName || "";
+        const name = labelName || fallbackEcom.displayName || fallbackEcom.ecommItemCode || "Woven Essence Product";
+        const description = fallbackEcom.printDescriptionOverride || targetLabel?.[B.printDescription] || targetLabel?.[B.description] || fallbackEcom.displayName || "";
 
         const product: Product = {
-          id: String(ecom._id),
+          id: String(fallbackEcom._id),
           sku: cleanSku,
           barcode: cleanSku,
           name,
           description,
-          category: ecom.productType || "Sarees",
-          subCategory: ecom.productType,
+          category: fallbackEcom.productType || "Sarees",
+          subCategory: fallbackEcom.productType,
           slug,
           pricing: {
             mrp,
@@ -683,64 +795,7 @@ export class MongoProductRepository implements ProductRepository {
           images: primaryImage ? [primaryImage] : [],
           source: "erp",
           isActive: totalQty > 0,
-          isNewArrival: Boolean(ecom.isNewArrival),
-          occasion: [],
-          blouseIncluded: false,
-          dimensions: {},
-          tags: [],
-        };
-
-        const hydrated = await this.hydrate([product]);
-        return hydrated[0] ?? product;
-      }
-
-      // 2. Try standalone barcodeLabel
-      const label = await db.collection(ERP_BARCODE_COLLECTIONS.labels).findOne({
-        $or: [
-          { [B.barcode]: upperSku },
-          { [B.barcode]: cleanSku },
-          { [B.oldBarcode]: upperSku },
-          { [B.oldBarcode]: cleanSku },
-          { [B.itemCode]: upperSku },
-          { [B.itemCode]: cleanSku },
-        ],
-      });
-
-      if (label) {
-        const inStock = label[B.status] === "IN_STOCK";
-        const mrp = Number(label[B.retailPrice]) || 0;
-        const offer = Number(label[B.offerPrice]) || null;
-        const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
-        const totalQty = inStock ? (Number(label[B.qty]) || 1) : 0;
-        const name = label[B.printDescription] || label[B.itemName] || label[B.description] || cleanSku;
-        const slugName = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
-        const image = label.imageUrl || label.image || label.filePath || barcodeImageUrl(cleanSku);
-
-        const product: Product = {
-          id: String(label._id),
-          sku: cleanSku,
-          barcode: cleanSku,
-          name,
-          description: label[B.printDescription] || label[B.description] || name,
-          category: label[B.itemName] || "Sarees",
-          subCategory: label[B.itemName] || "Sarees",
-          slug,
-          pricing: {
-            mrp,
-            sellingPrice,
-            discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
-            gstPercent: Number(label[B.gstPercent]) || 5,
-            currency: "INR",
-          },
-          stock: {
-            qty: totalQty,
-            status: totalQty <= 0 ? "out_of_stock" : totalQty <= 3 ? "low_stock" : "in_stock",
-          },
-          images: image ? [image] : [],
-          source: "erp",
-          isActive: totalQty > 0,
-          isNewArrival: false,
+          isNewArrival: Boolean(fallbackEcom.isNewArrival),
           occasion: [],
           blouseIncluded: false,
           dimensions: {},
@@ -758,6 +813,151 @@ export class MongoProductRepository implements ProductRepository {
       return fetchFresh();
     }
     return cached(`erp:sku:${upperSku}`, 60_000, fetchFresh);
+  }
+
+  private async erpGetBySkus(skus: string[], options?: { skipCache?: boolean }): Promise<Product[]> {
+    if (!skus.length) return [];
+    const upperSkus = [...new Set(skus.map((s) => String(s).trim().toUpperCase()).filter(Boolean))];
+    const fetchFresh = async () => {
+      const conn = await this.conn();
+      if (!conn.db) return [];
+      const db = conn.db;
+
+      // 1. Batched indexed query for all barcodeLabels at once (~40-60ms)
+      const labels = await db.collection(ERP_BARCODE_COLLECTIONS.labels).find(
+        { [B.barcode]: { $in: upperSkus } },
+        {
+          projection: {
+            [B.barcode]: 1,
+            [B.itemCode]: 1,
+            [B.itemName]: 1,
+            [B.printDescription]: 1,
+            [B.description]: 1,
+            [B.qty]: 1,
+            [B.qtyText]: 1,
+            [B.status]: 1,
+            [B.retailPrice]: 1,
+            [B.offerPrice]: 1,
+            [B.gstPercent]: 1,
+            imageUrl: 1,
+            image: 1,
+            filePath: 1,
+            itemId: 1,
+            businessId: 1,
+          },
+        }
+      ).toArray();
+
+      const labelMap = new Map<string, AnyDoc>();
+      for (const l of labels) {
+        const b = String(l[B.barcode] ?? "").toUpperCase();
+        if (!labelMap.has(b) || l[B.status] === "IN_STOCK") {
+          labelMap.set(b, l);
+        }
+      }
+
+      // 2. Batched indexed query for parent ecommerceProducts at once (~40ms)
+      const ecoms = await db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).find(
+        {
+          isPublished: true,
+          $or: [
+            { publishedBarcodes: { $in: upperSkus } },
+            { barcode: { $in: upperSkus } },
+            { ecommItemCode: { $in: upperSkus } },
+          ],
+        },
+        {
+          projection: {
+            displayName: 1,
+            ecommItemCode: 1,
+            productType: 1,
+            printDescriptionOverride: 1,
+            isNewArrival: 1,
+            publishedBarcodes: 1,
+            barcode: 1,
+            image: 1,
+          },
+        }
+      ).toArray();
+
+      const ecomByBarcode = new Map<string, AnyDoc>();
+      for (const e of ecoms) {
+        const bList = Array.isArray(e.publishedBarcodes) && e.publishedBarcodes.length
+          ? (e.publishedBarcodes as string[])
+          : [String(e.barcode ?? "")];
+        for (const b of bList) {
+          ecomByBarcode.set(String(b).toUpperCase(), e);
+        }
+        if (e.ecommItemCode) ecomByBarcode.set(String(e.ecommItemCode).toUpperCase(), e);
+      }
+
+      const products: Product[] = [];
+      for (const sku of skus) {
+        const upper = sku.trim().toUpperCase();
+        const label = labelMap.get(upper);
+        const ecom = ecomByBarcode.get(upper);
+
+        if (!label && !ecom) {
+          const fallback = await this.erpGetBySku(sku, options);
+          if (fallback) products.push(fallback);
+          continue;
+        }
+
+        const inStock = label ? label[B.status] === "IN_STOCK" : false;
+        const totalQty = label
+          ? (inStock ? (Number(label[B.qty]) || Number(label[B.qtyText]) || 1) : 0)
+          : 1;
+
+        const mrp = (label && Number(label[B.retailPrice])) || Number(ecom?.barcodePriceOverride) || 0;
+        const offer = label && Number(label[B.offerPrice]) ? Number(label[B.offerPrice]) : null;
+        const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
+
+        const labelName = label?.[B.printDescription] || label?.[B.itemName] || label?.[B.description];
+        const name = labelName || ecom?.displayName || ecom?.ecommItemCode || sku;
+        const description = ecom?.printDescriptionOverride || label?.[B.printDescription] || label?.[B.description] || name;
+
+        const primaryImage = label?.imageUrl || label?.image || label?.filePath || ecom?.image || barcodeImageUrl(sku);
+        const slugName = (ecom?.displayName || ecom?.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        const slug = `${slugName}-${sku.toLowerCase()}`.replace(/^-+|-+$/g, "");
+
+        products.push({
+          id: String(ecom?._id || label?._id || sku),
+          sku,
+          barcode: sku,
+          name,
+          description,
+          category: ecom?.productType || label?.[B.itemName] || "Sarees",
+          subCategory: ecom?.productType || label?.[B.itemName] || "Sarees",
+          slug,
+          pricing: {
+            mrp,
+            sellingPrice,
+            discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+            gstPercent: Number(label?.[B.gstPercent]) || 5,
+            currency: "INR",
+          },
+          stock: {
+            qty: totalQty,
+            status: totalQty <= 0 ? "out_of_stock" : totalQty <= 3 ? "low_stock" : "in_stock",
+          },
+          images: primaryImage ? [primaryImage] : [],
+          source: "erp",
+          isActive: totalQty > 0,
+          isNewArrival: Boolean(ecom?.isNewArrival),
+          occasion: [],
+          blouseIncluded: false,
+          dimensions: {},
+          tags: [],
+        });
+      }
+
+      return this.hydrate(products);
+    };
+
+    if (options?.skipCache) {
+      return fetchFresh();
+    }
+    return cached(`erp:skus:${upperSkus.sort().join(",")}`, 60_000, fetchFresh);
   }
 
   private async erpGetBySlug(slug: string, options?: { skipCache?: boolean }): Promise<Product | null> {
@@ -958,8 +1158,7 @@ export class MongoProductRepository implements ProductRepository {
   async getBySkus(skus: string[], options?: { skipCache?: boolean }): Promise<Product[]> {
     if (!skus.length) return [];
     if (await this.isErpMode()) {
-      const items = await Promise.all(skus.map((sku) => this.erpGetBySku(sku, options)));
-      return items.filter((p): p is Product => p !== null);
+      return this.erpGetBySkus(skus, options);
     }
 
     const M = await this.M();
@@ -970,8 +1169,8 @@ export class MongoProductRepository implements ProductRepository {
     const missingSkus = skus.filter((sku) => !foundSkus.has(sku));
 
     if (missingSkus.length) {
-      const fallbackItems = await Promise.all(missingSkus.map((sku) => this.erpGetBySku(sku)));
-      products.push(...fallbackItems.filter((p): p is Product => p !== null));
+      const fallbackItems = await this.erpGetBySkus(missingSkus, options);
+      products.push(...fallbackItems);
     }
 
     return products.sort((a, b) => (order.get(a.sku) ?? 0) - (order.get(b.sku) ?? 0));

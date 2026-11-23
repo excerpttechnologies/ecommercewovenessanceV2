@@ -9,7 +9,6 @@ import { computeTotals, type CartLine, type CartTotals, type CouponLike } from "
 import { CartModel, CouponModel, WishlistModel } from "@/models/web/commerce.models";
 import { getBarcodeLabels, getMasterData, getSite } from "@/repositories";
 import { barcodeProductToProduct, stockStatus } from "@/lib/erp-mapping";
-import { withEcommerceDetails, withProductWebOverrides } from "@/lib/barcode-image-series";
 import { committedStockByBarcode } from "@/lib/inventory/order-inventory";
 import type { Product } from "@/domain/types";
 
@@ -24,8 +23,7 @@ export interface CartView {
 async function getBarcodeProduct(sku: string) {
   const [item] = await getBarcodeLabels().getByBarcodes([sku]);
   if (!item) return null;
-  const [enriched] = await withProductWebOverrides(await withEcommerceDetails([item]));
-  return barcodeProductToProduct(enriched ?? item);
+  return barcodeProductToProduct(item);
 }
 
 /**
@@ -49,17 +47,21 @@ const THIRTY_DAYS = 60 * 60 * 24 * 30;
 
 /** Guest cart token lives in an httpOnly cookie; on login the cart is merged onto the customer. */
 export async function getCartToken(create = true): Promise<string | null> {
-  const jar = await cookies();
-  let token = jar.get(CART_COOKIE)?.value;
-  if (!token && create) {
-    token = randomBytes(24).toString("hex");
-    try {
-      jar.set(CART_COOKIE, token, cookieOptions(THIRTY_DAYS));
-    } catch {
-      /* called from a server component render — cookie will be set on the next mutation */
+  try {
+    const jar = await cookies();
+    let token = jar.get(CART_COOKIE)?.value;
+    if (!token && create) {
+      token = randomBytes(24).toString("hex");
+      try {
+        jar.set(CART_COOKIE, token, cookieOptions(THIRTY_DAYS));
+      } catch {
+        /* called from a server component render — cookie will be set on the next mutation */
+      }
     }
+    return token ?? null;
+  } catch {
+    return null;
   }
-  return token ?? null;
 }
 
 interface RawCart {
@@ -119,11 +121,8 @@ export async function getCartView(token?: string | null): Promise<CartView> {
   const rawBarcodeProducts = missingSkus.length
     ? await getBarcodeLabels().getByBarcodes(missingSkus)
     : [];
-  const enrichedBarcodeProducts = rawBarcodeProducts.length
-    ? await withProductWebOverrides(await withEcommerceDetails(rawBarcodeProducts))
-    : [];
-  const barcodeProducts = enrichedBarcodeProducts.length
-    ? await applyHeldStock(enrichedBarcodeProducts.map(barcodeProductToProduct))
+  const barcodeProducts = rawBarcodeProducts.length
+    ? await applyHeldStock(rawBarcodeProducts.map(barcodeProductToProduct))
     : [];
   for (const item of barcodeProducts) bySku.set(item.barcode ?? item.sku, item);
   const lines: CartLine[] = [];
@@ -138,8 +137,8 @@ export async function getCartView(token?: string | null): Promise<CartView> {
   return { token: t, lines, unavailable, couponCode: cart.couponCode ?? undefined, totals };
 }
 
-export async function addToCart(sku: string, qty = 1): Promise<CartView> {
-  const token = (await getCartToken())!;
+export async function addToCart(sku: string, qty = 1, tokenOverride?: string): Promise<CartView> {
+  const token = tokenOverride ?? (await getCartToken())!;
   const raw = (await getMasterData().products.getBySku(sku, { skipCache: true })) ?? (await getBarcodeProduct(sku));
   const product = raw ? (await applyHeldStock([raw]))[0] : null;
   if (!product || !product.isActive) {
@@ -180,8 +179,8 @@ export async function addToCart(sku: string, qty = 1): Promise<CartView> {
   return getCartView(token);
 }
 
-export async function setCartQty(sku: string, qty: number): Promise<CartView> {
-  const token = (await getCartToken())!;
+export async function setCartQty(sku: string, qty: number, tokenOverride?: string): Promise<CartView> {
+  const token = tokenOverride ?? (await getCartToken())!;
   const { M } = await rawCart(token);
   if (qty <= 0) {
     await M.updateOne({ token }, { $pull: { items: { sku } }, $set: { lastActivityAt: new Date() } });
