@@ -76,6 +76,7 @@ export function CartDrawer() {
         <ul key={open ? "open" : "closed"} className="we-stagger divide-y divide-line px-5">
           {lines.map((l, index) => {
             const removing = isRemoving(l.sku);
+            const description = (l.product.printDescription ?? (l.product.isBarcodeLabel ? "" : l.product.description))?.trim();
             return (
               <li key={l.sku} className={cn("flex gap-4 py-4", removing && "we-cart-line-out")}>
                 <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-line">
@@ -90,6 +91,7 @@ export function CartDrawer() {
                 </Link>
                 <div className="relative flex min-w-0 flex-1 flex-col pr-10">
                   <Link href={`/products/${l.product.slug}`} onClick={() => setOpen(false)} className="line-clamp-2 text-sm uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
+                  {description && <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-snug text-muted">{description}</p>}
                   <RemoveLineButton
                     sku={l.sku}
                     disabled={removing}

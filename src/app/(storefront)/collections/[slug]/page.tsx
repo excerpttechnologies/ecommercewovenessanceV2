@@ -494,7 +494,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
               <p className="mt-3 max-w-xl font-display text-base text-ink/75 sm:text-lg">{copy.intro}</p>
             </div>
             <div className="flex min-w-0 flex-col gap-4 lg:max-w-[820px] lg:items-end">
-              <Suspense><BarcodeCollectionFilters facets={facets!} collectionSlug={slug} /></Suspense>
+              <Suspense><BarcodeCollectionFilters facets={facets!} /></Suspense>
               <div className="flex flex-wrap items-center gap-3 lg:justify-end">
                 <p className="mr-auto text-sm text-muted lg:mr-3">
                   {result.total ? <>Showing {first}–{last} of {result.total} products</> : "No products"}
@@ -506,7 +506,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
           </div>
           {/* Desktop: filter column on the left, products on the right. Below lg the drawer takes over. */}
           <div className="mt-8 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-7 xl:grid-cols-[260px_minmax(0,1fr)]">
-            <Suspense><BarcodeFilterSidebar facets={facets!} collectionSlug={slug} /></Suspense>
+            <Suspense><BarcodeFilterSidebar facets={facets!} /></Suspense>
             <div className="min-w-0">
             {result.items.length ? (
               <BarcodeProductGrid items={result.items} collectionSlug={slug} layout={layout} />

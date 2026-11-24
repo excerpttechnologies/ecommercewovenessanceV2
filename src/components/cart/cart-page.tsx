@@ -68,6 +68,8 @@ export function CartPage() {
             )}
             {cart.lines.map((l, index) => {
               const removing = isRemoving(l.sku);
+              // Same print description the product page shows; barcode items without one fall back to nothing, never to an internal item name.
+              const description = (l.product.printDescription ?? (l.product.isBarcodeLabel ? "" : l.product.description))?.trim();
               return (
                 <li key={l.sku} className={cn("flex gap-5 py-5", removing && "we-cart-line-out")}>
                   <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="relative h-36 w-28 shrink-0 overflow-hidden rounded-lg bg-line">
@@ -82,6 +84,9 @@ export function CartPage() {
                   </Link>
                   <div className="relative flex min-w-0 flex-1 flex-col pr-10">
                     <Link href={l.product.isBarcodeLabel ? `/collections/${/fabric|fabs/i.test(l.product.category) ? "fabrics" : "sarees"}?q=${encodeURIComponent(l.sku)}` : `/products/${l.product.slug}`} className="text-base uppercase tracking-wide hover:text-maroon">Code {l.sku}</Link>
+                    {description && (
+                      <p className="mt-1 whitespace-pre-line break-words text-[13px] leading-snug text-muted">{description}</p>
+                    )}
                     <RemoveLineButton
                       sku={l.sku}
                       disabled={removing}

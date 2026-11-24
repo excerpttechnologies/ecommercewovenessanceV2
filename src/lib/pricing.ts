@@ -8,7 +8,8 @@ import type { Product } from "@/domain/types";
 export interface CartLine {
   sku: string;
   qty: number;
-  product: Pick<Product, "id" | "sku" | "slug" | "name" | "images" | "pricing" | "stock" | "category" | "isBarcodeLabel" | "uom" | "uomType">;
+  product: Pick<Product, "id" | "sku" | "slug" | "name" | "images" | "pricing" | "stock" | "category" | "isBarcodeLabel" | "uom" | "uomType"> &
+    Pick<Partial<Product>, "description" | "printDescription">;
 }
 
 export interface CouponLike {

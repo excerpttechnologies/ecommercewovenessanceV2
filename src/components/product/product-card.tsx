@@ -36,6 +36,7 @@ export function ProductCard({ p, priority }: { p: Card; priority?: boolean }) {
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Code {p.sku}</p>
           <Link href={productHref} className="line-clamp-2 text-sm font-medium leading-snug text-olive hover:text-maroon">{p.web?.cardTitle || p.name}</Link>
           <p className="mt-0.5 line-clamp-1 text-xs text-muted">{p.web?.cardDescription || [p.fabric, p.color].filter(Boolean).join(" · ")}</p>
           <Price amount={p.pricing.sellingPrice} mrp={p.pricing.mrp} size="sm" className="mt-1.5" />

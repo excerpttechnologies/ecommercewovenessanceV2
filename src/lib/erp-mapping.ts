@@ -351,6 +351,7 @@ export function barcodeProductToProduct(item: BarcodeProduct): Product {
     slug: item.slug,
     name: item.itemName || item.name,
     description: item.printDescription || item.name,
+    printDescription: item.printDescription?.trim() || undefined,
     category,
     subCategory: item.group,
     uom: item.uom ?? item.uomType,

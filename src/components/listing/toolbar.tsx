@@ -1,6 +1,7 @@
 "use client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SORT_KEYS, type SortKey } from "@/domain/types";
+import { SortDropdown } from "./sort-dropdown";
 
 const LABELS: Record<SortKey, string> = {
   featured: "Featured",
@@ -19,23 +20,17 @@ export function SortSelect() {
   const pathname = usePathname();
   const value = (sp.get("sort") as SortKey) ?? "featured";
   return (
-    <label className="flex items-center gap-2 text-sm text-muted">
-      Sort by
-      <select
-        value={value}
-        onChange={(e) => {
-          const next = new URLSearchParams(sp.toString());
-          next.set("sort", e.target.value);
-          next.delete("page");
-          router.push(`${pathname}?${next.toString()}`, { scroll: false });
-        }}
-        className="h-9 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink focus:border-maroon focus:outline-none"
-      >
-        {SORT_KEYS.map((k) => (
-          <option key={k} value={k}>{LABELS[k]}</option>
-        ))}
-      </select>
-    </label>
+    <SortDropdown
+      value={value}
+      options={SORT_KEYS.map((k) => ({ value: k, label: LABELS[k] }))}
+      onChange={(next) => {
+        const params = new URLSearchParams(sp.toString());
+        if (next === "featured") params.delete("sort");
+        else params.set("sort", next);
+        params.delete("page");
+        router.push(`${pathname}${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
+      }}
+    />
   );
 }
 

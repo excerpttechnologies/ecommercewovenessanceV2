@@ -24,13 +24,14 @@
 
 
 import { Logo } from "@/components/Logo";
-import { getMenu, getSettings, getStores } from "@/lib/site-data";
+import { businessInfo } from "@/lib/business";
+import { getMenu, getSettings } from "@/lib/site-data";
 import { Suspense } from "react";
 import { HeaderClient } from "./header-client";
 
 /**
  * Server shell:
- * Loads menu, settings, and stores once per request
+ * Loads menu, settings and the physical store details once per request
  * and passes the required data to the client header.
  */
 export async function Header({
@@ -38,23 +39,18 @@ export async function Header({
 }: {
   messages?: string[];
 }) {
-  const [settings, menu, stores] = await Promise.all([
+  const [settings, menu] = await Promise.all([
     getSettings(),
     getMenu(),
-    getStores().catch(() => []),
   ]);
+  const { address, phone, hours } = businessInfo(settings);
 
   return (
     <Suspense>
       <HeaderClient
         menu={menu}
         messages={messages}
-        stores={stores.map((s) => ({
-          id: s.id,
-          name: s.name,
-          city: s.city,
-        }))}
-        defaultStoreId={settings.defaultStoreId ?? undefined}
+        store={{ address, phone, hours }}
         tagline={settings.tagline ?? ""}
         logo={
           <Logo

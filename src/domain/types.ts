@@ -357,6 +357,8 @@ export interface Product {
   slug: string;
   name: string;
   description: string;
+  /** ERP label print text shown on the product page and in the bag (barcode products only). */
+  printDescription?: string;
   /** Raw category reference exactly as the ERP stores it (name, id or slug — see PRODUCT_CATEGORY_REF). */
   category: string;
   subCategory?: string;

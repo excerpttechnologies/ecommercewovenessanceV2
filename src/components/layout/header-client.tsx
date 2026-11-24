@@ -462,6 +462,7 @@ import {
 import { SearchOverlay } from "./search-overlay";
 import { MegaMenu } from "./mega-menu";
 import { AccountMenu } from "./account-menu";
+import { StoreLocation, type StoreLocationInfo } from "./store-location";
 
 import {
   isAddOnCategorySlug,
@@ -470,8 +471,8 @@ import {
 interface Props {
   menu: MenuNode[];
   messages: string[];
-  stores: { id: string; name: string; city?: string }[];
-  defaultStoreId?: string;
+  /** Physical store details shown in the header's Store Location popup. */
+  store: StoreLocationInfo;
   tagline: string;
   logo: React.ReactNode;
   whatsapp: string;
@@ -572,8 +573,7 @@ function storefrontNav(items: MenuNode[]): MenuNode[] {
 export function HeaderClient({
   menu,
   messages,
-  stores,
-  defaultStoreId,
+  store,
   logo,
 }: Props) {
   const navItems = storefrontNav(menu.length ? menu : DEFAULT_MENU);
@@ -662,12 +662,6 @@ export function HeaderClient({
   const currencyOptions = CURRENCY_OPTIONS;
   const selectedCurrency = normalizeCurrencyCode(ui.currency);
 
-  // Store fallback.
-  const selectedStore =
-    stores.find((store) => store.id === ui.storeId) ??
-    stores.find((store) => store.id === defaultStoreId) ??
-    stores[0];
-
   const linkClass = "hover:text-maroon";
 
   const addOnSlug = pathname.match(
@@ -699,31 +693,7 @@ export function HeaderClient({
     {
       key: "store",
       icon: MapPin,
-      content: (
-        <label className="flex items-center gap-1 text-olive/60">
-          Store
-
-          {stores.length > 0 ? (
-            <select
-              value={selectedStore?.id ?? ""}
-              onChange={(e) =>
-                ui.setStoreId(e.target.value || undefined)
-              }
-              className="cursor-pointer bg-transparent font-medium text-olive focus:outline-none"
-            >
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="font-medium text-olive">
-              Unavailable
-            </span>
-          )}
-        </label>
-      ),
+      content: <StoreLocation store={store} />,
     },
     {
       key: "currency",
@@ -1094,32 +1064,8 @@ export function HeaderClient({
                 Customer support
               </Link>
 
-              {/* Mobile store selection */}
-              <label className="flex items-center justify-between">
-                Store
-
-                {stores.length > 0 ? (
-                  <select
-                    value={selectedStore?.id ?? ""}
-                    onChange={(e) =>
-                      ui.setStoreId(
-                        e.target.value || undefined,
-                      )
-                    }
-                    className="bg-transparent font-medium text-olive"
-                  >
-                    {stores.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="font-medium text-olive">
-                    Unavailable
-                  </span>
-                )}
-              </label>
+              {/* Store address popup */}
+              <StoreLocation store={store} variant="row" />
 
               {/* Mobile currency selection */}
               <label className="flex items-center justify-between">
