@@ -61,9 +61,11 @@ export function invalidateCatalogConfigCaches() {
  * collection paths cover ISR entries that Next.js may have cached separately.
  */
 export function revalidateStorefront() {
-  revalidatePath("/", "layout");
-  revalidatePath("/collections", "layout");
-  revalidatePath("/sitemap.xml");
+  try {
+    revalidatePath("/", "layout");
+    revalidatePath("/collections", "layout");
+    revalidatePath("/sitemap.xml");
+  } catch {}
 }
 
 /** Website-owned resources whose edits change storefront chrome / homepage / CMS. */
