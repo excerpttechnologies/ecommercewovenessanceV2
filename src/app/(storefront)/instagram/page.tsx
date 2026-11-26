@@ -1,7 +1,10 @@
 
 import Link from "next/link";
 import { getWebConnection } from "@/lib/db";
-import { InstagramCurationModel } from "@/models/web/instagram-curation.model";
+import {
+  InstagramCurationModel,
+  INSTAGRAM_CURATION_GROUP_KEYS,
+} from "@/models/web/instagram-curation.model";
 import { getMasterData } from "@/repositories";
 import { formatINR } from "@/lib/utils";
 
@@ -9,34 +12,43 @@ export const dynamic = "force-dynamic";
 
 export default async function InstagramShopPage() {
   const Model = InstagramCurationModel(await getWebConnection());
-  const config = await Model.findOne({ key: "default" }).lean();
+  const configs = await Model.find({
+    key: { $in: [...INSTAGRAM_CURATION_GROUP_KEYS] },
+    enabled: true,
+  }).lean();
+  const configByKey = new Map(configs.map((config) => [config.key, config]));
+  const displayConfig =
+    configByKey.get("default") ?? configs[0];
+  const skus = [
+    ...new Set(
+      INSTAGRAM_CURATION_GROUP_KEYS.flatMap(
+        (key) => configByKey.get(key)?.skus ?? [],
+      )
+        .map((sku) => sku.trim())
+        .filter(Boolean),
+    ),
+  ];
 
-  if (config?.enabled === false) {
+  if (!skus.length) {
     return (
-      <main className="mx-auto max-w-5xl px-5 py-20 text-center">
-        <h1 className="text-3xl font-semibold">Instagram Shop</h1>
-        <p className="mt-4 text-muted-foreground">
-          Our curated collection is currently unavailable. Please check back soon.
-        </p>
-        <Link href="/" className="mt-8 inline-block underline">
-          Back to Home
-        </Link>
+      <main className="container mx-auto px-4 py-16">
+        <h1>Instagram Collection</h1>
+        <p>Our curated collection is being updated. Please check back soon.</p>
       </main>
     );
   }
 
-  const skus = config?.skus ?? [];
-  const allProducts = skus.length
-  ? await getMasterData().products.getBySkus(skus)
-  : [];
+  const allProducts = await getMasterData().products.getBySkus(skus, {
+    skipCache: true,
+  });
 
   const products = allProducts.filter(
     (product) => product.isActive && product.stock.qty > 0,
   );
 
-  const title = config?.title || "Shop our Instagram edit";
+  const title = displayConfig?.title || "Shop our Instagram edit";
   const description =
-    config?.description ||
+    displayConfig?.description ||
     "Discover the pieces we are sharing on Instagram.";
 
   return (

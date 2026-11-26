@@ -501,7 +501,7 @@ export default function InstagramAdminPage() {
       const skus = selected.map((product) => product.sku);
 
       await api("/api/v1/admin/instagram", {
-        method: "PUT",
+        method: "POST",
         json: {
           key: group,
           enabled: config.enabled,

@@ -2,6 +2,18 @@
 import { Schema, type Connection } from "mongoose";
 import { getModel } from "../_util";
 
+export const INSTAGRAM_CURATION_GROUP_KEYS = [
+  "default",
+  "sarees",
+  "fabrics",
+  "plain-fabrics",
+  "dupatta",
+  "pavada",
+  "dhotis",
+  "best-buy",
+  "new-arrivals",
+] as const;
+
 const InstagramImageSchema = new Schema(
   {
     url: {

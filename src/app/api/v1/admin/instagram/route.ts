@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { handler, ok } from "@/lib/api/response";
 import { parseBody } from "@/lib/api/body";
@@ -59,7 +60,7 @@ export const GET = handler(async (req: NextRequest) => {
   });
 });
 
-export const PUT = handler(async (req: NextRequest) => {
+const saveInstagramCuration = handler(async (req: NextRequest) => {
   await requireAdmin("products:write");
 
   const parsed = await parseBody(req, bodySchema);
@@ -91,5 +92,11 @@ export const PUT = handler(async (req: NextRequest) => {
     },
   );
 
+  revalidatePath("/", "page");
+revalidatePath("/instagram", "page");
+
   return ok({ saved: true, key: data.key, count: skus.length });
 });
+
+export const POST = saveInstagramCuration;
+export const PUT = saveInstagramCuration;

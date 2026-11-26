@@ -12,7 +12,12 @@ import { CategoryTiles, ChipStrip, HelpJump, HomeSeoContent, InstagramStrip, Lif
 import { JsonLd } from "@/components/seo/json-ld";
 import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_OG_IMAGE, DEFAULT_TITLE, OG_DEFAULTS, absoluteUrl, itemListJsonLd, publicImage, storeJsonLd, websiteJsonLd } from "@/lib/seo";
 import { getWebConnection } from "@/lib/db";
-import { InstagramCurationModel } from "@/models/web/instagram-curation.model";
+// import { InstagramCurationModel } from "@/models/web/instagram-curation.model";
+
+import {
+  InstagramCurationModel,
+  INSTAGRAM_CURATION_GROUP_KEYS,
+} from "@/models/web/instagram-curation.model";
 
 const CURATED_ORDER: StorefrontCategoryGroup[] = ["sarees", "fabrics", "plain-fabrics", "dupatta"];
 const CURATED_COVERS: Partial<Record<StorefrontCategoryGroup, string>> = {
@@ -275,57 +280,91 @@ if (trustIndex >= 0 && instagramIndex >= 0) {
         //   return <InstagramStrip key={s.key} handle={instagramHandle(instagram)} href={instagram} images={erpImages.length >= 6 ? erpImages : INSTAGRAM_FALLBACK} />;
         // }
 
+
 case "instagram": {
   const Model = InstagramCurationModel(await getWebConnection());
 
-  const config = await Model.findOne({ key: "default" }).lean();
+  // Load every enabled Instagram group.
+  const configs = await Model.find({
+    key: { $in: [...INSTAGRAM_CURATION_GROUP_KEYS] },
+    enabled: true,
+  }).lean();
 
-  if (!config || !config.enabled || !config.skus?.length) {
+  const configByKey = new Map(
+    configs.map((config) => [config.key, config]),
+  );
+
+  // Preserve group order and the product order selected in Admin.
+  const instagramSkus = [
+    ...new Set(
+      INSTAGRAM_CURATION_GROUP_KEYS.flatMap(
+        (key) => configByKey.get(key)?.skus ?? [],
+      )
+        .map((sku) => sku.trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  if (!instagramSkus.length) {
     return null;
   }
 
   const master = getMasterData();
-const products = await master.products.getBySkus(config.skus, {
-  skipCache: true,
-});
 
-  const instagramItems = products.flatMap((product) => {
-  const image = product.images?.[0]?.trim();
-  // const slug = product.slug?.trim();
-  const slug =
-  product.sku.toUpperCase() === "10A3109"
-    ? "15-s-vns-10a3109"
-    : product.slug?.trim();
+  const products = await master.products.getBySkus(instagramSkus, {
+    skipCache: true,
+  });
 
-  if (
-    !product.isActive ||
-    product.stock.qty <= 0 ||
-    !image ||
-    !slug
-  ) {
-    return [];
-  }
+  // Restore the Admin-selected SKU order.
+  const productsBySku = new Map(
+    products.map((product) => [
+      product.sku.trim().toUpperCase(),
+      product,
+    ]),
+  );
 
-  return [
-    {
-      src: image,
-      href: `/products/${encodeURIComponent(slug)}`,
-      alt: product.name,
-    },
-  ];
-});
+  const instagramItems = instagramSkus.flatMap((sku) => {
+    const product = productsBySku.get(sku.toUpperCase());
 
-  if (instagramItems.length === 0) {
+    if (!product) return [];
+
+    const image = product.images?.[0]?.trim();
+
+    const slug =
+      product.sku.toUpperCase() === "10A3109"
+        ? "15-s-vns-10a3109"
+        : product.slug?.trim();
+
+    if (
+      !product.isActive ||
+      product.stock.qty <= 0 ||
+      !image ||
+      !slug
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        src: image,
+        href: `/products/${slug}`,
+        alt: product.name,
+      },
+    ];
+  });
+
+  if (!instagramItems.length) {
     return null;
   }
 
   return (
-  <InstagramStrip
-    key={s.key}
-    items={instagramItems}
-  />
-);
+    <InstagramStrip
+      key={s.key}
+      items={instagramItems}
+    />
+  );
 }
+
 
         case "newsletter":
           return <Newsletter key={s.key} title={s.title} subtitle={s.subtitle} />;
