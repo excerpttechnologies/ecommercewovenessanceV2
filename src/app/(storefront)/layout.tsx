@@ -1,6 +1,5 @@
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
-import { Toaster } from "@/components/ui/toaster";
 import { WhatsAppFloat } from "@/components/layout/whatsapp-float";
 import { getSettings } from "@/lib/site-data";
 export const dynamic = "force-dynamic";
@@ -12,8 +11,6 @@ export default async function StorefrontLayout({ children }: { children: React.R
       <Header />
       <main className="min-h-[60vh]">{children}</main>
       <Footer />
-      <Toaster />
-      {/* <SaleAssistWidget /> */}
       <WhatsAppFloat number={settings.whatsappNumber} />
     </>
   );

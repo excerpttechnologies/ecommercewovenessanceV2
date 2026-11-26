@@ -8,9 +8,11 @@ import { getSettings } from "@/lib/site-data";
 import { ERP_CATEGORY_TITLES, getErpFilterChips, getErpHomeSections, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
 import { HeroCarousel } from "@/components/home/hero-carousel";
 import { CuratedCollections } from "@/components/home/curated-collections";
-import { CategoryTiles, ChipStrip, ErpProductSection, HelpJump, HomeSeoContent, InstagramStrip, LifestyleBanners, Newsletter, ProductSection, SupportPanel, Testimonials, TrustBadges } from "@/components/home/sections";
+import { CategoryTiles, ChipStrip, HelpJump, HomeSeoContent, InstagramStrip, LifestyleBanners, Newsletter, ProductSection, SupportPanel, Testimonials, TrustBadges } from "@/components/home/sections";
 import { JsonLd } from "@/components/seo/json-ld";
 import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS, DEFAULT_OG_IMAGE, DEFAULT_TITLE, OG_DEFAULTS, absoluteUrl, itemListJsonLd, publicImage, storeJsonLd, websiteJsonLd } from "@/lib/seo";
+import { getWebConnection } from "@/lib/db";
+import { InstagramCurationModel } from "@/models/web/instagram-curation.model";
 
 const CURATED_ORDER: StorefrontCategoryGroup[] = ["sarees", "fabrics", "plain-fabrics", "dupatta"];
 const CURATED_COVERS: Partial<Record<StorefrontCategoryGroup, string>> = {
@@ -29,19 +31,6 @@ const HERO_MOBILE_IMAGES: Record<string, string> = {
   "/hero-pink-silk.png": "/hero-green-silk-mobile.webp",
   "/hero-golden-heritage.webp": "/hero-teal-silk-mobile.webp",
 };
-
-const DEFAULT_INSTAGRAM ="https://www.instagram.com/templefabrics";
-const INSTAGRAM_FALLBACK = [1, 2, 3, 4, 5, 6].map((n) => `/instagram/tile-${n}.webp`);
-
-/** "https://www.instagram.com/templefabrics?igsh=…" → "@templefabrics" (query string and trailing slash ignored). */
-function instagramHandle(url: string): string | undefined {
-  try {
-    const name = new URL(url).pathname.split("/").filter(Boolean)[0];
-    return name ? `@${name}` : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 /** Fabric pill photos for the common weaves; other fabrics get the lotus badge. */
 const FABRIC_THUMBS: [RegExp, string][] = [
@@ -124,12 +113,29 @@ export default async function Home() {
     site.homepageSection("support"),
     site.banners("hero"),
   ]);
+  // const homepageSections = (sections.length
+  //   ? sections
+  //   : [
+  //       { key: "categories", title: "Shop by category", subtitle: null, config: {} },
+  //       { key: "featuredCollections", title: "Curated collections", subtitle: null, config: {} },
+  //     ]);
+
   const homepageSections = (sections.length
-    ? sections
-    : [
-        { key: "categories", title: "Shop by category", subtitle: null, config: {} },
-        { key: "featuredCollections", title: "Curated collections", subtitle: null, config: {} },
-      ]);
+  ? sections
+  : [
+      { key: "categories", title: "Shop by category", subtitle: null, config: {} },
+      { key: "featuredCollections", title: "Curated collections", subtitle: null, config: {} },
+    ]);
+
+// Swap only these two homepage sections; all other section positions remain unchanged.
+const orderedHomepageSections = [...homepageSections];
+const trustIndex = orderedHomepageSections.findIndex((section) => section.key === "trust");
+const instagramIndex = orderedHomepageSections.findIndex((section) => section.key === "instagram");
+
+if (trustIndex >= 0 && instagramIndex >= 0) {
+  [orderedHomepageSections[trustIndex], orderedHomepageSections[instagramIndex]] =
+    [orderedHomepageSections[instagramIndex], orderedHomepageSections[trustIndex]];
+}
   const erpHomeLimit = Math.max(1, ...homepageSections.flatMap((section) => {
     if (!["featuredCollections", "newArrivals", "instagram"].includes(section.key)) return [];
     const cfg = (section.config ?? {}) as Record<string, unknown>;
@@ -164,7 +170,7 @@ export default async function Home() {
     />
   );
   const rendered = await Promise.all(
-    homepageSections.map(async (s) => {
+  orderedHomepageSections.map(async (s) => {
       const cfg = (s.config ?? {}) as Record<string, unknown>;
       const limit = Number(cfg.limit ?? 8);
       switch (s.key) {
@@ -215,27 +221,30 @@ export default async function Home() {
             });
           return <CuratedCollections key={s.key} tiles={tiles} title={s.title} subtitle={s.subtitle} />;
         }
-        case "newArrivals": {
-          // Newest published ERP products, one row per storefront category.
-          // Rounded up to a multiple of five so desktop rows (five cards) come out full.
-          const sectionLimit = Math.ceil(limit / 5) * 5;
-          const erpSections = (await getHomeSections())
-            .map((section) => ({ ...section, items: section.items.slice(0, sectionLimit) }))
-            .filter((section) => section.items.length);
-          return (
-            <div key={s.key}>
-              {erpSections.map((section, index) => (
-                <ErpProductSection
-                  key={section.group}
-                  title={index === 0 && s.title ? `${s.title} · ${section.title}` : section.title}
-                  subtitle={index === 0 ? s.subtitle : undefined}
-                  collectionSlug={section.group}
-                  items={section.items}
-                />
-              ))}
-            </div>
-          );
-        }
+        // case "newArrivals": {
+        //   // Newest published ERP products, one row per storefront category.
+        //   // Rounded up to a multiple of five so desktop rows (five cards) come out full.
+        //   const sectionLimit = Math.ceil(limit / 5) * 5;
+        //   const erpSections = (await getHomeSections())
+        //     .map((section) => ({ ...section, items: section.items.slice(0, sectionLimit) }))
+        //     .filter((section) => section.items.length);
+        //   return (
+        //     <div key={s.key}>
+        //       {erpSections.map((section, index) => (
+        //         <ErpProductSection
+        //           key={section.group}
+        //           title={index === 0 && s.title ? `${s.title} · ${section.title}` : section.title}
+        //           subtitle={index === 0 ? s.subtitle : undefined}
+        //           collectionSlug={section.group}
+        //           items={section.items}
+        //         />
+        //       ))}
+        //     </div>
+        //   );
+        // }
+        case "newArrivals":
+  // ERP category product groups are intentionally hidden on the homepage.
+  return null;
         case "bestSellers": {
           const r = await master.products.list({ sort: "best_selling", limit, inStock: true });
           return <ProductSection key={s.key} title={s.title ?? "Best sellers"} subtitle={s.subtitle} href="/collections/sarees?sort=best_selling" items={r.items} />;
@@ -258,13 +267,66 @@ export default async function Home() {
           return <LifestyleBanners key={s.key} banners={await site.banners("lifestyle")} />;
         case "testimonials":
           return <Testimonials key={s.key} items={await site.testimonials()} title={s.title} subtitle={s.subtitle} />;
-        case "instagram": {
-          const erpImages = (await getHomeSections().catch(() => []))
-            .flatMap((section) => section.items.slice(0, limit).flatMap((item) => (item.image ? [item.image] : [])))
-            .slice(0, 12);
-          const instagram = settings.social?.instagram || DEFAULT_INSTAGRAM;
-          return <InstagramStrip key={s.key} handle={instagramHandle(instagram)} href={instagram} images={erpImages.length >= 6 ? erpImages : INSTAGRAM_FALLBACK} />;
-        }
+        // case "instagram": {
+        //   const erpImages = (await getHomeSections().catch(() => []))
+        //     .flatMap((section) => section.items.slice(0, limit).flatMap((item) => (item.image ? [item.image] : [])))
+        //     .slice(0, 12);
+        //   const instagram = settings.social?.instagram || DEFAULT_INSTAGRAM;
+        //   return <InstagramStrip key={s.key} handle={instagramHandle(instagram)} href={instagram} images={erpImages.length >= 6 ? erpImages : INSTAGRAM_FALLBACK} />;
+        // }
+
+case "instagram": {
+  const Model = InstagramCurationModel(await getWebConnection());
+
+  const config = await Model.findOne({ key: "default" }).lean();
+
+  if (!config || !config.enabled || !config.skus?.length) {
+    return null;
+  }
+
+  const master = getMasterData();
+const products = await master.products.getBySkus(config.skus, {
+  skipCache: true,
+});
+
+  const instagramItems = products.flatMap((product) => {
+  const image = product.images?.[0]?.trim();
+  // const slug = product.slug?.trim();
+  const slug =
+  product.sku.toUpperCase() === "10A3109"
+    ? "15-s-vns-10a3109"
+    : product.slug?.trim();
+
+  if (
+    !product.isActive ||
+    product.stock.qty <= 0 ||
+    !image ||
+    !slug
+  ) {
+    return [];
+  }
+
+  return [
+    {
+      src: image,
+      href: `/products/${encodeURIComponent(slug)}`,
+      alt: product.name,
+    },
+  ];
+});
+
+  if (instagramItems.length === 0) {
+    return null;
+  }
+
+  return (
+  <InstagramStrip
+    key={s.key}
+    items={instagramItems}
+  />
+);
+}
+
         case "newsletter":
           return <Newsletter key={s.key} title={s.title} subtitle={s.subtitle} />;
         case "support":
@@ -298,7 +360,8 @@ export default async function Home() {
           },
         ]}
       />
-      {!homepageSections.some((section) => section.key === "hero") && hero}
+      {/* {!homepageSections.some((section) => section.key === "hero") && hero} */}
+      {!orderedHomepageSections.some((section) => section.key === "hero") && hero}
       {rendered}
       <HomeSeoContent settings={settings} />
       {!supportSection && <SupportPanel title="How can we help?" contact={homeContact} settings={settings} whatsappNumber={settings.whatsappNumber} />}

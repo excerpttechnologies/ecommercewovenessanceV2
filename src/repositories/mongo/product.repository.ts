@@ -16,7 +16,6 @@ import {
   skuCandidatesFromSlug,
   toProductCard,
 } from "@/lib/erp-mapping";
-import { barcodeImageUrl } from "@/lib/erp-images";
 import { cached } from "@/lib/cache";
 import { getProductMetaMap } from "@/lib/product-meta-cache";
 import { escapeRegex } from "@/lib/utils";
@@ -219,6 +218,7 @@ export class MongoProductRepository implements ProductRepository {
     const Meta = await this.Meta();
     const metas = (await Meta.find({ sku: { $in: products.map((p) => p.sku) } }).lean()) as ProductWebMetaDoc[];
     const bySku = new Map(metas.map((m) => [m.sku, m]));
+
     return products.map((p) => {
       const m = bySku.get(p.sku);
       if (!m) return p;
@@ -814,7 +814,8 @@ export class MongoProductRepository implements ProductRepository {
         const uom = label[B.uom] || label[B.uomType] || "Pc";
         const uomType = label[B.uomType] || label[B.uom] || "PC";
         const slugName = (ecom?.displayName || ecom?.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
+        const storedSlug = typeof ecom?.slug === "string" ? ecom.slug.trim() : "";
+        const slug = storedSlug || `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
         const product: Product = {
           id: String(ecom?._id || label._id),
@@ -906,7 +907,8 @@ export class MongoProductRepository implements ProductRepository {
         const uomType = targetLabel?.[B.uomType] || targetLabel?.[B.uom] || "PC";
 
         const slugName = (fallbackEcom.displayName || fallbackEcom.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const slug = `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
+        const storedSlug = typeof fallbackEcom.slug === "string" ? fallbackEcom.slug.trim() : "";
+        const slug = storedSlug || `${slugName}-${cleanSku.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
         const labelName = targetLabel?.[B.printDescription] || targetLabel?.[B.itemName] || targetLabel?.[B.description];
         const name = labelName || fallbackEcom.displayName || fallbackEcom.ecommItemCode || "Woven Essence Product";
@@ -1020,6 +1022,7 @@ export class MongoProductRepository implements ProductRepository {
             publishedBarcodes: 1,
             barcode: 1,
             image: 1,
+            slug: 1,
           },
         }
       ).toArray();
@@ -1040,7 +1043,6 @@ export class MongoProductRepository implements ProductRepository {
         const upper = sku.trim().toUpperCase();
         const bLabels = labelsByBarcode.get(upper) ?? [];
         const ecom = ecomByBarcode.get(upper);
-
         if (!bLabels.length || !ecom) {
           const fallback = await this.erpGetBySku(sku, options);
           if (fallback) products.push(fallback);
@@ -1062,7 +1064,8 @@ export class MongoProductRepository implements ProductRepository {
         const uom = label?.[B.uom] || label?.[B.uomType] || "Pc";
         const uomType = label?.[B.uomType] || label?.[B.uom] || "PC";
         const slugName = (ecom?.displayName || ecom?.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-        const slug = `${slugName}-${sku.toLowerCase()}`.replace(/^-+|-+$/g, "");
+        const storedSlug = typeof ecom?.slug === "string" ? ecom.slug.trim() : "";
+        const slug = storedSlug || `${slugName}-${sku.toLowerCase()}`.replace(/^-+|-+$/g, "");
 
         products.push({
           id: String(ecom?._id || label?._id || sku),
@@ -1097,7 +1100,9 @@ export class MongoProductRepository implements ProductRepository {
         });
       }
 
-      return this.hydrate(products);
+
+
+return this.hydrate(products);
     };
 
     if (options?.skipCache) {

@@ -23,16 +23,42 @@ function open(key: keyof Cache, uri: string, opts: Record<string, unknown>): Pro
   p.catch(() => {
     if (cache[key] === p) cache[key] = undefined;
   });
+  
+  p.then((connection) => {
+    const forgetClosedConnection = () => {
+      if (cache[key] === p) cache[key] = undefined;
+    };
+    connection.once("disconnected", forgetClosedConnection);
+    connection.once("close", forgetClosedConnection);
+  }).catch(() => {
+    // Initial connection failures are handled by the catch above.
+  });
   return p;
 }
 
+async function connectionFor(key: keyof Cache, openConnection: () => Promise<Connection>): Promise<Connection> {
+  const existing = cache[key];
+  if (existing) {
+    try {
+      const connection = await existing;
+      if (connection.readyState === 1) return connection;
+    } catch {
+      // A stale/failed promise is replaced below.
+    }
+  }
+
+  const next = openConnection();
+  cache[key] = next;
+  return next;
+}
+
 export function getWebConnection(): Promise<Connection> {
-  return (cache.web ??= open("web", env.MONGODB_URI, { dbName: env.WEB_DB_NAME }));
+  return connectionFor("web", () => open("web", env.MONGODB_URI, { dbName: env.WEB_DB_NAME }));
 }
 
 /** RetailERP database (ERP_MONGODB_URI + ERP_DB_NAME), whatever DATA_SOURCE says. Read-only by convention. */
 export function getErpConnection(): Promise<Connection> {
-  return (cache.erp ??= open("erp", env.ERP_MONGODB_URI, {
+  return connectionFor("erp", () => open("erp", env.ERP_MONGODB_URI, {
     dbName: env.ERP_DB_NAME,
     readPreference: "secondaryPreferred",
   }));

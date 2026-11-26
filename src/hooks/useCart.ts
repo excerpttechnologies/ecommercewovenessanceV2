@@ -48,6 +48,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api";
+import { useEffect, useState } from "react";
 import type { CartView } from "@/lib/cart-server";
 import { useUi } from "@/store/ui";
 
@@ -61,11 +62,68 @@ function goToLoginIfLoggedOut(e: unknown) {
   }
 }
 
+// export function useCart() {
+//   const qc = useQueryClient();
+//   const setCartOpen = useUi((s) => s.setCartOpen);
+//   const query = useQuery({ queryKey: KEY, queryFn: async () => (await api<CartData>("/api/v1/cart")).data });
+//   const set = (data: CartData) => qc.setQueryData(KEY, data);
+
+//   const add = useMutation({
+//     mutationFn: async (v: { sku: string; qty?: number }) => (await api<CartData>("/api/v1/cart", { method: "POST", json: v })).data,
+//     onSuccess: (d) => {
+//       set(d);
+//       setCartOpen(true);
+//     },
+//     onError: goToLoginIfLoggedOut,
+//   });
+//   const update = useMutation({
+//     mutationFn: async (v: { sku: string; qty: number; position?: number }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: v })).data,
+//     onSuccess: set,
+//     onError: goToLoginIfLoggedOut,
+//   });
+//   /** Removes one line regardless of its unit/quantity. Undo uses `update` with the old position. */
+//   const remove = useMutation({
+//     mutationFn: async (v: { sku: string }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: { sku: v.sku, qty: 0 } })).data,
+//     onSuccess: set,
+//     onError: goToLoginIfLoggedOut,
+//   });
+//   const coupon = useMutation({
+//     mutationFn: async (code: string | null) =>
+//       (await api<CartData>("/api/v1/cart/coupon", code ? { method: "POST", json: { code } } : { method: "DELETE" })).data,
+//     onSuccess: set,
+//     onError: goToLoginIfLoggedOut,
+//   });
+//   return { ...query, cart: query.data, add, update, remove, coupon, refresh: () => qc.invalidateQueries({ queryKey: KEY }) };
+// }
+
+// export function useWishlist() {
+//   const qc = useQueryClient();
+//   const query = useQuery({ queryKey: ["wishlist"], queryFn: async () => (await api<string[]>("/api/v1/wishlist")).data });
+//   const toggle = useMutation({
+//     mutationFn: async (sku: string) => (await api<string[]>("/api/v1/wishlist", { method: "POST", json: { sku } })).data,
+//     onSuccess: (d) => qc.setQueryData(["wishlist"], d),
+//     onError: goToLoginIfLoggedOut,
+//   });
+//   return { skus: query.data ?? [], has: (sku: string) => (query.data ?? []).includes(sku), toggle };
+// }
+
+function useHydrated() {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  return hydrated;
+}
+
 export function useCart() {
+  const hydrated = useHydrated();
   const qc = useQueryClient();
   const setCartOpen = useUi((s) => s.setCartOpen);
-  const query = useQuery({ queryKey: KEY, queryFn: async () => (await api<CartData>("/api/v1/cart")).data });
+  const query = useQuery({
+    queryKey: KEY,
+    queryFn: async () => (await api<CartData>("/api/v1/cart")).data,
+    enabled: hydrated,
+  });
   const set = (data: CartData) => qc.setQueryData(KEY, data);
+  const cart = hydrated ? query.data : undefined;
 
   const add = useMutation({
     mutationFn: async (v: { sku: string; qty?: number }) => (await api<CartData>("/api/v1/cart", { method: "POST", json: v })).data,
@@ -76,13 +134,7 @@ export function useCart() {
     onError: goToLoginIfLoggedOut,
   });
   const update = useMutation({
-    mutationFn: async (v: { sku: string; qty: number; position?: number }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: v })).data,
-    onSuccess: set,
-    onError: goToLoginIfLoggedOut,
-  });
-  /** Removes one line regardless of its unit/quantity. Undo uses `update` with the old position. */
-  const remove = useMutation({
-    mutationFn: async (v: { sku: string }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: { sku: v.sku, qty: 0 } })).data,
+    mutationFn: async (v: { sku: string; qty: number }) => (await api<CartData>("/api/v1/cart", { method: "PATCH", json: v })).data,
     onSuccess: set,
     onError: goToLoginIfLoggedOut,
   });
@@ -92,16 +144,31 @@ export function useCart() {
     onSuccess: set,
     onError: goToLoginIfLoggedOut,
   });
-  return { ...query, cart: query.data, add, update, remove, coupon, refresh: () => qc.invalidateQueries({ queryKey: KEY }) };
+  return {
+    ...query,
+    data: cart,
+    isLoading: !hydrated || query.isLoading,
+    cart,
+    add,
+    update,
+    coupon,
+    refresh: () => qc.invalidateQueries({ queryKey: KEY }),
+  };
 }
 
 export function useWishlist() {
+  const hydrated = useHydrated();
   const qc = useQueryClient();
-  const query = useQuery({ queryKey: ["wishlist"], queryFn: async () => (await api<string[]>("/api/v1/wishlist")).data });
+  const query = useQuery({
+    queryKey: ["wishlist"],
+    queryFn: async () => (await api<string[]>("/api/v1/wishlist")).data,
+    enabled: hydrated,
+  });
   const toggle = useMutation({
     mutationFn: async (sku: string) => (await api<string[]>("/api/v1/wishlist", { method: "POST", json: { sku } })).data,
     onSuccess: (d) => qc.setQueryData(["wishlist"], d),
     onError: goToLoginIfLoggedOut,
   });
-  return { skus: query.data ?? [], has: (sku: string) => (query.data ?? []).includes(sku), toggle };
+  const skus = hydrated ? query.data ?? [] : [];
+  return { skus, has: (sku: string) => skus.includes(sku), toggle };
 }

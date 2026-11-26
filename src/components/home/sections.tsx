@@ -5,7 +5,7 @@ import type { BarcodeProduct, CategoryNode, ProductCard } from "@/domain/types";
 import type { BannerDoc, TestimonialDoc } from "@/models/web/content.models";
 import type { SiteSettings } from "@/repositories/web/site.repository";
 import { AccentTitle, OrnateHeading, SectionHeading } from "@/components/ui/section-heading";
-import { InstagramCarousel, TestimonialCarousel, type TestimonialCard } from "./carousels";
+import { InstagramCarousel, TestimonialCarousel, type InstagramProductItem, type TestimonialCard } from "./carousels";
 import { ProductRail } from "@/components/product/product-rail";
 import { BarcodeProductGrid } from "@/components/product/barcode-product-grid";
 import { ContactForm } from "@/components/account/contact-form";
@@ -234,16 +234,57 @@ export function Testimonials({ items, title, subtitle }: { items: TestimonialDoc
   );
 }
 
-export function InstagramStrip({ handle, href, images }: { handle?: string | null; href?: string; images: string[] }) {
-  if (!images.length) return null;
+// export function InstagramStrip({ handle, href, images }: { handle?: string | null; href?: string; images: string[] }) {
+//   if (!images.length) return null;
+//   return (
+//     <Wrap className="pb-6 pt-12">
+//       <OrnateHeading
+//         title="On Instagram"
+//         subtitle={handle ? <>Follow <span className="font-medium text-ink">{handle}</span> for daily weaves, stories and more</> : undefined}
+//       />
+//       <InstagramCarousel images={images} href={href ?? "https://www.instagram.com/"} />
+//     </Wrap>
+//   );
+// }
+
+export function InstagramStrip({
+  handle,
+  href,
+  items,
+}: {
+  handle?: string | null;
+  href?: string;
+  items: InstagramProductItem[];
+}) {
+  if (!items.length) return null;
+
   return (
-    <Wrap className="pb-6 pt-12">
-      <OrnateHeading
-        title="On Instagram"
-        subtitle={handle ? <>Follow <span className="font-medium text-ink">{handle}</span> for daily weaves, stories and more</> : undefined}
-      />
-      <InstagramCarousel images={images} href={href ?? "https://www.instagram.com/"} />
-    </Wrap>
+    <section id="instagram" className="scroll-mt-24">
+      <Wrap className="pb-6 pt-12">
+        <OrnateHeading
+          title="On Instagram"
+          subtitle={
+            handle ? (
+              <>
+                Follow{" "}
+                <Link
+                  href={href ?? "https://www.instagram.com/"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-ink"
+                >
+                  {handle}
+                </Link>{" "}
+                for daily weaves, stories and more
+              </>
+            ) : (
+              "Discover our curated collection"
+            )
+          }
+        />
+        <InstagramCarousel items={items} />
+      </Wrap>
+    </section>
   );
 }
 
