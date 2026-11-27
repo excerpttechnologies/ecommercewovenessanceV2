@@ -1,341 +1,4 @@
 
-// "use client";
-
-// import { useEffect, useState } from "react";
-// import { api } from "@/hooks/api";
-// import { formatINR } from "@/lib/utils";
-// import { Button } from "@/components/ui/button";
-// import { Input } from "@/components/ui/input";
-
-// type Product = {
-//   sku: string;
-//   slug: string;
-//   name: string;
-//   images?: string[];
-//   pricing: {
-//     sellingPrice: number;
-//   };
-// };
-
-// type Config = {
-//   enabled: boolean;
-//   title: string;
-//   description: string;
-//   skus: string[];
-// };
-
-// type ResponseData = {
-//   config: Config;
-//   products: Product[];
-//   selectedProducts: Product[];
-// };
-
-// export default function InstagramAdminPage() {
-//   const [config, setConfig] = useState<Config>({
-//     enabled: true,
-//     title: "Shop our Instagram edit",
-//     description: "",
-//     skus: [],
-//   });
-//   const [selected, setSelected] = useState<Product[]>([]);
-//   const [results, setResults] = useState<Product[]>([]);
-//   const [search, setSearch] = useState("");
-//   const [loading, setLoading] = useState(true);
-//   const [saving, setSaving] = useState(false);
-//   const [message, setMessage] = useState("");
-
-//   useEffect(() => {
-//     let cancelled = false;
-
-//     async function load() {
-//       try {
-//         const response = await api<ResponseData>("/api/v1/admin/instagram");
-//         if (cancelled) return;
-
-//         setConfig(response.data.config);
-//         setSelected(response.data.selectedProducts ?? []);
-//       } catch (error) {
-//         if (!cancelled) {
-//           setMessage(error instanceof Error ? error.message : "Could not load Instagram settings.");
-//         }
-//       } finally {
-//         if (!cancelled) setLoading(false);
-//       }
-//     }
-
-//     void load();
-//     return () => {
-//       cancelled = true;
-//     };
-//   }, []);
-
-//   useEffect(() => {
-//     let cancelled = false;
-
-//     const timer = setTimeout(async () => {
-//       if (search.trim().length < 2) {
-//         setResults([]);
-//         return;
-//       }
-
-//       try {
-//         const response = await api<ResponseData>(
-//           `/api/v1/admin/instagram?q=${encodeURIComponent(search.trim())}`,
-//         );
-//         if (!cancelled) setResults(response.data.products ?? []);
-//       } catch {
-//         if (!cancelled) setResults([]);
-//       }
-//     }, 350);
-
-//     return () => {
-//       cancelled = true;
-//       clearTimeout(timer);
-//     };
-//   }, [search]);
-
-//   function addProduct(product: Product) {
-//     setSelected((current) =>
-//       current.some((item) => item.sku === product.sku)
-//         ? current
-//         : [...current, product],
-//     );
-//   }
-
-//   function removeProduct(sku: string) {
-//     setSelected((current) => current.filter((item) => item.sku !== sku));
-//   }
-
-//   function moveProduct(index: number, direction: -1 | 1) {
-//     setSelected((current) => {
-//       const next = [...current];
-//       const target = index + direction;
-
-//       if (target < 0 || target >= next.length) return current;
-
-//       [next[index], next[target]] = [next[target], next[index]];
-//       return next;
-//     });
-//   }
-
-//   async function save() {
-//     setSaving(true);
-//     setMessage("");
-
-//     try {
-//       await api("/api/v1/admin/instagram", {
-//         method: "PUT",
-//         json: {
-//           enabled: config.enabled,
-//           title: config.title,
-//           description: config.description,
-//           skus: selected.map((product) => product.sku),
-//         },
-//       });
-
-//       setConfig((current) => ({
-//         ...current,
-//         skus: selected.map((product) => product.sku),
-//       }));
-//       setMessage("Instagram Shop settings saved successfully.");
-//     } catch (error) {
-//       setMessage(error instanceof Error ? error.message : "Could not save settings.");
-//     } finally {
-//       setSaving(false);
-//     }
-//   }
-
-//   if (loading) {
-//     return <div className="p-8 text-sm text-muted-foreground">Loading Instagram Shop...</div>;
-//   }
-
-//   return (
-//     <div className="space-y-8 p-6">
-//       <div className="flex flex-wrap items-center justify-between gap-4">
-//         <div>
-//           <h1 className="text-2xl font-semibold">Instagram Shop</h1>
-//           <p className="mt-1 text-sm text-muted-foreground">
-//             Choose and arrange the products shown on your Instagram landing page.
-//           </p>
-//         </div>
-//         <Button onClick={save} disabled={saving}>
-//           {saving ? "Saving..." : "Save Changes"}
-//         </Button>
-//       </div>
-
-//       {message && (
-//         <p className="rounded-lg border p-3 text-sm">{message}</p>
-//       )}
-
-//       <section className="space-y-4 rounded-xl border p-5">
-//         <h2 className="font-semibold">Page Settings</h2>
-
-//         <label className="flex items-center gap-3 text-sm">
-//           <input
-//             type="checkbox"
-//             checked={config.enabled}
-//             onChange={(event) =>
-//               setConfig((current) => ({ ...current, enabled: event.target.checked }))
-//             }
-//           />
-//           Enable public Instagram Shop page
-//         </label>
-
-//         <div className="space-y-2">
-//           <label className="text-sm font-medium">Page title</label>
-//           <Input
-//             value={config.title}
-//             onChange={(event) =>
-//               setConfig((current) => ({ ...current, title: event.target.value }))
-//             }
-//             placeholder="Shop our Instagram edit"
-//           />
-//         </div>
-
-//         <div className="space-y-2">
-//           <label className="text-sm font-medium">Page description</label>
-//           <textarea
-//             className="min-h-24 w-full rounded-lg border bg-transparent p-3 text-sm"
-//             value={config.description}
-//             onChange={(event) =>
-//               setConfig((current) => ({ ...current, description: event.target.value }))
-//             }
-//             placeholder="Discover the pieces we are sharing on Instagram."
-//           />
-//         </div>
-//       </section>
-
-//       <section className="space-y-4 rounded-xl border p-5">
-//         <h2 className="font-semibold">Add Products</h2>
-//         <Input
-//           value={search}
-//           onChange={(event) => setSearch(event.target.value)}
-//           placeholder="Search products by name or SKU..."
-//         />
-
-//         {search.trim().length >= 2 && (
-//           <div className="space-y-2">
-//             {results.map((product) => {
-//               const alreadyAdded = selected.some((item) => item.sku === product.sku);
-
-//               return (
-//                 <div
-//                   key={product.sku}
-//                   className="flex items-center gap-3 rounded-lg border p-3"
-//                 >
-//                   {product.images?.[0] ? (
-//                     <img
-//                       src={product.images[0]}
-//                       alt={product.name}
-//                       className="h-14 w-14 rounded-md object-cover"
-//                     />
-//                   ) : (
-//                     <div className="h-14 w-14 rounded-md bg-muted" />
-//                   )}
-
-//                   <div className="min-w-0 flex-1">
-//                     <p className="truncate text-sm font-medium">{product.name}</p>
-//                     <p className="text-xs text-muted-foreground">
-//                       SKU: {product.sku}
-//                     </p>
-//                     <p className="text-sm">{formatINR(product.pricing.sellingPrice)}</p>
-//                   </div>
-
-//                   <Button
-//                     size="sm"
-//                     disabled={alreadyAdded}
-//                     onClick={() => addProduct(product)}
-//                   >
-//                     {alreadyAdded ? "Added" : "Add"}
-//                   </Button>
-//                 </div>
-//               );
-//             })}
-
-//             {results.length === 0 && (
-//               <p className="text-sm text-muted-foreground">No matching products found.</p>
-//             )}
-//           </div>
-//         )}
-//       </section>
-
-//       <section className="space-y-4 rounded-xl border p-5">
-//         <div className="flex items-center justify-between">
-//           <h2 className="font-semibold">Selected Products</h2>
-//           <span className="text-sm text-muted-foreground">{selected.length} products</span>
-//         </div>
-
-//         {selected.length === 0 ? (
-//           <p className="text-sm text-muted-foreground">
-//             No products selected yet. Search above to add products.
-//           </p>
-//         ) : (
-//           <div className="space-y-2">
-//             {selected.map((product, index) => (
-//               <div
-//                 key={product.sku}
-//                 className="flex items-center gap-3 rounded-lg border p-3"
-//               >
-//                 <span className="w-6 text-sm text-muted-foreground">{index + 1}.</span>
-
-//                 {product.images?.[0] ? (
-//                   <img
-//                     src={product.images[0]}
-//                     alt={product.name}
-//                     className="h-14 w-14 rounded-md object-cover"
-//                   />
-//                 ) : (
-//                   <div className="h-14 w-14 rounded-md bg-muted" />
-//                 )}
-
-//                 <div className="min-w-0 flex-1">
-//                   <p className="truncate text-sm font-medium">{product.name}</p>
-//                   <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
-//                   <p className="text-sm">{formatINR(product.pricing.sellingPrice)}</p>
-//                 </div>
-
-//                 <div className="flex items-center gap-1">
-//                   <Button
-//                     size="sm"
-//                     variant="outline"
-//                     disabled={index === 0}
-//                     onClick={() => moveProduct(index, -1)}
-//                   >
-//                     ↑
-//                   </Button>
-//                   <Button
-//                     size="sm"
-//                     variant="outline"
-//                     disabled={index === selected.length - 1}
-//                     onClick={() => moveProduct(index, 1)}
-//                   >
-//                     ↓
-//                   </Button>
-//                   <Button
-//                     size="sm"
-//                     variant="outline"
-//                     onClick={() => removeProduct(product.sku)}
-//                   >
-//                     Remove
-//                   </Button>
-//                 </div>
-//               </div>
-//             ))}
-//           </div>
-//         )}
-//       </section>
-
-//       <div className="flex justify-end">
-//         <Button onClick={save} disabled={saving}>
-//           {saving ? "Saving..." : "Save Changes"}
-//         </Button>
-//       </div>
-//     </div>
-//   );
-// }
-
-
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -361,10 +24,29 @@ type Config = {
   skus: string[];
 };
 
+type SelectedProduct = {
+  sku: string;
+  product?: Product;
+};
+
+type AllGroup = {
+  key: string;
+  enabled: boolean;
+  title: string;
+  description: string;
+  skus: string[];
+  products: {
+    sku: string;
+    product: Product | null;
+  }[];
+};
+
 type ResponseData = {
   config: Config;
   products: Product[];
   selectedProducts: Product[];
+  groupCounts?: Record<string, number>;
+  allGroups?: AllGroup[];
 };
 
 const INSTAGRAM_GROUPS = [
@@ -386,16 +68,24 @@ const DEFAULT_CONFIG: Config = {
   skus: [],
 };
 
+function getGroupLabel(key: string) {
+  return (
+    INSTAGRAM_GROUPS.find((item) => item.value === key)?.label ?? key
+  );
+}
+
 export default function InstagramAdminPage() {
   const [group, setGroup] = useState("default");
   const [config, setConfig] = useState<Config>(DEFAULT_CONFIG);
-  const [selected, setSelected] = useState<Product[]>([]);
+  const [selected, setSelected] = useState<SelectedProduct[]>([]);
+  const [allGroups, setAllGroups] = useState<AllGroup[]>([]);
   const [results, setResults] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  // Load the selected group and all permanently saved Instagram products.
   useEffect(() => {
     let cancelled = false;
 
@@ -414,8 +104,24 @@ export default function InstagramAdminPage() {
 
         if (cancelled) return;
 
-        setConfig(response.data.config);
-        setSelected(response.data.selectedProducts ?? []);
+        const data = response.data;
+
+        setConfig(data.config);
+        setAllGroups(data.allGroups ?? []);
+
+        const productsBySku = new Map(
+          (data.selectedProducts ?? []).map((product) => [
+            product.sku.toUpperCase(),
+            product,
+          ]),
+        );
+
+        setSelected(
+          (data.config.skus ?? []).map((sku) => ({
+            sku,
+            product: productsBySku.get(sku.toUpperCase()),
+          })),
+        );
       } catch (error) {
         if (!cancelled) {
           setMessage(
@@ -436,6 +142,7 @@ export default function InstagramAdminPage() {
     };
   }, [group]);
 
+  // Search products.
   useEffect(() => {
     let cancelled = false;
 
@@ -456,7 +163,9 @@ export default function InstagramAdminPage() {
           setResults(response.data.products ?? []);
         }
       } catch {
-        if (!cancelled) setResults([]);
+        if (!cancelled) {
+          setResults([]);
+        }
       }
     }, 350);
 
@@ -466,17 +175,32 @@ export default function InstagramAdminPage() {
     };
   }, [search, group]);
 
+  // Refresh all groups from MongoDB.
+  async function refreshAllGroups() {
+    const response = await api<ResponseData>(
+      `/api/v1/admin/instagram?group=${encodeURIComponent(group)}`,
+    );
+
+    setAllGroups(response.data.allGroups ?? []);
+  }
+
   function addProduct(product: Product) {
     setSelected((current) =>
-      current.some((item) => item.sku === product.sku)
+      current.some(
+        (item) =>
+          item.sku.toUpperCase() === product.sku.toUpperCase(),
+      )
         ? current
-        : [...current, product],
+        : [...current, { sku: product.sku, product }],
     );
   }
 
+  // Remove from the current unsaved selection.
   function removeProduct(sku: string) {
     setSelected((current) =>
-      current.filter((item) => item.sku !== sku),
+      current.filter(
+        (item) => item.sku.toUpperCase() !== sku.toUpperCase(),
+      ),
     );
   }
 
@@ -485,20 +209,26 @@ export default function InstagramAdminPage() {
       const next = [...current];
       const target = index + direction;
 
-      if (target < 0 || target >= next.length) return current;
+      if (target < 0 || target >= next.length) {
+        return current;
+      }
 
-      [next[index], next[target]] = [next[target], next[index]];
+      [next[index], next[target]] = [
+        next[target],
+        next[index],
+      ];
 
       return next;
     });
   }
 
+  // Save additions, removals and ordering for the selected group.
   async function save() {
     setSaving(true);
     setMessage("");
 
     try {
-      const skus = selected.map((product) => product.sku);
+      const skus = selected.map((item) => item.sku);
 
       await api("/api/v1/admin/instagram", {
         method: "POST",
@@ -516,19 +246,102 @@ export default function InstagramAdminPage() {
         skus,
       }));
 
+      await refreshAllGroups();
+
       setMessage(
-        `${INSTAGRAM_GROUPS.find((item) => item.value === group)?.label ?? group} Instagram settings saved successfully.`,
+        `${getGroupLabel(group)} Instagram products saved successfully.`,
       );
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Could not save settings.",
+          : "Could not save Instagram products.",
       );
     } finally {
       setSaving(false);
     }
   }
+
+  // Permanently remove a saved product from its Instagram group.
+  // This does not delete the product from the ecommerce catalogue.
+  async function removeSavedProduct(
+    groupKey: string,
+    sku: string,
+  ) {
+    const targetGroup = allGroups.find(
+      (item) => item.key === groupKey,
+    );
+
+    if (!targetGroup) return;
+
+    const updatedSkus = targetGroup.skus.filter(
+      (item) => item.toUpperCase() !== sku.toUpperCase(),
+    );
+
+    setSaving(true);
+    setMessage("");
+
+    try {
+      await api("/api/v1/admin/instagram", {
+        method: "PUT",
+        json: {
+          key: targetGroup.key,
+          enabled: targetGroup.enabled,
+          title: targetGroup.title,
+          description: targetGroup.description,
+          skus: updatedSkus,
+        },
+      });
+
+      setAllGroups((current) =>
+        current
+          .map((item) =>
+            item.key === groupKey
+              ? {
+                  ...item,
+                  skus: updatedSkus,
+                  products: item.products.filter(
+                    (entry) =>
+                      entry.sku.toUpperCase() !== sku.toUpperCase(),
+                  ),
+                }
+              : item,
+          )
+          .filter((item) => item.skus.length > 0),
+      );
+
+      if (group === groupKey) {
+        setSelected((current) =>
+          current.filter(
+            (item) =>
+              item.sku.toUpperCase() !== sku.toUpperCase(),
+          ),
+        );
+
+        setConfig((current) => ({
+          ...current,
+          skus: updatedSkus,
+        }));
+      }
+
+      setMessage(
+        `${sku} removed permanently from ${getGroupLabel(groupKey)} Instagram products.`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not remove Instagram product.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const totalSavedProducts = allGroups.reduce(
+    (total, item) => total + item.skus.length,
+    0,
+  );
 
   if (loading) {
     return (
@@ -540,11 +353,14 @@ export default function InstagramAdminPage() {
 
   return (
     <div className="space-y-8 p-6">
+      {/* Page heading */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Instagram Shop</h1>
+          <h1 className="text-2xl font-semibold">
+            Instagram Shop
+          </h1>
           <p className="mt-1 text-sm text-muted">
-            Manage Instagram-curated products separately for each homepage group.
+            Manage permanently saved Instagram products across all groups.
           </p>
         </div>
 
@@ -553,6 +369,97 @@ export default function InstagramAdminPage() {
         </Button>
       </div>
 
+      {message && (
+        <p className="rounded-lg border p-3 text-sm">
+          {message}
+        </p>
+      )}
+
+      {/* All permanently saved products */}
+      <section className="space-y-4 rounded-xl border p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold">
+              All Added Instagram Products
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Products saved by the admin across every Instagram group.
+            </p>
+          </div>
+
+          <span className="text-sm font-medium text-muted">
+            {totalSavedProducts} products
+          </span>
+        </div>
+
+        {allGroups.length === 0 ? (
+          <p className="text-sm text-muted">
+            No Instagram products have been saved yet.
+          </p>
+        ) : (
+          <div className="space-y-6">
+            {allGroups.map((item) => (
+              <div key={item.key} className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h3 className="text-sm font-semibold">
+                    {getGroupLabel(item.key)}
+                  </h3>
+
+                  <span className="text-xs text-muted">
+                    {item.skus.length} products
+                  </span>
+                </div>
+
+                {item.products.map(({ sku, product }) => (
+                  <div
+                    key={`${item.key}-${sku}`}
+                    className="flex flex-wrap items-center gap-3 rounded-lg border p-3"
+                  >
+                    {product?.images?.[0] ? (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="h-14 w-14 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="h-14 w-14 rounded-md bg-muted" />
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {product?.name ?? "Product details unavailable"}
+                      </p>
+
+                      <p className="text-xs text-muted">
+                        SKU: {sku}
+                      </p>
+
+                      {product && (
+                        <p className="text-sm">
+                          {formatINR(product.pricing.sellingPrice)}
+                        </p>
+                      )}
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() =>
+                        removeSavedProduct(item.key, sku)
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Group selector */}
       <section className="max-w-md space-y-2 rounded-xl border p-5">
         <label className="text-sm font-semibold">
           Select Product Group
@@ -572,16 +479,11 @@ export default function InstagramAdminPage() {
         </select>
 
         <p className="text-xs text-muted">
-          Each group has its own products, title, description, and enabled setting.
+          Each group has its own products, title, description and enabled setting.
         </p>
       </section>
 
-      {message && (
-        <p className="rounded-lg border p-3 text-sm">
-          {message}
-        </p>
-      )}
-
+      {/* Group settings */}
       <section className="space-y-4 rounded-xl border p-5">
         <h2 className="font-semibold">Group Settings</h2>
 
@@ -635,6 +537,7 @@ export default function InstagramAdminPage() {
         </div>
       </section>
 
+      {/* Product search */}
       <section className="space-y-4 rounded-xl border p-5">
         <h2 className="font-semibold">Add Products</h2>
 
@@ -648,7 +551,9 @@ export default function InstagramAdminPage() {
           <div className="space-y-2">
             {results.map((product) => {
               const alreadyAdded = selected.some(
-                (item) => item.sku === product.sku,
+                (item) =>
+                  item.sku.toUpperCase() ===
+                  product.sku.toUpperCase(),
               );
 
               return (
@@ -682,7 +587,7 @@ export default function InstagramAdminPage() {
 
                   <Button
                     size="sm"
-                    disabled={alreadyAdded}
+                    disabled={alreadyAdded || saving}
                     onClick={() => addProduct(product)}
                   >
                     {alreadyAdded ? "Added" : "Add"}
@@ -700,9 +605,12 @@ export default function InstagramAdminPage() {
         )}
       </section>
 
+      {/* Selected products for current group */}
       <section className="space-y-4 rounded-xl border p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Selected Products</h2>
+          <h2 className="font-semibold">
+            Selected Products — {getGroupLabel(group)}
+          </h2>
 
           <span className="text-sm text-muted">
             {selected.length} products
@@ -711,23 +619,23 @@ export default function InstagramAdminPage() {
 
         {selected.length === 0 ? (
           <p className="text-sm text-muted">
-            No products selected yet. Search above to add products.
+            No products selected in this group. Search above to add products.
           </p>
         ) : (
           <div className="space-y-2">
-            {selected.map((product, index) => (
+            {selected.map((item, index) => (
               <div
-                key={product.sku}
+                key={`${item.sku}-${index}`}
                 className="flex items-center gap-3 rounded-lg border p-3"
               >
                 <span className="w-6 text-sm text-muted">
                   {index + 1}.
                 </span>
 
-                {product.images?.[0] ? (
+                {item.product?.images?.[0] ? (
                   <img
-                    src={product.images[0]}
-                    alt={product.name}
+                    src={item.product.images[0]}
+                    alt={item.product.name}
                     className="h-14 w-14 rounded-md object-cover"
                   />
                 ) : (
@@ -736,23 +644,25 @@ export default function InstagramAdminPage() {
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
-                    {product.name}
+                    {item.product?.name ?? "Product details unavailable"}
                   </p>
 
                   <p className="text-xs text-muted">
-                    SKU: {product.sku}
+                    SKU: {item.sku}
                   </p>
 
-                  <p className="text-sm">
-                    {formatINR(product.pricing.sellingPrice)}
-                  </p>
+                  {item.product && (
+                    <p className="text-sm">
+                      {formatINR(item.product.pricing.sellingPrice)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={index === 0}
+                    disabled={index === 0 || saving}
                     onClick={() => moveProduct(index, -1)}
                   >
                     ↑
@@ -761,7 +671,7 @@ export default function InstagramAdminPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={index === selected.length - 1}
+                    disabled={index === selected.length - 1 || saving}
                     onClick={() => moveProduct(index, 1)}
                   >
                     ↓
@@ -770,7 +680,8 @@ export default function InstagramAdminPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => removeProduct(product.sku)}
+                    disabled={saving}
+                    onClick={() => removeProduct(item.sku)}
                   >
                     Remove
                   </Button>
@@ -779,13 +690,13 @@ export default function InstagramAdminPage() {
             ))}
           </div>
         )}
-      </section>
 
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving}>
-          {saving ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
+        <div className="flex justify-end border-t pt-4">
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }

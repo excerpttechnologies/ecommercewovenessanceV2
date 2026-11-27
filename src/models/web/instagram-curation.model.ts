@@ -71,7 +71,6 @@ const InstagramCurationSchema = new Schema(
     },
   },
   {
-    collection: "instagramcuration",
     timestamps: true,
     versionKey: false,
   },
