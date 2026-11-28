@@ -813,6 +813,19 @@ export interface BarcodeFacets {
     key: "weave" | "fabric" | "craft" | "occasion" | "color";
     label: string;
     selectionMode: "single" | "multiple";
+    placement?: "filter" | "sidebar" | "both";
+  }[];
+  sidebarFilters?: {
+    key: "weave" | "fabric" | "craft" | "occasion" | "color";
+    label: string;
+    selectionMode: "single" | "multiple";
+    placement?: "filter" | "sidebar" | "both";
+  }[];
+  listingFilters?: {
+    key: "weave" | "fabric" | "craft" | "occasion" | "color";
+    label: string;
+    selectionMode: "single" | "multiple";
+    placement?: "filter" | "sidebar" | "both";
   }[];
   subgroup?: FacetOption[];
   weave?: FacetOption[];

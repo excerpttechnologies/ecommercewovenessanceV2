@@ -84,13 +84,25 @@ function facetChoices(facets: BarcodeFacets): Choice[] {
     .sort((a, b) => b.count - a.count)
     .map((option) => ({ ...option, label: categoryLabel(option.label) }));
 
-  return [
+  const list: Choice[] = [
     {
       key: "group",
       label: "Category",
       options: categories,
     },
   ];
+
+  for (const filter of facets.listingFilters ?? []) {
+    const options = facets[filter.key] ?? [];
+    if (!options.length) continue;
+    list.push({
+      key: filter.key,
+      label: filter.label,
+      options,
+    });
+  }
+
+  return list;
 }
 
 /** Whole rupees only; anything else is treated as empty. */

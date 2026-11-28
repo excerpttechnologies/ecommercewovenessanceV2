@@ -1190,6 +1190,14 @@ function productTypeSlug(doc: Record<string, unknown>): string {
     || slugifyProductType(doc.value);
 }
 
+function normalizePlacement(value: unknown): "filter" | "sidebar" | "both" {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "filter" || normalized === "sidebar" || normalized === "both") {
+    return normalized;
+  }
+  return "sidebar";
+}
+
 function storefrontFilterConfig(doc: Record<string, unknown>) {
   const configured = new Map<string, Record<string, unknown>>();
   if (Array.isArray(doc.filterConfig)) {
@@ -1198,15 +1206,25 @@ function storefrontFilterConfig(doc: Record<string, unknown>) {
       const filter = raw as Record<string, unknown>;
       const key = String(filter.key ?? filter.field ?? "");
       if (Object.hasOwn(CLASSIFICATION_FIELDS, key)) {
-        configured.set(key, { ...filter, displayOrder: Number(filter.displayOrder ?? index) });
+        configured.set(key, {
+          ...filter,
+          displayOrder: Number(filter.displayOrder ?? index),
+          placement: normalizePlacement(filter.placement),
+        });
       }
     }
   }
   if (Array.isArray(doc.filters)) {
     for (const [index, raw] of doc.filters.entries()) {
-      const key = String(raw ?? "");
+      const isObj = raw && typeof raw === "object" && !Array.isArray(raw);
+      const rawObj = isObj ? (raw as Record<string, unknown>) : null;
+      const key = String(rawObj ? (rawObj.key ?? rawObj.field ?? rawObj.filterId ?? "") : (raw ?? ""));
       if (Object.hasOwn(CLASSIFICATION_FIELDS, key) && !configured.has(key)) {
-        configured.set(key, { key, displayOrder: index });
+        configured.set(key, {
+          key,
+          displayOrder: Number(rawObj?.displayOrder ?? index),
+          placement: normalizePlacement(rawObj?.placement),
+        });
       }
     }
   }
@@ -1221,6 +1239,7 @@ function storefrontFilterConfig(doc: Record<string, unknown>) {
             key: mappedKey,
             label: String(filter.displayLabel ?? filter.label ?? `By ${mappedKey}`),
             selectionMode: filter.selectionMode === "single" ? "single" as const : "multiple" as const,
+            placement: normalizePlacement(filter.placement),
           }]
         : [];
     });
@@ -1299,14 +1318,21 @@ async function getAddOnLabelIds(
  * not recomputed for each of the four header categories on every page.
  */
 export const getStorefrontClassificationFacets = cache((group: StorefrontCategoryGroup) =>
-  cached(`erp:facets:${group}`, CONFIG_TTL_MS, async (): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters">> => {
+  cached(`erp:facets:${group}`, CONFIG_TTL_MS, async (): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters" | "sidebarFilters" | "listingFilters">> => {
     const config = await getStorefrontFilterConfig(group);
     const classifications = await measureDb(() => getBarcodeLabels().getProductTypeClassifications(config.productTypes, config.businessId));
     const activeClassifications: Pick<BarcodeFacets, EcommerceClassification> = {};
     for (const filter of config.configuredFilters) {
       activeClassifications[filter.key] = classifications[filter.key] ?? [];
     }
-    return { ...activeClassifications, configuredFilters: config.configuredFilters };
+    const sidebarFilters = config.configuredFilters.filter((f) => f.placement === "sidebar" || f.placement === "both");
+    const listingFilters = config.configuredFilters.filter((f) => f.placement === "filter" || f.placement === "both");
+    return {
+      ...activeClassifications,
+      configuredFilters: config.configuredFilters,
+      sidebarFilters,
+      listingFilters,
+    };
   }),
 );
 
