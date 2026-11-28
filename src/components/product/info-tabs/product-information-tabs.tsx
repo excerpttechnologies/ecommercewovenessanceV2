@@ -73,7 +73,7 @@ export function ProductInformationTabs({
   };
 
   return (
-    <section className="mt-10 rounded-xl border border-line bg-white p-4 sm:mt-14 sm:p-6" aria-label="Product information">
+    <section className="mt-4 rounded-xl border border-line bg-white p-4 sm:mt-5 sm:p-6" aria-label="Product information">
       <div
         role="tablist"
         aria-label="Product information"
@@ -112,14 +112,14 @@ export function ProductInformationTabs({
         id={`product-panel-${active}`}
         aria-labelledby={`product-tab-${active}`}
         tabIndex={0}
-        className="pt-6 text-[15px] leading-relaxed text-ink/85 outline-none transition-opacity duration-200"
+        className="pt-3 text-[15px] text-ink/85 outline-none transition-opacity duration-200"
       >
         {active === "overview" && (
           <ProductOverviewTab rows={overview} description={description} productName={productName} />
         )}
         {active === "shipping" && (
           <>
-            {deliveryCheck && <div className="mb-6">{deliveryCheck}</div>}
+            {deliveryCheck && <div className="mb-3">{deliveryCheck}</div>}
             <ShippingReturnsTab info={shipping} />
           </>
         )}

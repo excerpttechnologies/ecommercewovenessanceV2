@@ -132,10 +132,10 @@ export const CATEGORY_SEO: Record<StorefrontCategoryGroup, { title: string; desc
     keywords: ["ready made clothing", "ready-made"],
   },
   "ready-bits": {
-    title: "Pre-Cut Fabrics Online | Woven Essence",
-    description: "Shop Pre-Cut Fabrics from Woven Essence by Temple Fabrics, Bengaluru.",
-    intro: "Browse Pre-Cut Fabrics from the Temple Fabrics collection.",
-    about: ["Explore Pre-Cut Fabrics listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
+    title: "Pre-cut Fabrics Online | Woven Essence",
+    description: "Shop Pre-cut Fabrics from Woven Essence by Temple Fabrics, Bengaluru.",
+    intro: "Browse Pre-cut Fabrics from the Temple Fabrics collection.",
+    about: ["Explore Pre-cut Fabrics listed from RetailERP inventory. Product names, prices, availability and images are shown from their matching ERP barcode records."],
     keywords: ["pre-cut fabrics", "pre cut fabrics"],
   },
   "unstitched-suits": {

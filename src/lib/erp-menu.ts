@@ -18,8 +18,7 @@ export async function withErpFilterColumns(menu: MenuNode[]): Promise<MenuNode[]
     if (!slug) return top;
     try {
       const facets = await getStorefrontClassificationFacets(slug);
-      const sidebarList = facets.sidebarFilters ?? facets.configuredFilters ?? [];
-      const columns: MenuNode[] = sidebarList.flatMap(({ key, label }) => {
+      const columns: MenuNode[] = (facets.configuredFilters ?? []).flatMap(({ key, label }) => {
         const options = facets[key] ?? [];
         if (!options.length) return [];
         return [{

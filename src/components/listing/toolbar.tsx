@@ -5,8 +5,6 @@ import { SortDropdown } from "./sort-dropdown";
 
 const LABELS: Record<SortKey, string> = {
   featured: "Featured",
-  name_asc: "Name: A to Z",
-  name_desc: "Name: Z to A",
   price_asc: "Price: Low to High",
   price_desc: "Price: High to Low",
   newest: "Newest First",
@@ -18,7 +16,8 @@ export function SortSelect() {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const value = (sp.get("sort") as SortKey) ?? "featured";
+  const raw = sp.get("sort");
+  const value: SortKey = SORT_KEYS.includes(raw as SortKey) ? (raw as SortKey) : "featured";
   return (
     <SortDropdown
       value={value}

@@ -15,11 +15,11 @@ const SECTIONS: { key: keyof ShippingReturnsInfo; title: string }[] = [
 
 export function ShippingReturnsTab({ info }: { info: ShippingReturnsInfo }) {
   return (
-    <div className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
+    <div className="sm:columns-2 sm:gap-x-8 space-y-0">
       {SECTIONS.map(({ key, title }) => (
-        <div key={key}>
+        <div key={key} className="mb-3 break-inside-avoid">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-olive">{title}</h3>
-          <p className="mt-1.5 text-ink/80">{info[key]}</p>
+          <p className="m-0 mt-0.5 text-sm leading-snug text-ink/80">{info[key]}</p>
         </div>
       ))}
     </div>

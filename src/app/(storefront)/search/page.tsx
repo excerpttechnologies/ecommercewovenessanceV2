@@ -11,5 +11,5 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const parsed = parseProductListParams(u);
   const params = parsed.ok ? parsed.params : {};
   const q = params.q ?? "";
-  return <Listing title={q ? `Results for “${q}”` : "Search"} breadcrumbs={[{ label: "Search" }]} params={params} />;
+  return <Listing title={q ? `Results for “${q}”` : "Search"} breadcrumbs={[{ label: "Search" }]} params={params} showFilters={false} showRelatedForSearch />;
 }

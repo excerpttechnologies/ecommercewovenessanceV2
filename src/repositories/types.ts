@@ -33,6 +33,7 @@ export interface ProductRepository {
   getBySkus(skus: string[], options?: { skipCache?: boolean }): Promise<Product[]>;
   search(q: string, limit?: number): Promise<ProductCard[]>;
   related(product: Product, limit?: number): Promise<ProductCard[]>;
+  relatedForSearch(query: string, primaryItems?: ProductCard[], limit?: number): Promise<ProductCard[]>;
   distinctValues(key: FilterKey, categorySlug?: string): Promise<string[]>;
   /** Counts for the admin dashboard / inventory page. */
   stockSummary(lowStockThreshold?: number): Promise<{ total: number; inStock: number; lowStock: number; outOfStock: number }>;

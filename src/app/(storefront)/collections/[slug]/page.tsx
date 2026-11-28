@@ -283,7 +283,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { barcodeProductPath } from "@/lib/paths";
 import { CATEGORY_SEO, DEFAULT_OG_IMAGE, OG_DEFAULTS, absoluteUrl, barcodeProductFacts, breadcrumbJsonLd, itemListJsonLd, publicImage } from "@/lib/seo";
 import { ERP_CATEGORY_TITLES, getBarcodeImageCatalog, getBarcodeImageFilterOptions, getBarcodeImageSeries, type StorefrontCategoryGroup } from "@/lib/barcode-image-series";
-import { getCanonicalAddOnCategorySlug } from "@/lib/add-on-categories";
+import { formatCategoryDisplayName, getCanonicalAddOnCategorySlug } from "@/lib/add-on-categories";
 type SP = Record<string, string | string[] | undefined>;
 const toSearchParams = (sp: SP) => {
   const u = new URLSearchParams();
@@ -398,8 +398,14 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   }
   const r = await resolve(slug);
   if (!r) return {};
-  if (r.kind === "category") return listingIndexing(slug, sp, r.category.name, `Shop ${r.category.name.toLowerCase()} online at Woven Essence by Temple Fabrics, Bengaluru.`, r.category.image ?? undefined);
-  if (r.kind === "collection") return listingIndexing(slug, sp, r.collection.seoTitle ?? r.collection.name, r.collection.seoDescription ?? r.collection.description ?? `Shop ${r.collection.name} at Woven Essence by Temple Fabrics, Bengaluru.`, r.collection.banner?.desktop ?? undefined);
+  if (r.kind === "category") {
+    const displayName = formatCategoryDisplayName(r.category.name);
+    return listingIndexing(slug, sp, displayName, `Shop ${displayName.toLowerCase()} online at Woven Essence by Temple Fabrics, Bengaluru.`, r.category.image ?? undefined);
+  }
+  if (r.kind === "collection") {
+    const displayName = formatCategoryDisplayName(r.collection.seoTitle ?? r.collection.name);
+    return listingIndexing(slug, sp, displayName, r.collection.seoDescription ?? r.collection.description ?? `Shop ${formatCategoryDisplayName(r.collection.name)} at Woven Essence by Temple Fabrics, Bengaluru.`, r.collection.banner?.desktop ?? undefined);
+  }
   return listingIndexing(slug, sp, r.title, r.description);
 }
 
@@ -549,12 +555,14 @@ export default async function CollectionPage({ params, searchParams }: { params:
     const tree = await getMasterData().categories.tree();
     const node = tree.find((t) => t.slug === (r.parent?.slug ?? r.category.slug));
     const subs = node?.children ?? [];
+    const displayCategoryName = formatCategoryDisplayName(r.category.name);
+    const displayParentName = r.parent ? formatCategoryDisplayName(r.parent.name) : undefined;
     return (
-      <Listing title={r.category.name} breadcrumbs={[...(r.parent ? [{ label: r.parent.name, href: `/collections/${r.parent.slug}` }] : []), { label: r.category.name }]} params={listParams} erpItems={erpItems}>
+      <Listing title={displayCategoryName} breadcrumbs={[...(r.parent && displayParentName ? [{ label: displayParentName, href: `/collections/${r.parent.slug}` }] : []), { label: displayCategoryName }]} params={listParams} erpItems={erpItems}>
         {subs.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
             {subs.map((s) => (
-              <Link key={s.id} href={`/collections/${s.slug}`} className={`rounded-full border px-4 py-1.5 text-sm font-medium ${s.slug === r.category.slug ? "border-maroon bg-maroon text-white" : "border-line bg-white text-olive hover:border-maroon hover:text-maroon"}`}>{s.name}</Link>
+              <Link key={s.id} href={`/collections/${s.slug}`} className={`rounded-full border px-4 py-1.5 text-sm font-medium ${s.slug === r.category.slug ? "border-maroon bg-maroon text-white" : "border-line bg-white text-olive hover:border-maroon hover:text-maroon"}`}>{formatCategoryDisplayName(s.name)}</Link>
             ))}
           </div>
         )}
@@ -562,7 +570,8 @@ export default async function CollectionPage({ params, searchParams }: { params:
     );
   }
   if (r.kind === "collection") {
-    return <Listing title={r.collection.name} description={r.collection.description} banner={r.collection.banner?.desktop} breadcrumbs={[{ label: "Collections", href: "/collections" }, { label: r.collection.name }]} params={listParams} />;
+    const displayCollectionName = formatCategoryDisplayName(r.collection.name);
+    return <Listing title={displayCollectionName} description={r.collection.description} banner={r.collection.banner?.desktop} breadcrumbs={[{ label: "Collections", href: "/collections" }, { label: displayCollectionName }]} params={listParams} />;
   }
   return <Listing title={r.title} description={r.description} breadcrumbs={[{ label: r.title }]} params={listParams} />;
 }

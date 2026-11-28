@@ -619,7 +619,6 @@ import {
   ERP_BARCODE_COLLECTIONS,
   ERP_BEST_BUY_PRODUCT_TYPE,
   ERP_NEW_ARRIVAL_PRODUCT_TYPE,
-  NEW_ARRIVAL_HOURS,
   PRODUCT_GROUP_FIELDS,
   SUPPLIER_FIELDS,
   mapBarcodeLabel,
@@ -627,6 +626,7 @@ import {
 } from "@/lib/erp-mapping";
 import { barcodeImageUrl, mapLimit, resolveRecordImage } from "@/lib/erp-images";
 import { env } from "@/lib/env";
+import { isNewArrivalSeriesCode, NEW_ARRIVAL_SERIES_REGEX } from "@/lib/new-arrivals";
 import { escapeRegex } from "@/lib/utils";
 import { classificationLabel, loadClassificationNames } from "@/lib/erp-classification-names";
 import { BarcodeLabelModel } from "@/models/erp/barcode-label.model";
@@ -699,43 +699,9 @@ function ecommerceClassificationValues(product: AnyDoc, field: EcommerceClassifi
  * (ISO strings compare lexicographically), so both forms are offered and the window is recomputed on
  * every request — products drop out of a time-limited section as soon as they age past it.
  */
-function createdAtWindow(hours: number): Record<string, unknown>[] {
-  const now = new Date();
-  const from = new Date(now.getTime() - hours * 3_600_000);
-  return [
-    { createdAt: { $gte: from, $lte: now } },
-    { createdAt: { $gte: from.toISOString(), $lte: now.toISOString() } },
-  ];
-}
-
-function nameSortStages(asc: boolean): PipelineStage[] {
-  return [
-    {
-      $addFields: {
-        __sortName: {
-          $toLower: {
-            $ifNull: [
-              `$${B.description}`,
-              { $ifNull: [`$${B.printDescription}`, { $ifNull: [`$${B.itemName}`, `$${B.itemCode}`] }] },
-            ],
-          },
-        },
-      },
-    },
-    {
-      $sort: {
-        __sortName: asc ? 1 : -1,
-        _id: -1,
-      },
-    },
-  ];
-}
-
-/** Listing order: price sorts use the shopper price, name sorts alphabetically on the label text, newest is the default. */
+/** Listing order: price sorts use the shopper price, newest is the default. */
 function sortStages(sort?: BarcodeSort): PipelineStage[] {
   if (sort === "price_asc" || sort === "price_desc") return priceSortStages(sort);
-  if (sort === "name_asc") return nameSortStages(true);
-  if (sort === "name_desc") return nameSortStages(false);
   if (sort === "oldest") return [{ $sort: { _id: 1 as const } }];
   // "featured", "newest", or default
   return [{ $sort: { _id: -1 as const } }];
@@ -775,9 +741,17 @@ function activeEcommerceMatch(productTypes: string[]): Record<string, unknown> {
     return { isBestBuy: true, ...baseFilter };
   }
 
-  // the New Arrivals section: published+active products added in the last 48 hours, any product type
+  // the New Arrivals section: published+active products in series 11A2 and subsequent series, any product type
   if (productTypes.includes(ERP_NEW_ARRIVAL_PRODUCT_TYPE)) {
-    return { ...baseFilter, $or: createdAtWindow(NEW_ARRIVAL_HOURS) };
+    return {
+      ...baseFilter,
+      $or: [
+        { publishedBarcodes: NEW_ARRIVAL_SERIES_REGEX },
+        { barcode: NEW_ARRIVAL_SERIES_REGEX },
+        { barcodes: NEW_ARRIVAL_SERIES_REGEX },
+        { erpDocumentId: { $ne: null } },
+      ],
+    };
   }
 
   // Regular collections: product type + active + published
@@ -1045,10 +1019,20 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
                 : {}),
             },
           );
+          const rawImages = Array.isArray(raw.images)
+            ? (raw.images as unknown[])
+                .map((v) => (typeof v === "string" ? v.trim() : ""))
+                .filter(Boolean)
+            : [];
+          const additionalRefs = rawImages.filter(
+            (url) => url !== resolved.image && url !== raw[B.imageUrl] && url !== raw[B.filePath],
+          );
+          const erpAdditionalImages = additionalRefs.length > 0 ? additionalRefs : undefined;
           return {
             ...item,
             ...(resolved.image ? { image: resolved.image } : { image: undefined }),
             ...(resolved.imageIssue ? { imageIssue: resolved.imageIssue } : { imageIssue: undefined }),
+            ...(erpAdditionalImages ? { erpAdditionalImages } : {}),
           };
         })
       : hydratedItems;
@@ -1222,11 +1206,13 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     }
     // The storefront shows exactly what the ecommerceproduct records point at: the barcodes saved on
     // them (or a directly linked label). A record with neither shows nothing - never every label of its item.
+    const isNewArrivals = productTypes.includes(ERP_NEW_ARRIVAL_PRODUCT_TYPE);
     const directLabelIds = new Set<string>();
     const barcodeReferences: { codes: string[]; businessId?: string; itemId?: string }[] = [];
     for (const product of ecommerceProducts) {
       if (product.erpDocumentId != null) directLabelIds.add(String(product.erpDocumentId));
-      const codes = savedBarcodes(product);
+      const rawCodes = savedBarcodes(product);
+      const codes = isNewArrivals ? rawCodes.filter(isNewArrivalSeriesCode) : rawCodes;
       if (!codes.length) continue;
       barcodeReferences.push({
         codes,
@@ -1265,11 +1251,16 @@ export class MongoBarcodeLabelRepository implements BarcodeLabelRepository {
     };
     const [directLabels, barcodeLabelIds] = await Promise.all([
       directLabelIds.size
-        ? connection.db!.collection(ERP_BARCODE_COLLECTIONS.labels).find(directFilter, { projection: { _id: 1 } }).toArray()
+        ? connection.db!.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels)
+            .find(directFilter, { projection: { _id: 1, ...(isNewArrivals ? { [B.barcode]: 1 } : {}) } })
+            .toArray()
         : Promise.resolve([]),
       this.labelIdsForSavedBarcodes(connection, barcodeReferences),
     ]);
-    return [...new Set([...directLabels.map((label) => String(label._id)), ...barcodeLabelIds])];
+    const filteredDirectLabels = isNewArrivals
+      ? directLabels.filter((label) => isNewArrivalSeriesCode(String(label[B.barcode] ?? "")))
+      : directLabels;
+    return [...new Set([...filteredDirectLabels.map((label) => String(label._id)), ...barcodeLabelIds])];
   }
 
   /**

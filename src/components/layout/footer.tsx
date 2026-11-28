@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BadgeCheck, ChevronRight, Clock, CreditCard, Facebook, Headphones, Instagram, Mail, MapPin, Phone, Truck, Youtube } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { businessInfo, e164 } from "@/lib/business";
+import { formatCategoryDisplayName } from "@/lib/add-on-categories";
 import { getCategoryTree, getFooterPages, getSettings } from "@/lib/site-data";
 import { NewsletterForm } from "@/components/home/newsletter-form";
 import { LeafSpray, Lotus } from "@/components/ui/ornaments";
@@ -54,7 +55,7 @@ export async function Footer() {
               {settings.social?.youtube && <a href={settings.social.youtube} aria-label="YouTube" target="_blank" rel="noreferrer" className={socialClass}><Youtube className="h-5 w-5" /></a>}
             </div>
           </div>
-          <FooterCol title="Quick Links" links={[{ label: "Home", href: "/" }, ...categories.map((c) => ({ label: c.name, href: `/collections/${c.slug}` })), { label: "New Arrivals", href: "/collections/new-arrivals" }, { label: "All Collections", href: "/collections" }, { label: "Wishlist", href: "/wishlist" }]} />
+          <FooterCol title="Quick Links" links={[{ label: "Home", href: "/" }, ...categories.map((c) => ({ label: formatCategoryDisplayName(c.name), href: `/collections/${c.slug}` })), { label: "New Arrivals", href: "/collections/new-arrivals" }, { label: "All Collections", href: "/collections" }, { label: "Wishlist", href: "/wishlist" }]} />
           <FooterCol
             title="Customer Information"
             links={dedupe([

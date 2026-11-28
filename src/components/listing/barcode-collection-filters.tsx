@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { BarcodeFacets, FacetOption } from "@/domain/types";
+import { formatCategoryDisplayName } from "@/lib/add-on-categories";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -67,13 +68,6 @@ function useFilterUrl() {
 
 type Choice = { key: string; label: string; options: FacetOption[] };
 
-/** ERP group labels are stored lower case ("ready bits"); present them as category names. */
-function categoryLabel(label: string): string {
-  return label === label.toLowerCase()
-    ? label.replace(/\b\w/g, (character) => character.toUpperCase())
-    : label;
-}
-
 /**
  * The customer-facing sidebar keeps exactly two groups: Category and Price.
  * Category uses the ERP group facet, which is the real category of each piece
@@ -82,27 +76,15 @@ function categoryLabel(label: string): string {
 function facetChoices(facets: BarcodeFacets): Choice[] {
   const categories = [...(facets.group ?? [])]
     .sort((a, b) => b.count - a.count)
-    .map((option) => ({ ...option, label: categoryLabel(option.label) }));
+    .map((option) => ({ ...option, label: formatCategoryDisplayName(option.label) }));
 
-  const list: Choice[] = [
+  return [
     {
       key: "group",
       label: "Category",
       options: categories,
     },
   ];
-
-  for (const filter of facets.listingFilters ?? []) {
-    const options = facets[filter.key] ?? [];
-    if (!options.length) continue;
-    list.push({
-      key: filter.key,
-      label: filter.label,
-      options,
-    });
-  }
-
-  return list;
 }
 
 /** Whole rupees only; anything else is treated as empty. */

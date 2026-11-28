@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   BadgeCheck, Banknote, Check, ChevronLeft, ChevronRight, Grid3x3, Heart, Layers, Palette,
-  Brush, Ruler, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2,
+  Brush, Share2, ShieldCheck, ShoppingBag, ShoppingCart, Tag, Truck, Wand2,
 } from "lucide-react";
 import { ImageGallery } from "@/components/product/image-gallery";
 import { PincodeCheck } from "@/components/product/pincode-check";
@@ -13,7 +13,8 @@ import { ProductInformationTabs, type ProductOverviewRow } from "@/components/pr
 import { COUNTRY_OF_ORIGIN, type CustomerCareInfo, type ShippingReturnsInfo } from "@/lib/product-info";
 import type { BarcodeProduct } from "@/domain/types";
 import { useCart, useWishlist } from "@/hooks/useCart";
-import { galleryViewLabel } from "@/lib/product-gallery";
+import { formatCategoryDisplayName } from "@/lib/add-on-categories";
+import { galleryViewLabel, buildGalleryImages } from "@/lib/product-gallery";
 import { swatchColor } from "@/lib/colour";
 import { getDefaultProductQty } from "@/lib/product-quantity";
 import { isDecimalUnit } from "@/lib/product-quantity";
@@ -65,14 +66,19 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
     { label: "Product code", value: item.barcode },
     { label: "Category", value: categoryTitle },
     ...attrs.map(([key, value]) => ({ label: ATTR_LABELS[key] ?? key, value })),
-    { label: "Group", value: item.group ?? "" },
+    { label: "Group", value: item.group ? formatCategoryDisplayName(item.group) : "" },
     { label: "HSN", value: item.hsnCode ?? "" },
     { label: "Net quantity", value: item.qty != null ? `${item.qty} ${item.uom ?? "piece"}` : "" },
     { label: "Country of origin", value: COUNTRY_OF_ORIGIN },
   ].filter((row) => row.value.trim());
   const colour = item.ecommerce?.attributes?.color;
   const galleryContext = [categoryTitle, item.ecommerce?.productType, item.group].filter(Boolean).join(" ");
-  const gallery = (item.images?.length ? item.images : item.image ? [item.image] : []).map((src, index) => ({
+  const galleryUrls = buildGalleryImages(
+    item.images?.[0] ?? item.image,
+    [...(item.images?.slice(1) ?? []), ...(item.erpAdditionalImages ?? [])],
+    item.image,
+  );
+  const gallery = galleryUrls.map((src, index) => ({
     src,
     label: galleryViewLabel(index, galleryContext),
   }));
@@ -163,7 +169,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
             </div>
           </div>
 
-          {(attrs.length > 0 || item.uom) && (
+          {attrs.length > 0 && (
             <div className="we-scroller mt-4 flex gap-4 overflow-x-auto rounded-xl border border-line bg-white px-3 py-2.5 sm:justify-between sm:gap-5 sm:px-5">
               {attrs.map(([key, value]) => {
                 const Icon = ATTR_ICONS[key] ?? Tag;
@@ -174,12 +180,6 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
                   </div>
                 );
               })}
-              {item.uom && (
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-maroon/10 text-maroon"><Ruler className="h-4 w-4" /></span>
-                  <span><span className="block text-[10px] text-muted sm:text-[11px]">Sold as</span><span className="block whitespace-nowrap text-[13px] font-medium text-olive sm:text-sm">{item.uom}</span></span>
-                </div>
-              )}
             </div>
           )}
 
@@ -193,6 +193,7 @@ export function BarcodeProductDetail({ item, categoryTitle, categoryHref, previo
                 </p>
               ) : <p className="text-sm text-muted">Price on request</p>}
               <p className="mt-1 text-xs text-muted">Inclusive of all taxes{item.gstPercent ? ` (GST ${item.gstPercent}%)` : ""}</p>
+              {item.uom && <p className="mt-0.5 text-sm text-muted">Sold as: {item.uom}</p>}
             </div>
             <div className="flex items-center gap-4 text-xs text-muted">
               <span className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-semibold", inStock ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>

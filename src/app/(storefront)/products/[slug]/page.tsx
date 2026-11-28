@@ -18,6 +18,7 @@ import { ProductInformationTabs, type ProductOverviewRow } from "@/components/pr
 import { COUNTRY_OF_ORIGIN, customerCareFrom, shippingReturnsFrom } from "@/lib/product-info";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { slugify } from "@/lib/utils";
+import { formatCategoryDisplayName } from "@/lib/add-on-categories";
 import { JsonLd } from "@/components/seo/json-ld";
 import { OG_DEFAULTS, absoluteUrl, breadcrumbJsonLd, publicImage } from "@/lib/seo";
 import { isDecimalUnit } from "@/lib/product-quantity";
@@ -80,10 +81,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     master.categories.getBySlug(slugify(product.category)),
   ]);
 
+  const displayProductCategory = product.category ? formatCategoryDisplayName(product.category) : "";
+  const displayCategoryName = category ? formatCategoryDisplayName(category.name) : "";
+
   // Only fields the product actually carries reach the overview tab.
   const overview: ProductOverviewRow[] = [
     { label: "Product code", value: product.sku },
-    { label: "Category", value: product.category },
+    { label: "Category", value: displayProductCategory },
     { label: "Fabric / material", value: product.fabric ?? "" },
     { label: "Weave", value: product.weave ?? "" },
     { label: "Craft", value: product.craft ?? "" },
@@ -109,7 +113,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     image: product.images.map((src) => publicImage(src)).filter(Boolean),
     description: product.description,
     brand: { "@type": "Brand", name: settings.storeName },
-    ...(product.category ? { category: product.category } : {}),
+    ...(displayProductCategory ? { category: displayProductCategory } : {}),
     ...(product.color ? { color: product.color } : {}),
     ...(product.fabric ? { material: product.fabric } : {}),
     offers: {
@@ -127,10 +131,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       <JsonLd
         nodes={[
           jsonLd,
-          breadcrumbJsonLd([...(category ? [{ name: category.name, path: `/collections/${category.slug}` }] : []), { name: `Code ${product.sku}`, path: `/products/${product.slug}` }]),
+          breadcrumbJsonLd([...(category ? [{ name: displayCategoryName, path: `/collections/${category.slug}` }] : []), { name: `Code ${product.sku}`, path: `/products/${product.slug}` }]),
         ]}
       />
-      <Breadcrumbs items={[...(category ? [{ label: category.name, href: `/collections/${category.slug}` }] : []), { label: `Code ${product.sku}` }]} />
+      <Breadcrumbs items={[...(category ? [{ label: displayCategoryName, href: `/collections/${category.slug}` }] : []), { label: `Code ${product.sku}` }]} />
       <div className="mt-6 grid gap-10 lg:grid-cols-[1.1fr_1fr]">
         <Gallery images={product.images} alt={`Code ${product.sku}`} badge={product.isNewArrival ? "New" : undefined} />
         <div>

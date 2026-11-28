@@ -7,8 +7,6 @@ import { SortDropdown } from "./sort-dropdown";
 
 const SORT_LABELS: Record<BarcodeSort, string> = {
   featured: "Featured",
-  name_asc: "Name: A to Z",
-  name_desc: "Name: Z to A",
   price_asc: "Price: Low to High",
   price_desc: "Price: High to Low",
   newest: "Newest First",

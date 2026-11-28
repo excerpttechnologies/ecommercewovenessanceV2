@@ -1190,14 +1190,6 @@ function productTypeSlug(doc: Record<string, unknown>): string {
     || slugifyProductType(doc.value);
 }
 
-function normalizePlacement(value: unknown): "filter" | "sidebar" | "both" {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (normalized === "filter" || normalized === "sidebar" || normalized === "both") {
-    return normalized;
-  }
-  return "sidebar";
-}
-
 function storefrontFilterConfig(doc: Record<string, unknown>) {
   const configured = new Map<string, Record<string, unknown>>();
   if (Array.isArray(doc.filterConfig)) {
@@ -1206,25 +1198,15 @@ function storefrontFilterConfig(doc: Record<string, unknown>) {
       const filter = raw as Record<string, unknown>;
       const key = String(filter.key ?? filter.field ?? "");
       if (Object.hasOwn(CLASSIFICATION_FIELDS, key)) {
-        configured.set(key, {
-          ...filter,
-          displayOrder: Number(filter.displayOrder ?? index),
-          placement: normalizePlacement(filter.placement),
-        });
+        configured.set(key, { ...filter, displayOrder: Number(filter.displayOrder ?? index) });
       }
     }
   }
   if (Array.isArray(doc.filters)) {
     for (const [index, raw] of doc.filters.entries()) {
-      const isObj = raw && typeof raw === "object" && !Array.isArray(raw);
-      const rawObj = isObj ? (raw as Record<string, unknown>) : null;
-      const key = String(rawObj ? (rawObj.key ?? rawObj.field ?? rawObj.filterId ?? "") : (raw ?? ""));
+      const key = String(raw ?? "");
       if (Object.hasOwn(CLASSIFICATION_FIELDS, key) && !configured.has(key)) {
-        configured.set(key, {
-          key,
-          displayOrder: Number(rawObj?.displayOrder ?? index),
-          placement: normalizePlacement(rawObj?.placement),
-        });
+        configured.set(key, { key, displayOrder: index });
       }
     }
   }
@@ -1239,7 +1221,6 @@ function storefrontFilterConfig(doc: Record<string, unknown>) {
             key: mappedKey,
             label: String(filter.displayLabel ?? filter.label ?? `By ${mappedKey}`),
             selectionMode: filter.selectionMode === "single" ? "single" as const : "multiple" as const,
-            placement: normalizePlacement(filter.placement),
           }]
         : [];
     });
@@ -1318,21 +1299,14 @@ async function getAddOnLabelIds(
  * not recomputed for each of the four header categories on every page.
  */
 export const getStorefrontClassificationFacets = cache((group: StorefrontCategoryGroup) =>
-  cached(`erp:facets:${group}`, CONFIG_TTL_MS, async (): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters" | "sidebarFilters" | "listingFilters">> => {
+  cached(`erp:facets:${group}`, CONFIG_TTL_MS, async (): Promise<Pick<BarcodeFacets, EcommerceClassification | "configuredFilters">> => {
     const config = await getStorefrontFilterConfig(group);
     const classifications = await measureDb(() => getBarcodeLabels().getProductTypeClassifications(config.productTypes, config.businessId));
     const activeClassifications: Pick<BarcodeFacets, EcommerceClassification> = {};
     for (const filter of config.configuredFilters) {
       activeClassifications[filter.key] = classifications[filter.key] ?? [];
     }
-    const sidebarFilters = config.configuredFilters.filter((f) => f.placement === "sidebar" || f.placement === "both");
-    const listingFilters = config.configuredFilters.filter((f) => f.placement === "filter" || f.placement === "both");
-    return {
-      ...activeClassifications,
-      configuredFilters: config.configuredFilters,
-      sidebarFilters,
-      listingFilters,
-    };
+    return { ...activeClassifications, configuredFilters: config.configuredFilters };
   }),
 );
 
@@ -1402,6 +1376,16 @@ export async function withProductWebOverrides(items: BarcodeProduct[]) {
   });
 }
 
+let _warnedMissingBase = false;
+function warnMissingBase() {
+  if (_warnedMissingBase) return;
+  _warnedMissingBase = true;
+  console.warn(
+    "[erp-images] ERP_IMAGE_BASE is not set. Relative ERP image paths (/api/files/…, /images/…) " +
+    "cannot be resolved and will be silently dropped. Set ERP_IMAGE_BASE=https://erp.wovenessence.in.",
+  );
+}
+
 function ecommerceImages(refs: unknown[]): string[] {
   const spaces = env.DO_SPACES_KEY && env.DO_SPACES_SECRET
     ? { accessKeyId: env.DO_SPACES_KEY, secretAccessKey: env.DO_SPACES_SECRET }
@@ -1412,6 +1396,9 @@ function ecommerceImages(refs: unknown[]): string[] {
     spacesHosts: env.ERP_IMAGE_SPACES_HOSTS,
     spaces,
   };
+  if (!options.base && refs.some((ref) => typeof ref === "string" && ref.startsWith("/"))) {
+    warnMissingBase();
+  }
   const urls: string[] = [];
   const seen = new Set<string>();
   for (const ref of refs) {
@@ -1453,7 +1440,20 @@ export async function withEcommerceDetails(items: BarcodeProduct[]) {
     const image = (await ownPhotoLoads(item.image)) ? undefined : ecommerceImage(fallbackCandidates);
     // Real alternate views maintained on the ERP product. Empty across current ERP data, but this
     // is the correct source once the merchandising team adds more photos.
-    const additionalImages = ecommerceImages(toImages(raw.additionalImages));
+    // Also collect from raw.images[] when it is an array (some ERP versions use that field).
+    const primaryUrl = ecommerceImage(
+      [raw.image, raw.images, raw.imageUrl, raw.filePath]
+        .flatMap((value) => toImages(Array.isArray(value) ? value : [value])),
+    );
+    const additionalRefs = [
+      ...toImages(raw.additionalImages),
+      ...(Array.isArray(raw.images)
+        ? toImages(raw.images).filter(
+            (url) => url !== primaryUrl && url !== (raw.image as string | undefined),
+          )
+        : []),
+    ];
+    const additionalImages = ecommerceImages(additionalRefs);
     const ecommerce = {
       displayName: catalog.displayName,
       itemCode: catalog.ecommItemCode,

@@ -6,7 +6,7 @@ const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" |
 export const ProductListQuery = z.object({
   category: z.string().max(120).optional(),
   q: z.string().max(100).optional(),
-  sort: z.enum(SORT_KEYS).default("featured"),
+  sort: z.enum(SORT_KEYS).catch("featured").default("featured"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(96).default(24),
   priceMin: z.coerce.number().min(0).optional(),

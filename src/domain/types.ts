@@ -650,8 +650,6 @@ export type FilterKey = (typeof FILTER_KEYS)[number];
 
 export const SORT_KEYS = [
   "featured",
-  "name_asc",
-  "name_desc",
   "price_asc",
   "price_desc",
   "newest",
@@ -795,8 +793,6 @@ export interface BarcodeListParams {
 
 export const BARCODE_SORTS = [
   "featured",
-  "name_asc",
-  "name_desc",
   "price_asc",
   "price_desc",
   "newest",
@@ -813,19 +809,6 @@ export interface BarcodeFacets {
     key: "weave" | "fabric" | "craft" | "occasion" | "color";
     label: string;
     selectionMode: "single" | "multiple";
-    placement?: "filter" | "sidebar" | "both";
-  }[];
-  sidebarFilters?: {
-    key: "weave" | "fabric" | "craft" | "occasion" | "color";
-    label: string;
-    selectionMode: "single" | "multiple";
-    placement?: "filter" | "sidebar" | "both";
-  }[];
-  listingFilters?: {
-    key: "weave" | "fabric" | "craft" | "occasion" | "color";
-    label: string;
-    selectionMode: "single" | "multiple";
-    placement?: "filter" | "sidebar" | "both";
   }[];
   subgroup?: FacetOption[];
   weave?: FacetOption[];

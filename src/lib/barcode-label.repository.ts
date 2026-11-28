@@ -97,10 +97,10 @@ function createdAtWindow(hours: number): Record<string, unknown>[] {
   ];
 }
 
-/** Listing order: price sorts use the shopper price, name sorts alphabetically on the label text, newest is the default. */
+/** Listing order: price sorts use the shopper price, newest is the default. */
 function sortStages(sort?: BarcodeSort): PipelineStage[] {
   if (sort === "price_asc" || sort === "price_desc") return priceSortStages(sort);
-  if (sort === "name_asc") return [{ $sort: { [B.description]: 1 as const, _id: -1 as const } }];
+  if (sort === "oldest") return [{ $sort: { _id: 1 as const } }];
   return [{ $sort: { _id: -1 as const } }];
 }
 

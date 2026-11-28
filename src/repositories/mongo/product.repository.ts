@@ -20,6 +20,8 @@ import { cached } from "@/lib/cache";
 import { getProductMetaMap } from "@/lib/product-meta-cache";
 import { escapeRegex } from "@/lib/utils";
 import { normalizeBarcode, isBarcodeLike } from "@/lib/barcode-search";
+import { isNewArrivalSeriesCode, NEW_ARRIVAL_SERIES_REGEX } from "@/lib/new-arrivals";
+import { buildCodeFamilyQueryPatterns, scoreRelatedCodeCandidate, type RelatedCodeAttributes } from "@/lib/related-search";
 import { ProductModel } from "@/models/erp/product.model";
 import { ProductWebMetaModel, type ProductWebMetaDoc } from "@/models/web/content.models";
 import type { AnyDoc } from "@/models/_util";
@@ -148,7 +150,14 @@ export class MongoProductRepository implements ProductRepository {
     if (params.inStock === true) and.push({ [P.stockQty]: { $gt: 0 } });
     if (params.inStock === false)
       and.push({ $or: [{ [P.stockQty]: { $lte: 0 } }, { [P.stockQty]: { $exists: false } }] });
-    if (params.newArrivals) and.push({ [P.isNewArrival]: { $in: TRUTHY_VALUES } });
+    if (params.newArrivals) {
+      and.push({
+        $or: [
+          { [P.sku]: NEW_ARRIVAL_SERIES_REGEX },
+          { [P.barcode]: NEW_ARRIVAL_SERIES_REGEX },
+        ],
+      });
+    }
     if (params.skus?.length) and.push({ [P.sku]: { $in: params.skus } });
     if (params.ids?.length) and.push({ _id: { $in: params.ids.map(toObjectIdOrString) } });
     if (params.tags?.length) and.push({ [P.tags]: { $in: params.tags } });
@@ -363,7 +372,7 @@ export class MongoProductRepository implements ProductRepository {
           },
           images: primaryImage ? [primaryImage] : [],
           source: "erp",
-          isNewArrival: Boolean(exactEcomByBarcode?.isNewArrival),
+          isNewArrival: isNewArrivalSeriesCode(normalizedQuery),
         };
 
         return {
@@ -452,7 +461,7 @@ export class MongoProductRepository implements ProductRepository {
             },
             images: primaryImage ? [primaryImage] : [],
             source: "erp",
-            isNewArrival: Boolean(p.isNewArrival),
+            isNewArrival: isNewArrivalSeriesCode(primaryBarcode),
           });
         }
 
@@ -524,6 +533,17 @@ export class MongoProductRepository implements ProductRepository {
 
     if (params.category) {
       ecomFilter.productType = new RegExp(`^${escapeRegex(params.category)}$`, "i");
+    }
+    if (params.newArrivals) {
+      ecomFilter.$and = [
+        ...(Array.isArray(ecomFilter.$and) ? ecomFilter.$and : []),
+        {
+          $or: [
+            { publishedBarcodes: NEW_ARRIVAL_SERIES_REGEX },
+            { barcode: NEW_ARRIVAL_SERIES_REGEX },
+          ],
+        },
+      ];
     }
 
     const ecomDocs = await db.collection(ERP_BARCODE_COLLECTIONS.ecommerceProducts).find(ecomFilter).toArray();
@@ -599,6 +619,7 @@ export class MongoProductRepository implements ProductRepository {
       const slugName = (p.displayName || p.ecommItemCode || "product").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
       for (const b of barcodes) {
+        if (params.newArrivals && !isNewArrivalSeriesCode(b)) continue;
         const bLabels = labelsByBarcode.get(b) ?? [];
         const bQty = bLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || 0), 0);
         if (params.inStock && bQty <= 0) continue;
@@ -639,7 +660,7 @@ export class MongoProductRepository implements ProductRepository {
           },
           images: primaryImage ? [primaryImage] : [],
           source: "erp",
-          isNewArrival: Boolean(p.isNewArrival),
+          isNewArrival: isNewArrivalSeriesCode(b),
         });
       }
     }
@@ -652,10 +673,6 @@ export class MongoProductRepository implements ProductRepository {
       items.sort((a, b) => a.pricing.sellingPrice - b.pricing.sellingPrice);
     } else if (params.sort === "price_desc") {
       items.sort((a, b) => b.pricing.sellingPrice - a.pricing.sellingPrice);
-    } else if (params.sort === "name_asc") {
-      items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-    } else if (params.sort === "name_desc") {
-      items.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: "base" }));
     } else if (params.sort === "oldest") {
       items.reverse();
     } else if (rawQuery) {
@@ -668,6 +685,22 @@ export class MongoProductRepository implements ProductRepository {
     }
 
     // 6. Overlay productWebMeta if available (in-memory SWR)
+    await this.applyProductWebMeta(items);
+
+    const total = items.length;
+    const paginatedItems = items.slice((page - 1) * limit, page * limit);
+
+    return {
+      items: paginatedItems,
+      total,
+      page,
+      limit,
+      pages: Math.max(1, Math.ceil(total / limit)),
+    };
+  }
+
+  private async applyProductWebMeta(items: ProductCard[]): Promise<void> {
+    if (!items.length) return;
     try {
       const metas = await getProductMetaMap();
       for (const item of items) {
@@ -686,17 +719,6 @@ export class MongoProductRepository implements ProductRepository {
     } catch {
       // web meta overlay is best-effort
     }
-
-    const total = items.length;
-    const paginatedItems = items.slice((page - 1) * limit, page * limit);
-
-    return {
-      items: paginatedItems,
-      total,
-      page,
-      limit,
-      pages: Math.max(1, Math.ceil(total / limit)),
-    };
   }
 
   private async erpFacets(params: ProductListParams): Promise<ProductFacets> {
@@ -1349,6 +1371,313 @@ return this.hydrate(products);
       .limit(limit)
       .lean<AnyDoc[]>();
     return (await this.hydrate(docs)).map(toProductCard);
+  }
+
+  async relatedForSearch(query: string, primaryItems: ProductCard[] = [], limit = 24): Promise<ProductCard[]> {
+    const cleanLimit = Math.min(MAX_LIMIT, Math.max(1, limit));
+    const targetCode = normalizeBarcode(query) || normalizeBarcode(primaryItems[0]?.sku);
+    if (!targetCode) return [];
+
+    const excludeSet = new Set<string>([targetCode]);
+    for (const item of primaryItems) {
+      const sku = normalizeBarcode(item.sku);
+      if (sku) excludeSet.add(sku);
+    }
+
+    if (await this.isErpMode()) {
+      return this.erpRelatedForSearch(targetCode, excludeSet, primaryItems[0], cleanLimit);
+    }
+    return this.mockRelatedForSearch(targetCode, excludeSet, primaryItems[0], cleanLimit);
+  }
+
+  private async erpRelatedForSearch(
+    targetCode: string,
+    excludeSet: Set<string>,
+    primaryItem: ProductCard | undefined,
+    limit: number,
+  ): Promise<ProductCard[]> {
+    const conn = await this.conn();
+    if (!conn.db) return [];
+    const db = conn.db;
+
+    const familyPatterns = buildCodeFamilyQueryPatterns(targetCode);
+    if (!familyPatterns.length) return [];
+
+    const activeStatuses = ["active", "Active", "ACTIVE"];
+
+    // Resolve target product metadata for attribute-based relevance scoring.
+    const targetEcom = await db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.ecommerceProducts).findOne(
+      {
+        isPublished: true,
+        status: { $in: activeStatuses },
+        $or: [
+          { publishedBarcodes: targetCode },
+          { barcode: targetCode, publishedBarcodes: { $exists: false } },
+          { ecommItemCode: targetCode },
+          { itemCode: targetCode },
+        ],
+      },
+      { projection: { itemId: 1, ecommItemCode: 1, productType: 1, byFabric: 1, byWeave: 1, byColour: 1 } },
+    );
+
+    const targetAttrs: RelatedCodeAttributes = {
+      itemId: targetEcom?.itemId != null ? String(targetEcom.itemId) : undefined,
+      ecommItemCode: targetEcom?.ecommItemCode != null ? String(targetEcom.ecommItemCode) : undefined,
+      productType: (targetEcom?.productType as string | undefined) ?? primaryItem?.category,
+      fabric: primaryItem?.fabric,
+      color: primaryItem?.color,
+    };
+
+    // Query published active ecommerceproduct records whose barcodes or item codes match the code family.
+    const ecomOrClauses: AnyDoc[] = familyPatterns.flatMap((rx) => [
+      { publishedBarcodes: rx },
+      { barcode: rx },
+      { ecommItemCode: rx },
+    ]);
+    if (targetAttrs.itemId) {
+      ecomOrClauses.push({ itemId: targetEcom!.itemId });
+    }
+
+    const ecomDocs = await db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.ecommerceProducts)
+      .find(
+        {
+          isPublished: true,
+          status: { $in: activeStatuses },
+          $or: ecomOrClauses,
+        },
+        {
+          projection: {
+            displayName: 1,
+            ecommItemCode: 1,
+            itemId: 1,
+            productType: 1,
+            barcode: 1,
+            publishedBarcodes: 1,
+            barcodePriceOverride: 1,
+            isNewArrival: 1,
+            isPublished: 1,
+            image: 1,
+            byFabric: 1,
+            byWeave: 1,
+            byColour: 1,
+          },
+        },
+      )
+      .limit(250)
+      .toArray();
+
+    // Collect and score unique candidate barcodes before querying barcodeLabel.
+    const candidatesByCode = new Map<string, {
+      rawBarcode: string;
+      ecom: AnyDoc;
+      score: number;
+      numericDistance: number;
+    }>();
+
+    for (const p of ecomDocs) {
+      const barcodes = Array.isArray(p.publishedBarcodes)
+        ? (p.publishedBarcodes as string[])
+        : (p.isPublished && p.barcode ? [String(p.barcode)] : []);
+
+      const candAttrs: RelatedCodeAttributes = {
+        itemId: p.itemId != null ? String(p.itemId) : undefined,
+        ecommItemCode: p.ecommItemCode != null ? String(p.ecommItemCode) : undefined,
+        productType: typeof p.productType === "string" ? p.productType : undefined,
+      };
+
+      for (const rawBarcode of barcodes) {
+        const code = normalizeBarcode(rawBarcode);
+        if (!code || excludeSet.has(code)) continue;
+
+        const scored = scoreRelatedCodeCandidate(targetCode, code, targetAttrs, candAttrs);
+        if (!scored) continue;
+
+        const existing = candidatesByCode.get(code);
+        if (!existing || scored.score > existing.score) {
+          candidatesByCode.set(code, {
+            rawBarcode: String(rawBarcode).trim(),
+            ecom: p,
+            score: scored.score,
+            numericDistance: scored.numericDistance,
+          });
+        }
+      }
+    }
+
+    if (!candidatesByCode.size) return [];
+
+    // Cap the barcodeLabel lookup pool to top-scoring candidates while leaving headroom for out-of-stock SKUs.
+    const rankedCandidates = [...candidatesByCode.values()]
+      .sort((a, b) =>
+        b.score - a.score
+        || a.numericDistance - b.numericDistance
+        || a.rawBarcode.localeCompare(b.rawBarcode),
+      )
+      .slice(0, Math.max(limit * 12, 300));
+
+    const lookupBarcodes = [...new Set(rankedCandidates.flatMap((c) => [c.rawBarcode, c.rawBarcode.toUpperCase()]))];
+    const CHUNK_SIZE = 500;
+    const chunks: string[][] = [];
+    for (let i = 0; i < lookupBarcodes.length; i += CHUNK_SIZE) {
+      chunks.push(lookupBarcodes.slice(i, i + CHUNK_SIZE));
+    }
+
+    const inStockLabels = (
+      await Promise.all(
+        chunks.map((chunk) =>
+          db.collection<AnyDoc>(ERP_BARCODE_COLLECTIONS.labels).find(
+            {
+              [B.barcode]: { $in: chunk },
+              [B.status]: "IN_STOCK",
+            },
+            {
+              projection: {
+                [B.barcode]: 1,
+                [B.qty]: 1,
+                [B.qtyText]: 1,
+                [B.retailPrice]: 1,
+                [B.offerPrice]: 1,
+                [B.uom]: 1,
+                [B.uomType]: 1,
+                imageUrl: 1,
+                image: 1,
+                filePath: 1,
+              },
+            },
+          ).toArray(),
+        ),
+      )
+    ).flat();
+
+    const labelsByBarcode = new Map<string, AnyDoc[]>();
+    for (const label of inStockLabels) {
+      const code = normalizeBarcode(String(label[B.barcode] ?? ""));
+      if (!code) continue;
+      let list = labelsByBarcode.get(code);
+      if (!list) {
+        list = [];
+        labelsByBarcode.set(code, list);
+      }
+      list.push(label);
+    }
+
+    const items: ProductCard[] = [];
+    for (const candidate of rankedCandidates) {
+      const code = normalizeBarcode(candidate.rawBarcode);
+      const labels = labelsByBarcode.get(code) ?? [];
+      const qty = labels.reduce((sum, l) => sum + (Number(l[B.qty]) || Number(l[B.qtyText]) || 0), 0);
+      if (qty <= 0) continue;
+
+      const firstLabel = labels[0];
+      const p = candidate.ecom;
+      const mrp = (firstLabel && Number(firstLabel[B.retailPrice])) || Number(p.barcodePriceOverride) || 0;
+      const offer = firstLabel && Number(firstLabel[B.offerPrice]) ? Number(firstLabel[B.offerPrice]) : null;
+      const sellingPrice = offer && offer > 0 && offer < mrp ? offer : mrp;
+
+      const primaryImage = resolvePrimaryProductImage(candidate.rawBarcode, firstLabel, p.image);
+      const uom = firstLabel?.[B.uom] || firstLabel?.[B.uomType] || "Pc";
+      const uomType = firstLabel?.[B.uomType] || firstLabel?.[B.uom] || "PC";
+      const displayName = p.displayName || p.ecommItemCode || "Woven Essence Product";
+      const slugName = String(displayName).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const slug = `${slugName}-${candidate.rawBarcode.toLowerCase()}`.replace(/^-+|-+$/g, "");
+
+      items.push({
+        id: firstLabel ? String(firstLabel._id) : `${String(p._id)}-${candidate.rawBarcode}`,
+        sku: candidate.rawBarcode,
+        name: displayName,
+        category: p.productType || "Sarees",
+        subCategory: p.productType,
+        uom,
+        uomType,
+        slug,
+        pricing: {
+          mrp,
+          sellingPrice,
+          discountPercent: mrp > sellingPrice ? Math.round(((mrp - sellingPrice) / mrp) * 100) : 0,
+          gstPercent: 5,
+          currency: "INR",
+        },
+        stock: {
+          qty,
+          status: qty <= 0 ? "out_of_stock" : qty <= 3 ? "low_stock" : "in_stock",
+        },
+        images: primaryImage ? [primaryImage] : [],
+        source: "erp",
+        isNewArrival: isNewArrivalSeriesCode(candidate.rawBarcode),
+      });
+
+      if (items.length >= limit) break;
+    }
+
+    await this.applyProductWebMeta(items);
+    return items;
+  }
+
+  private async mockRelatedForSearch(
+    targetCode: string,
+    excludeSet: Set<string>,
+    primaryItem: ProductCard | undefined,
+    limit: number,
+  ): Promise<ProductCard[]> {
+    const familyPatterns = buildCodeFamilyQueryPatterns(targetCode);
+    if (!familyPatterns.length) return [];
+
+    const M = await this.M();
+    const orClauses: FilterQuery<AnyDoc>[] = familyPatterns.flatMap((rx) => [
+      { [P.sku]: rx },
+      { [P.barcode]: rx },
+    ]);
+    const docs = await M.find({
+      $and: [
+        ACTIVE_PRODUCT_QUERY,
+        { [P.stockQty]: { $gt: 0 } },
+        { $or: orClauses },
+      ],
+    })
+      .limit(250)
+      .lean<AnyDoc[]>();
+
+    if (!docs.length) return [];
+
+    const products = await this.hydrate(docs);
+    const targetProduct = products.find((p) => normalizeBarcode(p.sku) === targetCode);
+    const targetAttrs: RelatedCodeAttributes = {
+      category: primaryItem?.category || targetProduct?.category,
+      fabric: primaryItem?.fabric || targetProduct?.fabric,
+      weave: targetProduct?.weave,
+      color: primaryItem?.color || targetProduct?.color,
+    };
+
+    const scored: { card: ProductCard; score: number; numericDistance: number }[] = [];
+    const seenSkus = new Set<string>();
+
+    for (const product of products) {
+      const sku = normalizeBarcode(product.sku);
+      if (!sku || excludeSet.has(sku) || seenSkus.has(sku)) continue;
+
+      const res = scoreRelatedCodeCandidate(targetCode, sku, targetAttrs, {
+        category: product.category,
+        fabric: product.fabric,
+        weave: product.weave,
+        color: product.color,
+      });
+      if (!res) continue;
+
+      seenSkus.add(sku);
+      scored.push({
+        card: toProductCard(product),
+        score: res.score,
+        numericDistance: res.numericDistance,
+      });
+    }
+
+    scored.sort((a, b) =>
+      b.score - a.score
+      || a.numericDistance - b.numericDistance
+      || a.card.sku.localeCompare(b.card.sku),
+    );
+
+    return scored.slice(0, limit).map((entry) => entry.card);
   }
 
   async distinctValues(key: FilterKey, categorySlug?: string): Promise<string[]> {

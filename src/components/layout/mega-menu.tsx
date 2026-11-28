@@ -12,6 +12,7 @@ import {
   Tag,
 } from "lucide-react";
 
+import { formatCategoryDisplayName } from "@/lib/add-on-categories";
 import { cn } from "@/lib/utils";
 import type { MenuNode } from "@/repositories/web/site.repository";
 
@@ -26,10 +27,12 @@ function groupIcon(label: string) {
   return Tag;
 }
 
-const titleCase = (s: string) =>
-  s === s.toUpperCase()
-    ? s.charAt(0) + s.slice(1).toLowerCase()
-    : s;
+const titleCase = (s: string) => {
+  const normalized = formatCategoryDisplayName(s);
+  return normalized === normalized.toUpperCase()
+    ? normalized.charAt(0) + normalized.slice(1).toLowerCase()
+    : normalized;
+};
 
 /**
  * Promo card links to a real filter:

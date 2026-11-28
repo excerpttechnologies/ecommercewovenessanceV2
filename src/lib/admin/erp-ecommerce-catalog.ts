@@ -121,7 +121,14 @@ export function mapErpEcommerceCatalog(
     isPublished: typeof source.isPublished === "boolean" ? source.isPublished : undefined,
     image: text(source.image),
     additionalImages: (() => {
-      const images = toImages(source.additionalImages).map((image) => image.trim()).filter(Boolean);
+      const fromAdditional = toImages(source.additionalImages);
+      const fromImages = Array.isArray(source.images)
+        ? toImages(source.images).filter((url) => url !== text(source.image))
+        : [];
+      const seen = new Set<string>();
+      const images = [...fromAdditional, ...fromImages]
+        .map((url) => url.trim())
+        .filter((url) => url && !seen.has(url) && seen.add(url));
       return images.length ? images : undefined;
     })(),
     slug: text(source.slug),
