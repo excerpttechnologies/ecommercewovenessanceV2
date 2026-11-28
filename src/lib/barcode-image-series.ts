@@ -1263,10 +1263,23 @@ const getStorefrontFilterConfig = cache((group: StorefrontCategoryGroup) =>
     const productTypes = [...new Set(typeDocs
       .map((doc) => typeof doc.value === "string" ? doc.value.trim() : "")
       .filter(Boolean))];
+    let configuredFilters = typeDocs.flatMap(storefrontFilterConfig).slice(0, 5);
+
+    // Ensure fabric and weave filters are always present for the fabrics group
+    if (group === "fabrics" || group === "plain-fabrics") {
+      const existingKeys = new Set(configuredFilters.map((f) => f.key));
+      if (!existingKeys.has("fabric")) {
+        configuredFilters.unshift({ key: "fabric", label: "Fabric", selectionMode: "multiple" as const });
+      }
+      if (!existingKeys.has("weave")) {
+        configuredFilters.unshift({ key: "weave", label: "Weave", selectionMode: "multiple" as const });
+      }
+    }
+
     return {
       productTypes,
       businessId,
-      configuredFilters: typeDocs.flatMap(storefrontFilterConfig).slice(0, 5),
+      configuredFilters,
     };
   }),
 );
