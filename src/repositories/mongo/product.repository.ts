@@ -739,20 +739,49 @@ export class MongoProductRepository implements ProductRepository {
 
     if (conn.db) {
       try {
-        const weaves = await conn.db.collection("byweave").find({ isActive: { $ne: false } }).limit(50).toArray();
-        if (weaves.length) {
+        /* Master names can live in two places: the built-in classification
+           collections (byweave/byfabric - what /admin/ecommerce/by-fabric
+           writes) and ecommercefiltervalues (what the slug-based custom
+           filter masters under /admin/ecommerce/filters/* write, e.g.
+           by-fabrics). Union both so an ERP master add shows up here without
+           a second list to maintain. Names are deduped case-insensitively. */
+        const masterNames = async (col: string, customKeys: RegExp[]) => {
+          const seen = new Set<string>();
+          const names: string[] = [];
+          const push = (n: unknown) => {
+            const s = String(n || "").trim();
+            const k = s.toLowerCase();
+            if (s && !seen.has(k)) { seen.add(k); names.push(s); }
+          };
+          const builtin = await conn.db!.collection(col)
+            .find({ isActive: { $ne: false } }).limit(100).toArray();
+          builtin.forEach((r) => push(r.name || r._id));
+          const custom = await conn.db!.collection("ecommercefiltervalues")
+            .find({
+              isActive: { $ne: false },
+              $or: [
+                { filterKey: { $in: customKeys } },
+                { type: { $in: customKeys } },
+              ],
+            }).limit(200).toArray();
+          custom.forEach((r) => push(r.name));
+          return names;
+        };
+
+        const weaveNames = await masterNames("byweave", [/weave/i]);
+        if (weaveNames.length) {
           groups.push({
             key: "weave",
             label: "Weave",
-            options: weaves.map((w) => ({ value: String(w.name || w._id), label: String(w.name || w._id), count: 1 })),
+            options: weaveNames.map((n) => ({ value: n, label: n, count: 1 })),
           });
         }
-        const fabrics = await conn.db.collection("byfabric").find({ isActive: { $ne: false } }).limit(50).toArray();
-        if (fabrics.length) {
+        const fabricNames = await masterNames("byfabric", [/fabric/i]);
+        if (fabricNames.length) {
           groups.push({
             key: "fabric",
             label: "Fabric",
-            options: fabrics.map((f) => ({ value: String(f.name || f._id), label: String(f.name || f._id), count: 1 })),
+            options: fabricNames.map((n) => ({ value: n, label: n, count: 1 })),
           });
         }
       } catch {
