@@ -326,6 +326,15 @@ export class MongoProductRepository implements ProductRepository {
         if (params.category && !new RegExp(`^${escapeRegex(params.category)}$`, "i").test(productCategory)) {
           return { items: [], total: 0, page: 1, limit, pages: 0 };
         }
+        if (params.filters?.fabric?.length && exactEcomByBarcode?.byFabric) {
+          const fabricMatches = params.filters.fabric.some((f) => {
+            const fabricValue = Array.isArray(exactEcomByBarcode.byFabric) ? exactEcomByBarcode.byFabric : [exactEcomByBarcode.byFabric];
+            return fabricValue.includes(f);
+          });
+          if (!fabricMatches) {
+            return { items: [], total: 0, page: 1, limit, pages: 0 };
+          }
+        }
 
         const inStockLabels = exactBarcodeLabels.filter((l) => String(l[B.status] ?? "").toUpperCase() === "IN_STOCK");
         const bQty = inStockLabels.reduce((sum, l) => sum + (Number(l[B.qty]) || Number(l[B.qtyText]) || 0), 0);
@@ -397,9 +406,17 @@ export class MongoProductRepository implements ProductRepository {
       }).toArray();
 
       if (exactCodeEcomDocs.length > 0) {
-        const filteredEcom = params.category
-          ? exactCodeEcomDocs.filter((p) => new RegExp(`^${escapeRegex(params.category!)}$`, "i").test(p.productType || ""))
-          : exactCodeEcomDocs;
+        let filteredEcom = exactCodeEcomDocs;
+        if (params.category) {
+          filteredEcom = filteredEcom.filter((p) => new RegExp(`^${escapeRegex(params.category!)}$`, "i").test(p.productType || ""));
+        }
+        if (params.filters?.fabric?.length) {
+          filteredEcom = filteredEcom.filter((p) => {
+            if (!p.byFabric) return false;
+            const fabricValues = Array.isArray(p.byFabric) ? p.byFabric : [p.byFabric];
+            return params.filters!.fabric!.some((f) => fabricValues.includes(f));
+          });
+        }
 
         const codeItems: ProductCard[] = [];
         for (const p of filteredEcom) {
@@ -533,6 +550,27 @@ export class MongoProductRepository implements ProductRepository {
 
     if (params.category) {
       ecomFilter.productType = new RegExp(`^${escapeRegex(params.category)}$`, "i");
+    }
+    if (params.filters?.fabric?.length) {
+      ecomFilter.byFabric = { $in: params.filters.fabric };
+    }
+    if (params.filters?.weave?.length) {
+      ecomFilter.byWeave = { $in: params.filters.weave };
+    }
+    if (params.filters?.craft?.length) {
+      ecomFilter.byCraft = { $in: params.filters.craft };
+    }
+    if (params.filters?.occasion?.length) {
+      ecomFilter.byOccasion = { $in: params.filters.occasion };
+    }
+    if (params.filters?.color?.length) {
+      ecomFilter.byColour = { $in: params.filters.color };
+    }
+    if (params.filters?.motif?.length) {
+      ecomFilter.byMotif = { $in: params.filters.motif };
+    }
+    if (params.filters?.border?.length) {
+      ecomFilter.byBorder = { $in: params.filters.border };
     }
     if (params.newArrivals) {
       ecomFilter.$and = [
@@ -1205,7 +1243,14 @@ return this.hydrate(products);
   async list(params: ProductListParams): Promise<Paginated<ProductCard>> {
     if (await this.isErpMode()) {
       if (!params.q?.trim()) {
-        const cacheKey = `erp:list:${params.category ?? "all"}:${params.page ?? 1}:${params.limit ?? 24}:${params.sort ?? "default"}:${params.inStock ? 1 : 0}:${params.priceMin ?? ""}:${params.priceMax ?? ""}`;
+        const fabricKey = params.filters?.fabric?.sort().join(",") ?? "";
+        const weaveKey = params.filters?.weave?.sort().join(",") ?? "";
+        const craftKey = params.filters?.craft?.sort().join(",") ?? "";
+        const occasionKey = params.filters?.occasion?.sort().join(",") ?? "";
+        const colorKey = params.filters?.color?.sort().join(",") ?? "";
+        const motifKey = params.filters?.motif?.sort().join(",") ?? "";
+        const borderKey = params.filters?.border?.sort().join(",") ?? "";
+        const cacheKey = `erp:list:${params.category ?? "all"}:${params.page ?? 1}:${params.limit ?? 24}:${params.sort ?? "default"}:${params.inStock ? 1 : 0}:${params.priceMin ?? ""}:${params.priceMax ?? ""}:${fabricKey}:${weaveKey}:${craftKey}:${occasionKey}:${colorKey}:${motifKey}:${borderKey}`;
         return cached(cacheKey, 60_000, () => this.erpList(params));
       }
       return this.erpList(params);
