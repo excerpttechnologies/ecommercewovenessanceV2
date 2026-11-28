@@ -1263,7 +1263,7 @@ const getStorefrontFilterConfig = cache((group: StorefrontCategoryGroup) =>
     const productTypes = [...new Set(typeDocs
       .map((doc) => typeof doc.value === "string" ? doc.value.trim() : "")
       .filter(Boolean))];
-    let configuredFilters = typeDocs.flatMap(storefrontFilterConfig).slice(0, 5);
+    const configuredFilters = typeDocs.flatMap(storefrontFilterConfig).slice(0, 5);
 
     // Ensure fabric and weave filters are always present for the fabrics group
     if (group === "fabrics" || group === "plain-fabrics") {

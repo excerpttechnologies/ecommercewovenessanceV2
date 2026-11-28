@@ -8,7 +8,7 @@ import {
   ERP_BARCODE_COLLECTIONS,
   PRODUCT_FIELDS as P,
   PRODUCT_FILTER_FIELDS,
-  TRUTHY_VALUES,
+  _TRUTHY_VALUES,
   categoryRefValue,
   mapProduct,
   productSort,

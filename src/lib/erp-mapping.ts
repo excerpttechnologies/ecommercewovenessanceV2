@@ -394,7 +394,7 @@ export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
 const INACTIVE_VALUES = [false, 0, "0", "N", "n", "no", "false", "inactive", "Inactive"];
 export const ACTIVE_PRODUCT_QUERY = { [PRODUCT_FIELDS.isActive]: { $nin: INACTIVE_VALUES } };
 export const ACTIVE_CATEGORY_QUERY = { [CATEGORY_FIELDS.isActive]: { $nin: INACTIVE_VALUES } };
-export const TRUTHY_VALUES = [true, 1, "1", "Y", "y", "yes", "true", "TRUE"];
+export const _TRUTHY_VALUES = [true, 1, "1", "Y", "y", "yes", "true", "TRUE"];
 
 /** UI filter key -> ERP product field (used for $in filters and facets). */
 export const PRODUCT_FILTER_FIELDS: Record<FilterKey, string> = {
